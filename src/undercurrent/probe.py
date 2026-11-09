@@ -13,9 +13,9 @@ from datetime import date
 
 from undercurrent.fetch import PoliteClient, SourceBlockedError, is_block_page
 from undercurrent.sources import (
-    ESPI_LIST_URL,
     espi_detail_url,
     espi_list_form,
+    espi_list_url,
     gpw_archive_url,
     nc_daily_url,
 )
@@ -39,8 +39,10 @@ def _targets(day: date, geru_id: int, attachment_path: str | None) -> list[tuple
     targets = [
         ("robots_gpw", "GET", "https://www.gpw.pl/robots.txt"),
         ("robots_newconnect", "GET", "https://newconnect.pl/robots.txt"),
-        ("espi_list", "POST", ESPI_LIST_URL),
-        ("espi_detail", "GET", espi_detail_url(geru_id)),
+        ("espi_list_gpw", "POST", espi_list_url("gpw")),
+        ("espi_list_nc", "POST", espi_list_url("nc")),
+        ("espi_detail_gpw", "GET", espi_detail_url(geru_id)),
+        ("espi_detail_nc", "GET", espi_detail_url(244788, "nc")),
         ("gpw_shares_xls", "GET", gpw_archive_url(day, instrument_type=10, xls=True)),
         ("gpw_indices_html", "GET", gpw_archive_url(day, instrument_type=1, xls=False)),
         ("newconnect_daily", "GET", nc_daily_url(day)),
@@ -58,7 +60,9 @@ def run_probe(day: date, geru_id: int, attachment_path: str | None = None) -> li
         for name, method, url in _targets(day, geru_id, attachment_path):
             try:
                 if method == "POST":
-                    r = client.post(url, data=espi_list_form(day, limit=5), use_cache=False)
+                    site = "nc" if name.endswith("_nc") else "gpw"
+                    form = espi_list_form(day, limit=5, site=site)
+                    r = client.post(url, data=form, use_cache=False)
                 else:
                     r = client.get(url, use_cache=False)
                 results.append(

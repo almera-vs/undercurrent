@@ -13,6 +13,11 @@ NC_BASE = "https://newconnect.pl"
 
 ESPI_LIST_URL = f"{GPW_BASE}/ajaxindex.php"
 ESPI_DETAIL_URL = f"{GPW_BASE}/komunikat"
+NC_LIST_URL = f"{NC_BASE}/ajaxindex.php"
+
+# ``page`` value of the listing form on each site.
+LIST_PAGE = {"gpw": "komunikaty", "nc": "spolki-komunikaty-spolek"}
+SITE_BASE = {"gpw": GPW_BASE, "nc": NC_BASE}
 
 # GPW quote-archive instrument types (value of the ``type`` select on /archiwum-notowan).
 TYPE_INDICES = 1
@@ -24,12 +29,19 @@ ESPI_REPORT_TYPES: tuple[str, ...] = ("RB", "P", "Q", "O", "R")
 ESPI_CATEGORIES: tuple[str, ...] = ("EBI", "ESPI")
 
 
-def espi_list_form(day: date, *, offset: int = 0, limit: int = 100) -> list[tuple[str, str]]:
+def espi_list_url(site: str) -> str:
+    """Listing endpoint for ``site`` (``gpw`` or ``nc``)."""
+    return f"{SITE_BASE[site]}/ajaxindex.php"
+
+
+def espi_list_form(
+    day: date, *, offset: int = 0, limit: int = 100, site: str = "gpw"
+) -> list[tuple[str, str]]:
     """Form body for the ESPI/EBI listing AJAX POST, filtered to a single day."""
     form: list[tuple[str, str]] = [
         ("action", "GPWEspiReportUnion"),
         ("start", "ajaxSearch"),
-        ("page", "komunikaty"),
+        ("page", LIST_PAGE[site]),
         ("format", "html"),
         ("lang", "PL"),
         ("letter", ""),
@@ -42,9 +54,9 @@ def espi_list_form(day: date, *, offset: int = 0, limit: int = 100) -> list[tupl
     return form
 
 
-def espi_detail_url(geru_id: int) -> str:
-    """Public report page for one ESPI/EBI report."""
-    return f"{ESPI_DETAIL_URL}?geru_id={geru_id}"
+def espi_detail_url(geru_id: int, site: str = "gpw") -> str:
+    """Public report page for one ESPI/EBI report on ``site``."""
+    return f"{SITE_BASE[site]}/komunikat?geru_id={geru_id}"
 
 
 def gpw_archive_url(day: date, *, instrument_type: int, xls: bool) -> str:
