@@ -32,6 +32,8 @@ PRICE_LOOKBACK_SESSIONS = 10
 # Stop waiting for the NewConnect file at this Warsaw local time (SLO is 20:30).
 NC_WAIT_UNTIL_LOCAL = time(20, 5)
 NC_POLL_EVERY_S = 300
+# Time the nightly run may spend, after publishing, on insider forms of older months.
+FORMS_CATCH_UP_S = 20 * 60
 # Backfill yields to the nightly job inside this UTC window on weekdays.
 NIGHTLY_WINDOW_UTC = (time(17, 30), time(19, 30))
 
@@ -104,6 +106,27 @@ def _ingest_report_days(client: PoliteClient, root: Path, days: list[date], res:
         log.info("reports %s: %s", d, json.dumps(st.as_dict(), ensure_ascii=False))
 
 
+def _collect_forms(client: PoliteClient, root: Path, days: list[date]) -> None:
+    """Notification forms for recent insider reports. Never fails the run."""
+    from undercurrent import forms
+
+    try:
+        st = forms.collect_forms(client, root, days)
+        log.info("insider forms: %s", json.dumps(st.as_dict(), ensure_ascii=False))
+    except Exception:
+        log.exception("insider forms collection failed; continuing without")
+
+
+def _catch_up_forms(client: PoliteClient, root: Path, budget_s: float) -> None:
+    from undercurrent import forms
+
+    try:
+        done = forms.catch_up(client, root, budget_s=budget_s)
+        log.info("insider forms catch-up: %d months", len(done))
+    except Exception:
+        log.exception("insider forms catch-up failed; continuing without")
+
+
 def _fill_price_gaps(client: PoliteClient, root: Path, day: date, res: RunResult) -> None:
     for d in ingest.recent_weekdays(day, PRICE_LOOKBACK_SESSIONS):
         try:
@@ -159,6 +182,7 @@ def run_day(
     client: PoliteClient | None = None,
     sleep: Callable[[float], None] = time_mod.sleep,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    forms_catch_up_s: float = FORMS_CATCH_UP_S,
 ) -> int:
     """Run the nightly pipeline for ``day``. Returns a process exit code."""
     res = RunResult(run_date=day, started_at=clock())
@@ -170,6 +194,7 @@ def run_day(
         prev_month = (this_month - timedelta(days=1)).replace(day=1)
         retry = [d for d in ingest.failed_days(data_dir, [prev_month, this_month]) if d not in days]
         _ingest_report_days(client, data_dir, retry + days, res)
+        _collect_forms(client, data_dir, retry + days)
         _fill_price_gaps(client, data_dir, day, res)
         wait_until = None
         if wait_for_nc:
@@ -199,6 +224,8 @@ def run_day(
                 )
         elif not publish:
             log.info("publish disabled")
+        if forms_catch_up_s > 0:
+            _catch_up_forms(client, data_dir, forms_catch_up_s)
         return 0
     except Exception as exc:
         res.status = "failed"

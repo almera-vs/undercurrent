@@ -296,6 +296,8 @@ SILVER_COLUMNS: dict[str, Any] = {
     "insider_venue": pl.String,
     "insider_pct_free_float": pl.Float64,
     "insider_parse_notes": pl.String,
+    "insider_source": pl.String,
+    "insider_form_url": pl.String,
 }
 
 
@@ -317,7 +319,43 @@ def parse_report_row(row: dict[str, Any]) -> dict[str, Any]:
         out |= extract_insider_fields(
             row.get("title") or row.get("subject"), row.get("body_text")
         ).as_row()
+        out["insider_source"] = "text"
     return out
+
+
+def role_of(text: str | None) -> str | None:
+    """Role key for a free-text position, e.g. ``Członek Rady Nadzorczej``."""
+    n = normalize(text)
+    for role, rx in ROLE_RULES:
+        if rx.search(n):
+            return role
+    return None
+
+
+def apply_forms(row: dict[str, Any], form_rows: list[dict[str, Any]], isin: str | None) -> None:
+    """Overlay fields from the notification form on the text-derived insider fields.
+
+    The form is the primary record: where it states a field, it wins. Where it does not
+    (or no form was found), the value parsed from the report text stays.
+    """
+    from undercurrent.forms import forms_from_rows, summarise
+
+    s = summarise(forms_from_rows(form_rows), isin)
+    pairs = {
+        "insider_person": s["form_person"],
+        "insider_role": role_of(s["form_position"]),
+        "insider_side": s["form_side"],
+        "insider_volume": s["form_volume"],
+        "insider_avg_price": s["form_avg_price"],
+        "insider_value": s["form_value"],
+        "insider_trade_date": s["form_trade_date"],
+        "insider_venue": s["form_venue"],
+    }
+    for k, v in pairs.items():
+        if v is not None:
+            row[k] = v
+    row["insider_source"] = f"form:{form_rows[0]['portal']}"
+    row["insider_form_url"] = form_rows[0]["page_url"]
 
 
 def build_silver_reports(root: Path, work: Path) -> pl.DataFrame | None:
@@ -327,6 +365,15 @@ def build_silver_reports(root: Path, work: Path) -> pl.DataFrame | None:
         return None
     bronze = bronze.sort(["report_id", "ingested_at"]).unique("report_id", keep="last")
     rows = [parse_report_row(r) for r in bronze.iter_rows(named=True)]
+    forms_df = lake.read_table(root, "bronze", "insider_forms")
+    if forms_df is not None and forms_df.height:
+        by_report: dict[str, list[dict[str, Any]]] = {}
+        for fr in forms_df.sort("report_id", "pdf_index", "txn_index").iter_rows(named=True):
+            by_report.setdefault(fr["report_id"], []).append(fr)
+        isins = dict(bronze.select("report_id", "isin").iter_rows())
+        for row in rows:
+            if row["signal_type"] == "insider_tx" and row["report_id"] in by_report:
+                apply_forms(row, by_report[row["report_id"]], isins.get(row["report_id"]))
     df = pl.DataFrame(rows, schema=SILVER_COLUMNS).sort("report_id")
     lake.write_frame(df, work / "silver" / "report_fields.parquet")
     log.info(

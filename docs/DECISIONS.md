@@ -29,6 +29,12 @@ it costs. Method details (event study, walk-forward, verdicts) are in
   newconnect.pl, and PAP's espiebi.pap.pl, answer automated clients with a JavaScript
   challenge. Getting past it would mean a headless browser or challenge solving, so these
   endpoints are left alone.
+- **Insider forms come from portal copies.** Parkiet, Bankier and BiznesRadar republish ESPI
+  reports with their own copies of the attachments, served without bot protection and
+  allowed by their robots.txt. Three sources rather than one: each has gaps (Parkiet's copies
+  stop on 2026-10-26; some older Bankier links are dead), and one portal being down must not
+  stop the others. Report pages and PDFs are fetched once and not cached on disk; only the
+  extracted facts are stored.
 
 ## Report identity and storage
 
@@ -74,15 +80,29 @@ it costs. Method details (event study, walk-forward, verdicts) are in
     only Art. 69/69a and Art. 70 pkt 1 are.
   - An Art. 19 basis with no insider wording in the text is classified `other`
     (`basis:mar19:no_text_support`); issuers occasionally file unrelated reports under it.
-- **Insider fields come from the report text.** The MAR Art. 19 notification form itself is a
-  PDF attachment behind bot protection, so person, role, side, volume, price, value, trade
-  date and venue are read from the title and body. Person and role are usually stated; side,
-  volume and price only when the issuer repeats them in the text. A field the text does not
-  state is null, with the reason logged. Nothing is inferred.
+- **Insider fields: the notification form first, the report text second.** For every
+  insider report the nightly run looks for a portal copy (`portals.py`): Parkiet through its
+  monthly sitemaps, Bankier and BiznesRadar through their report listings. A page matches
+  only if it was published within 10 minutes of the exchange's timestamp, names the same
+  issuer (official or short name) and has a similar title; BiznesRadar's report number must
+  also agree. The PDFs on the matched page are parsed as the fixed EU form (`forms.py`):
+  person, position, amendment flag, issuer, LEI, and per transaction the instrument, ISIN,
+  nature, price/volume rows, aggregates, date and venue. Every transaction is stored in
+  `bronze/insider_forms`. The report-level fields use only transactions in the issuer's
+  shares; Polish forms win over English translations, and corrected forms ("zmiana")
+  replace the originals. Where the form is silent, the field parsed from the report text
+  stays. Nothing is inferred.
+- **Retries and history.** A report without a portal copy is retried on later runs for 14
+  days (`state/insider_forms_pending`). After publishing, the nightly run spends up to 20
+  minutes on older months, newest first, recording finished months in
+  `state/insider_forms_months`; the same is available as `undercurrent forms`.
+- **Portal quirk:** Parkiet's sitemap stores the Warsaw publication time as if it were UTC
+  and then renders it in local time (14:27 Warsaw appears as `16:27+02:00`). Its UTC reading
+  is the real Warsaw time.
 - **Sides:** `buy`, `sell`, `mixed`, `pledge`, plus `gift` and `incentive` (incentive-plan
   grants). Only `buy` and `sell` get their own signal key; everything else is
   `insider_tx:unknown`, because gifts and grants are not market trades.
-- **Accuracy harness:** `tests/fixtures/labelled_pdfs/` holds hand-labelled report texts and
+- **Report-text accuracy harness:** `tests/fixtures/labelled_pdfs/` holds hand-labelled report texts and
   `scripts/score_insider.py` scores the extractor. CI fails below 98 % field-level accuracy.
   The current labels were also used to develop the rules, so the number is optimistic; a
   held-out set is needed for an unbiased figure. Person names in fixtures are fictional.
@@ -151,8 +171,8 @@ it costs. Method details (event study, walk-forward, verdicts) are in
 
 ## Known limitations
 
-- Insider trade details (side, volume, price) are missing for most insider reports, because
-  the notification PDF is not retrievable from the exchange.
+- Insider trade details (side, volume, price) are missing for reports that no portal
+  copies; the exchange's own copy of the notification PDF is not retrievable.
 - Size of an insider trade as a share of free float is always missing: there is no free-float
   source.
 - An ESPI cross-check of detected corporate-action factors (split and dividend reports vs

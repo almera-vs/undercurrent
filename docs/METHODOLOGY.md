@@ -13,10 +13,11 @@ Code: `src/undercurrent/study.py` (event studies), `dbt/models/gold/adjusted_pri
   (Art. 69/69a, Art. 70 pkt 1 of the Public Offering Act), `inside_info` (Art. 17 MAR; pre-MAR
   Art. 56 ust. 1 pkt 1) with a keyword sub-type, `periodic`, `other`.
 - Statistics are grouped by **signal key**: `inside_info:<subtype>`, `holder_threshold`,
-  `insider_tx:buy|sell|unknown`. The insider side is only known when the report text states it
-  (the PDF form is an ESPI attachment, bot-protected on both gpw.pl and newconnect.pl), so most
-  insider events fall in `insider_tx:unknown`. Gifts (`gift`) and incentive-plan grants
-  (`incentive`) are recognised but count as `unknown`: they are not market trades.
+  `insider_tx:buy|sell|unknown`. The side comes from the MAR notification form when a portal
+  copy exists (only transactions in the issuer's shares count; a form with both purchases and
+  sales is `mixed`), otherwise from the report text. Pledges, gifts (`gift`), incentive-plan
+  grants (`incentive`) and mixed or unstated sides count as `unknown`: they are not one-way
+  market trades.
 - **`known_at`** is the publication timestamp on the exchange page. It is the earliest moment
   Undercurrent could have known the report.
 - **Day 0** is the first GPW session whose close (17:05 Warsaw) is after `known_at`. A report
@@ -102,9 +103,10 @@ All three are shown on the site. Losers are never hidden.
 
 ## 8. Known limitations
 
-- Insider trade details (side, volume, price, value) are mostly missing because the PDF forms
-  are blocked by bot protection (see DECISIONS). Size as % of free float is always missing:
-  there is no free-float source within the constraints.
+- Insider trade details (side, volume, price, value) depend on a portal copy of the
+  notification form. Parkiet's copies end on 2026-10-26 and the listing portals reach back
+  about three weeks, so reports no portal carries fall back to the report text (see
+  DECISIONS). Size as % of free float is always missing: there is no free-float source.
 - 2026-format EBI reports (NewConnect) keep their body only in PDF attachments. Those PDFs are
   downloadable from `newconnect.pl/ebi/files/…` (unlike ESPI attachments), but they are not
   parsed: EBI current reports feed no signal, so sub-typing falls back to the title.

@@ -25,7 +25,12 @@
       {% endif %}
     </dl>
     {% if e.signal_type == 'insider_tx' %}
+    {% if e.insider_source and e.insider_source.startswith('form:') %}
+    {% set portal = {'parkiet': 'parkiet.com', 'bankier': 'bankier.pl', 'biznesradar': 'biznesradar.pl'}.get(e.insider_source[5:], e.insider_source[5:]) %}
+    <p class="muted small">{{ _('form_note', portal='<a href="%s" rel="noopener">%s</a>'|format(e.insider_form_url|e, portal)|safe)|safe }}</p>
+    {% else %}
     <p class="muted small">{{ _('insider_note') }}</p>
+    {% endif %}
     {% endif %}
     <p class="mono small">{{ _('Published {t} (Warsaw)', t=e.published_at_local.replace('T', ' ')) }}<br>{{ _('Known to Undercurrent {t} (known_at)', t=e.known_at.astimezone(tz).strftime('%Y-%m-%d %H:%M:%S')) }}<br><a href="{{ e.source_url }}" rel="noopener">{{ _('Original report ↗') }}</a></p>
   </section>

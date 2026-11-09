@@ -50,6 +50,16 @@ def _build_parser() -> argparse.ArgumentParser:
     bf.add_argument("--start", type=_parse_date, required=True)
     bf.add_argument("--end", type=_parse_date, required=True)
 
+    fm = sub.add_parser("forms", help="collect insider notification forms from portal copies")
+    fm.add_argument("--start", type=_parse_date, default=None)
+    fm.add_argument("--end", type=_parse_date, default=None)
+    fm.add_argument(
+        "--catch-up-minutes",
+        type=float,
+        default=0.0,
+        help="also scan older months, newest first, for this many minutes",
+    )
+
     ck = sub.add_parser("check-lake", help="fail if the Parquet lake exceeds a size budget")
     ck.add_argument("--max-mb", type=float, default=900.0)
 
@@ -107,6 +117,21 @@ def cmd_backfill(args: argparse.Namespace) -> int:
         log.error("--end %s is before --start %s", args.end, args.start)
         return 2
     return pipeline.backfill(args.start, args.end, data_dir=args.data_dir)
+
+
+def cmd_forms(args: argparse.Namespace) -> int:
+    """Collect forms for ``[start, end]`` and/or catch up on older months."""
+    from undercurrent import forms
+    from undercurrent.fetch import PoliteClient
+
+    with PoliteClient() as client:
+        if args.start and args.end:
+            days = [args.start + timedelta(days=i) for i in range((args.end - args.start).days + 1)]
+            st = forms.collect_forms(client, args.data_dir, days)
+            log.info("insider forms %s..%s: %s", args.start, args.end, st.as_dict())
+        if args.catch_up_minutes > 0:
+            forms.catch_up(client, args.data_dir, budget_s=args.catch_up_minutes * 60)
+    return 0
 
 
 def cmd_transform(args: argparse.Namespace) -> int:
@@ -200,6 +225,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "publish": cmd_publish,
         "alert": cmd_alert,
         "compact": cmd_compact,
+        "forms": cmd_forms,
     }
     return handlers[args.command](args)
 

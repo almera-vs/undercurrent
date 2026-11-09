@@ -138,9 +138,14 @@ PL: dict[str, str] = {
     # event
     "What the report says": "Co mówi raport",
     "insider_note": (
-        "Pola odczytane z treści raportu. Formularz powiadomienia (PDF w załączniku ESPI) jest "
-        "chroniony przed automatycznym pobieraniem, więc nie jest czytany. „—” oznacza, że "
-        "treść raportu tego nie podaje."
+        "Pola odczytane z treści raportu: kopii formularza powiadomienia nie znaleziono w "
+        "serwisach parkiet.com, bankier.pl ani biznesradar.pl. „—” oznacza, że treść raportu "
+        "tego nie podaje."
+    ),
+    "form_note": (
+        "Pola z formularza powiadomienia MAR załączonego do raportu, odczytane z kopii w "
+        "serwisie {portal}. Czego formularz nie podaje, uzupełnia treść raportu. „—” oznacza, "
+        "że nie podaje tego ani formularz, ani raport."
     ),
     "Person": "Osoba",
     "Role": "Funkcja",
@@ -199,9 +204,14 @@ EN_OVERRIDES: dict[str, str] = {
         "look-ahead. Signal types with fewer than 10 events show no statistics."
     ),
     "insider_note": (
-        "Fields parsed from the report text. The notification form (a PDF attached to the "
-        "ESPI report) is protected against automated download, so it is not read. “—” means "
-        "the report text does not state it."
+        "Fields parsed from the report text: no copy of the notification form was found on "
+        "parkiet.com, bankier.pl or biznesradar.pl. “—” means the report text does not "
+        "state it."
+    ),
+    "form_note": (
+        "Fields from the MAR notification form attached to the report, read from the copy on "
+        "{portal}. Where the form is silent, the report text fills in. “—” means neither "
+        "states it."
     ),
     "event_chart_note": (
         "Average excess return vs WIG, from 5 days before to 20 days after the report, with "
@@ -224,7 +234,7 @@ SIGNAL_LABELS: dict[str, dict[str, str]] = {
     "en": {
         "insider_tx:buy": "Insider buy",
         "insider_tx:sell": "Insider sell",
-        "insider_tx:unknown": "Insider transaction (details in PDF)",
+        "insider_tx:unknown": "Insider transaction (other or not stated)",
         "holder_threshold": "Holder threshold crossed",
         "inside_info:profit_warning": "Results estimate / profit warning",
         "inside_info:large_contract": "Large contract",
@@ -242,7 +252,7 @@ SIGNAL_LABELS: dict[str, dict[str, str]] = {
     "pl": {
         "insider_tx:buy": "Zakup przez insidera",
         "insider_tx:sell": "Sprzedaż przez insidera",
-        "insider_tx:unknown": "Transakcja insidera (szczegóły w PDF)",
+        "insider_tx:unknown": "Transakcja insidera (inna lub nieokreślona)",
         "holder_threshold": "Przekroczenie progu akcjonariatu",
         "inside_info:profit_warning": "Szacunek wyników / ostrzeżenie",
         "inside_info:large_contract": "Znacząca umowa",
@@ -315,8 +325,18 @@ SIDE_LABELS: dict[str, dict[str, str]] = {
     },
 }
 VENUE_LABELS: dict[str, dict[str, str]] = {
-    "en": {"off_market": "off market", "block_trade": "block trade"},
-    "pl": {"off_market": "poza rynkiem", "block_trade": "transakcja pakietowa"},
+    "en": {
+        "off_market": "off market",
+        "block_trade": "block trade",
+        "GPW_derivatives": "GPW derivatives",
+        "other": "other",
+    },
+    "pl": {
+        "off_market": "poza rynkiem",
+        "block_trade": "transakcja pakietowa",
+        "GPW_derivatives": "GPW, rynek derywatów",
+        "other": "inne",
+    },
 }
 
 _PL_DAYS = ("poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota", "niedziela")

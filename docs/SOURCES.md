@@ -194,7 +194,7 @@ home page sometimes returns 200. A bot-protected site that sometimes lets a data
 through is not a dependable or clearly permitted source, so we do not use it. Its data is a
 subset of §1–3 anyway, apart from attachments.
 
-## 9. Copies of ESPI attachments on financial portals (candidates, not yet used)
+## 9. Copies of ESPI attachments on financial portals (used for insider forms)
 
 The insider notification forms (§4) are blocked at the exchange, but several financial
 portals republish ESPI reports and host their own copies of the attachments. Checked on
@@ -202,7 +202,7 @@ portals republish ESPI reports and host their own copies of the attachments. Che
 
 | Portal | Report pages | Attachment copies | Discovery | robots.txt | Result |
 |---|---|---|---|---|---|
-| Parkiet (parkiet.com) | `/komunikaty-espi/art{id}-{issuer}-{title}` | `i.gremicdn.pl/file/{hash}/{name}.pdf` | monthly sitemaps `/sitemaps/sitemap.YYYYMM.xml` (≈1,500 ESPI pages per month recently, back to 2015; some months sparse) | allows report pages and sitemaps; disallows search and infinite scroll | ✅ PDF downloaded, text extractable |
+| Parkiet (parkiet.com) | `/komunikaty-espi/art{id}-{issuer}-{title}` | `i.gremicdn.pl/file/{hash}/{name}.pdf` | monthly sitemaps `/sitemaps/sitemap.YYYYMM.xml` (≈1,500 ESPI pages per month, back to 2015; some months sparse; **no ESPI copies after 2026-10-26**) | allows report pages and sitemaps; disallows search and infinite scroll | ✅ PDF downloaded, text extractable |
 | Bankier (bankier.pl) | `/wiadomosc/{ISSUER}-{title}-{id}.html` | `bonnier.pl/static/att/emitent/YYYY-MM/{name}.pdf` | `/gielda/wiadomosci/komunikaty-spolek/{n}` (34 per page) and per company `/gielda/notowania/akcje/{TICKER}/komunikaty` | allows report pages and listings; no robots.txt on bonnier.pl | ✅ PDF downloaded, text extractable (some pre-2024 links return 404) |
 | BiznesRadar (biznesradar.pl) | `/a/{id},{issuer}-{number}-{title}` | `/storage/a/…/{name}.pdf` | `/temat/76,espi-ebi,{n}` | `Allow: /` | ✅ PDF downloaded, text extractable |
 | StockWatch (stockwatch.pl) | | | | `Disallow: /*.pdf` | ⛔ not usable |
@@ -214,6 +214,13 @@ portals republish ESPI reports and host their own copies of the attachments. Che
 - **Terms of use:** all three portals forbid copying or republishing their own materials; none
   addresses automated reading. Only facts are extracted from the issuers' forms; PDFs are
   not stored or republished.
-- **Matching:** each portal page names the issuer and carries the report title and number,
-  which match the exchange listing (§1–2). Using three portals means a report missing from
-  one can still be found on another.
+- **Matching:** a portal page matches a report when it was published within 10 minutes of
+  the exchange timestamp, names the same issuer and has a similar title; BiznesRadar's
+  report number must agree too. Order of preference: Parkiet, Bankier, BiznesRadar.
+- **Coverage check (2026-11-09):** all 30 insider reports of 2026-10-19 … 11-06 were matched
+  on Bankier and BiznesRadar, and the 15 up to 2026-10-26 on Parkiet as well; every one
+  yielded a readable form.
+- **Reach:** the Bankier and BiznesRadar listings are paged back about three weeks; older
+  months rely on Parkiet's sitemaps.
+- **Timestamps:** Parkiet's sitemap renders the Warsaw publication time as if it were UTC
+  (`16:27+02:00` for 14:27 Warsaw); its UTC reading is used.

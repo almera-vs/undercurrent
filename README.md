@@ -33,10 +33,13 @@ flowchart LR
 
 1. **Ingest** (`ingest.py`): the day's report listing from gpw.pl and newconnect.pl, each
    current report's page (legal basis, subject, body, attachment list), the GPW share and
-   index archive, and the NewConnect daily file. Written to `bronze/<table>/date=…/part-N.parquet`.
-   Partitions are never rewritten, and re-runs are idempotent.
+   index archive, and the NewConnect daily file. For insider reports, the attached MAR
+   notification form is read from a portal copy (`portals.py`, `forms.py`). Written to
+   `bronze/<table>/date=…/part-N.parquet`. Partitions are never rewritten, and re-runs are
+   idempotent.
 2. **Parse & classify** (`classify.py`, `parse.py`, `resolve.py`): legal basis → signal type,
-   keyword sub-types, insider fields from the report text, issuer → ISIN.
+   keyword sub-types, insider fields from the notification form (or the report text when no
+   form is found), issuer → ISIN.
 3. **dbt** (`dbt/`): silver reports and prices, adjusted prices from the exchange's own
    reference prices, events aligned to the trading calendar, and data tests, including the
    "no unexplained > 35 % jump" gate.
@@ -62,9 +65,10 @@ out of sample, or that none did.
 
 Limitations that shape the results:
 
-- **Insider trade details are mostly missing.** The MAR Art. 19 notification forms are PDF
-  attachments behind bot protection, which Undercurrent does not get around. Side, volume
-  and price are known only when the issuer restates them in the report text.
+- **Insider trade details depend on portal copies.** The exchange serves the MAR Art. 19
+  notification forms only behind bot protection, which Undercurrent does not get around.
+  The forms are read from copies on parkiet.com, bankier.pl and biznesradar.pl instead; when
+  none has a copy, side, volume and price come from the report text, if it states them.
 - Insider-field accuracy is measured on hand-labelled real reports that were also used to
   develop the rules, so it is optimistic until a held-out set is labelled.
 
@@ -94,8 +98,9 @@ Secrets (GitHub Actions only): `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
 - **Runs entirely in GitHub Actions**, including backfills and tests.
 - **Deterministic rules**: classification and parsing are plain rules, no machine learning.
 - **No secrets in git**: tokens live in GitHub Actions secrets only.
-- **Exchange data first**: reports and prices come from gpw.pl and newconnect.pl. No raw
-  PDFs are stored in git.
+- **Exchange data first**: reports and prices come from gpw.pl and newconnect.pl. Insider
+  notification forms come from copies on three financial portals. PDFs are read in memory;
+  none is stored in git.
 - **Polite scraping**: at most one request per second with jitter, an honest User-Agent,
   conditional requests and caching. Bot-protected endpoints are not bypassed.
 

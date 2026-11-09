@@ -197,10 +197,8 @@ def _fact_line(r: dict[str, Any], lang: str = "en") -> str:
                 s += f" ({short_pln(value, 'pl')} zł)"
             return s + "."
         if what:
-            return f"{what.capitalize()} akcji ({who}); wolumen i cena są tylko w załączonym PDF."
-        return (
-            f"Powiadomienie z art. 19 MAR ({who}); szczegóły transakcji są tylko w załączonym PDF."
-        )
+            return f"{what.capitalize()} akcji ({who}); wolumen i cena nie są podane."
+        return f"Powiadomienie z art. 19 MAR ({who}); szczegóły transakcji nie są podane."
     who = i18n.ROLE_LABELS["en"].get(role, "insider")
     who = who[:1].upper() + who[1:]
     verb = _FACT_SIDE["en"].get(side)
@@ -212,8 +210,8 @@ def _fact_line(r: dict[str, Any], lang: str = "en") -> str:
             s += f" ({short_pln(value)} PLN)"
         return s + "."
     if verb:
-        return f"{who} {verb} shares; volume and price are only in the attached PDF."
-    return f"Art. 19 MAR notification ({who}); trade details are only in the attached PDF."
+        return f"{who} {verb} shares; volume and price are not stated."
+    return f"Art. 19 MAR notification ({who}); trade details are not stated."
 
 
 def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_URL) -> SiteContext:
@@ -227,7 +225,8 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
             "select report_id, site, system, kind, issuer_name, ticker, short_name, isin, title, "
             "subject, legal_basis, signal_type, subtype, insider_person, insider_role, "
             "insider_side, insider_volume, insider_avg_price, insider_value, "
-            "insider_trade_date, insider_venue, insider_parse_notes, published_at_local, "
+            "insider_trade_date, insider_venue, insider_parse_notes, insider_source, "
+            "insider_form_url, published_at_local, "
             "known_at, source_url, report_number from reports"
         ).pl()
     finally:

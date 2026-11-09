@@ -14,7 +14,7 @@ select
     f.signal_type, f.subtype, f.class_rule,
     f.insider_person, f.insider_role, f.insider_side, f.insider_volume,
     f.insider_avg_price, f.insider_value, f.insider_trade_date, f.insider_venue,
-    f.insider_pct_free_float, f.insider_parse_notes,
+    f.insider_pct_free_float, f.insider_parse_notes, f.insider_source, f.insider_form_url,
     i.resolved_isin as isin, i.resolve_method, i.resolve_score, i.market,
     i.short_name, i.ticker
 from latest r
