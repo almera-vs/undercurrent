@@ -52,7 +52,9 @@ PL: dict[str, str] = {
     "Holder thresholds crossed": "Przekroczone progi akcjonariatu",
     "Art. 69 Public Offering Act": "Art. 69 ustawy o ofercie publicznej",
     "Worth a look": "Warte uwagi",
-    "Past 20-day excess return": "Historyczna nadwyżka, 20 sesji od wejścia",
+    "Past excess return, {h} sessions after entry": (
+        "Historyczna nadwyżka w ciągu {h} sesji od wejścia"
+    ),
     "Rose in {p} of {n} cases": "Wzrost w {p} z {n} przypadków",
     "Fell in {p} of {n} cases": "Spadek w {p} z {n} przypadków",
     "{n} past cases (too few for statistics)": (
@@ -98,7 +100,7 @@ PL: dict[str, str] = {
     "Signal": "Sygnał",
     "Legal basis": "Podstawa prawna",
     "Events": "Zdarzenia",
-    "Avg excess [0,+{h}]": "Śr. nadwyżka, {h} sesji od wejścia",
+    "Avg excess [0,+{h}]": "Śr. nadwyżka w ciągu {h} sesji od wejścia",
     "95% CI": "95% przedział",
     "Hit rate": "Odsetek wzrostów",
     "FDR q": "q (FDR)",
@@ -117,8 +119,9 @@ PL: dict[str, str] = {
         "zdarzeniami nie mają statystyk."
     ),
     # pipeline
-    "Unattended runs · GitHub Actions · weekdays 17:47 UTC": (
-        "Przebiegi bez nadzoru · GitHub Actions · dni robocze 17:47 UTC"
+    "Unattended runs · GitHub Actions · weekdays 18:47 Warsaw time (19:47 in summer)": (
+        "Przebiegi bez nadzoru · GitHub Actions · dni robocze 18:47 czasu warszawskiego "
+        "(latem 19:47)"
     ),
     "Pipeline health": "Stan procesu",
     "Freshness SLO: digest sent by 20:30 Warsaw time on every trading day.": (
@@ -134,6 +137,7 @@ PL: dict[str, str] = {
     "Notes": "Uwagi",
     "Failed reports": "Nieudane",
     "No runs recorded yet.": "Brak zapisanych przebiegów.",
+    "{n} earlier run(s) replaced": "zastąpione wcześniejsze przebiegi: {n}",
     "ok": "ok",
     "degraded": "niepełny",
     "failed": "błąd",
@@ -168,18 +172,22 @@ PL: dict[str, str] = {
         "raporcie, z 95% pasmem bootstrap. Dzień 0 to pierwsze zamknięcie po publikacji; "
         "statystyki liczą się dopiero od zamknięcia sesji po podsumowaniu."
     ),
-    "Avg 20-day excess return": "Śr. nadwyżka, 20 sesji od wejścia",
+    "Avg excess, {h} sessions after entry": "Śr. nadwyżka w ciągu {h} sesji od wejścia",
     "FDR-adjusted q": "q po korekcie FDR",
     "Walk-forward, after 0.3% costs": "Walk-forward, po kosztach 0,3%",
     "Worst case in sample": "Najgorszy przypadek w próbie",
     "Closest past events": "Najbliższe wcześniejsze zdarzenia",
     "Date": "Data",
     "Company": "Spółka",
-    "20-day excess": "Nadwyżka 20 dni",
+    "{h}-session excess": "Nadwyżka w ciągu {h} sesji",
     "No past events of this type yet.": "Brak wcześniejszych zdarzeń tego typu.",
     # chart
     "Not enough past events for a chart yet.": "Za mało wcześniejszych zdarzeń na wykres.",
     "report published": "publikacja raportu",
+    "day 0: first close after publication": "dzień 0: pierwsze zamknięcie po publikacji",
+    "entry: close of the session after the digest (usually day +1)": (
+        "wejście: zamknięcie sesji po podsumowaniu (zwykle dzień +1)"
+    ),
     "day 0": "dzień 0",
     "Average excess return path, day -5 to +20": (
         "Ścieżka średniej nadwyżkowej stopy zwrotu, dni od -5 do +20"
@@ -224,9 +232,7 @@ EN_OVERRIDES: dict[str, str] = {
         "at the close of the session after the digest."
     ),
     "d": "d",
-    "Past 20-day excess return": "Past excess return, 20 sessions after entry",
     "Avg excess [0,+{h}]": "Avg excess, {h} sessions after entry",
-    "Avg 20-day excess return": "Avg excess, 20 sessions after entry",
 }
 
 # Polish plural forms: (1, 2–4, 5+), keyed by the English singular.
@@ -290,11 +296,19 @@ BASIS_LABELS: dict[str, dict[str, str]] = {
     },
 }
 VERDICT_LABELS: dict[str, dict[str, str]] = {
-    "en": {"holds_up": "Holds up", "eaten_by_costs": "Eaten by costs", "noise": "Noise"},
+    "en": {
+        "holds_up": "Holds up",
+        "eaten_by_costs": "Eaten by costs",
+        "untested": "Not yet tested",
+        "noise": "Noise",
+        "too_few": "Too few events",
+    },
     "pl": {
         "holds_up": "Działa po kosztach",
         "eaten_by_costs": "Zjadany przez koszty",
+        "untested": "Jeszcze nie przetestowany",
         "noise": "Szum",
+        "too_few": "Za mało zdarzeń",
     },
 }
 ROLE_LABELS: dict[str, dict[str, str]] = {

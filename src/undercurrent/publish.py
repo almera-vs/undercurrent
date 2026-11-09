@@ -31,7 +31,7 @@ WARSAW = ZoneInfo("Europe/Warsaw")
 SITE_DIR = Path(__file__).resolve().parents[2] / "site"
 DEFAULT_SITE_URL = "https://almera-vs.github.io/undercurrent/"
 HORIZON_DEFAULT = 20
-VERDICT_ORDER = {"holds_up": 0, "eaten_by_costs": 1, "noise": 2}
+VERDICT_ORDER = {"holds_up": 0, "eaten_by_costs": 1, "untested": 2, "noise": 3, "too_few": 4}
 VERDICT_LABEL = i18n.VERDICT_LABELS["en"]
 
 
@@ -65,7 +65,7 @@ def car_chart_svg(
     _ = i18n.tr(lang)
     if not path:
         return f'<p class="muted">{_("Not enough past events for a chart yet.")}</p>'
-    pad_l, pad_r, pad_t, pad_b = 56, 24, 20, 36
+    pad_l, pad_r, pad_t, pad_b = 96, 24, 20, 44
     days = [int(p["day"]) for p in path]
     vals = [float(v) for p in path for v in (p["lo"], p["hi"], p["mean_car"])]
     lo_v, hi_v = min([*vals, 0.0]), max([*vals, 0.0])
@@ -105,7 +105,9 @@ def car_chart_svg(
         ),
         f'<line class="zero" x1="{pad_l}" x2="{width - pad_r}" y1="{y(0):.1f}" y2="{y(0):.1f}"/>',
         f'<line class="event" x1="{x(0):.1f}" x2="{x(0):.1f}" y1="{pad_t}" y2="{height - pad_b}"/>',
-        f'<text class="tick" x="{x(0) + 8:.1f}" y="{pad_t + 12}">{_("report published")}</text>',
+        f'<line class="entry" x1="{x(1):.1f}" x2="{x(1):.1f}" y1="{pad_t}" y2="{height - pad_b}"/>'
+        if 1 in days
+        else "",
         f'<polygon class="band band-{end_tone}" points="{band}"/>',
         f'<polyline class="line line-{end_tone}" points="{line}"/>',
         f'<circle class="dot-{end_tone}" cx="{lx:.1f}" cy="{ly:.1f}" r="5"/>',
@@ -144,6 +146,45 @@ class SiteContext:
     site_url: str
     health_bits: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
     steps: list[str] = field(default_factory=list)
+
+
+def headline_horizon(key: str, by_key_h: dict[tuple[str, int], dict[str, Any]]) -> int:
+    """Horizon whose numbers back a signal's verdict, for cards, event pages and the digest.
+
+    For a walk-forward verdict it is the holding period of the latest rule; for a signal
+    that is significant but not yet tested, the horizon with the lowest q; otherwise 20.
+    """
+    from undercurrent.study import HORIZONS
+
+    rows = {h: by_key_h.get((key, h)) for h in HORIZONS}
+    any_row = next((r for r in rows.values() if r), None)
+    if any_row is None:
+        return HORIZON_DEFAULT
+    rule = any_row.get("oos_last_rule")
+    if any_row["verdict"] in ("holds_up", "eaten_by_costs") and rule:
+        h = int(rule.split()[-1].rstrip("d"))
+        if h in rows:
+            return h
+    if any_row["verdict"] == "untested":
+        qs = [(r["q_value"], h) for h, r in rows.items() if r and r["q_value"] is not None]
+        if qs:
+            return min(qs)[1]
+    return HORIZON_DEFAULT
+
+
+def within_slo(run: dict[str, Any]) -> bool:
+    """Digest delivered by 20:30 Warsaw on the run date.
+
+    A failed run, or one that found no GPW session (it sends an alert, not a digest), does
+    not count, whatever time it finished.
+    """
+    fin = run.get("finished_at")
+    if fin is None or run.get("status") == "failed":
+        return False
+    if "no GPW session" in (run.get("notes") or ""):
+        return False
+    local = fin.astimezone(WARSAW)
+    return bool(local.date() == run["run_date"] and local.strftime("%H:%M") <= "20:30")
 
 
 def health_text(bits: list[tuple[str, dict[str, Any]]], lang: str) -> str:
@@ -260,6 +301,7 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
         )
         by_h[h] = rows
     stat20 = {r["signal_key"]: r for r in by_h.get(HORIZON_DEFAULT, [])}
+    by_key_h = {(r["signal_key"], int(r["horizon"])): r for r in stats_rows}
     summary = {
         "tested": len(stat20),
         **{v: sum(1 for r in stat20.values() if r["verdict"] == v) for v in VERDICT_ORDER},
@@ -285,8 +327,10 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
         }
         feed.append(item)
         if r["signal_type"] in ("insider_tx", "holder_threshold", "inside_info"):
-            st = stat20.get(key)
+            h = headline_horizon(key, by_key_h)
+            st = by_key_h.get((key, h))
             item["stat"] = st
+            item["horizon"] = h
             events.append(item)
             if st is not None and st.get("n"):
                 worth.append(item)
@@ -312,7 +356,7 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
             ev_cars.filter(
                 (pl.col("signal_key") == e["signal_key"])
                 & (pl.col("event_date") < e["pub_date"])
-                & pl.col("car_20").is_not_null()
+                & pl.col(f"car_{e['horizon']}").is_not_null()
             )
             .sort("event_date", descending=True)
             .head(6)
@@ -326,13 +370,21 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
         )
         e["past"] = past.to_dicts()
         e["worst"] = (
-            ev_cars.filter(pl.col("signal_key") == e["signal_key"])["car_20"].min()
+            ev_cars.filter(pl.col("signal_key") == e["signal_key"])[f"car_{e['horizon']}"].min()
             if ev_cars.height
             else None
         )
 
     runs_df = lake.read_state(data_dir, "runs")
     runs = runs_df.sort("started_at", descending=True).to_dicts() if runs_df is not None else []
+    # one row per run date: the latest run is the one that counts (reruns replace earlier ones)
+    latest: dict[Any, dict[str, Any]] = {}
+    for r in runs:
+        latest.setdefault(r["run_date"], r)
+    runs_by_day = sorted(latest.values(), key=lambda r: r["run_date"], reverse=True)
+    for r in runs_by_day:
+        r["reruns"] = sum(1 for x in runs if x["run_date"] == r["run_date"]) - 1
+        r["within_slo"] = within_slo(r)
     run = next((r for r in runs if r["run_date"] == day), runs[0] if runs else {})
     failed = 0
     for m in {day.replace(day=1), (day.replace(day=1) - timedelta(days=1)).replace(day=1)}:
@@ -384,7 +436,7 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
         stats=by_h,
         summary=summary,
         events=events,
-        runs=runs[:60],
+        runs=runs_by_day[:60],
         coverage=coverage,
         health=health_text(health_bits, "en"),
         health_bits=health_bits,
@@ -423,6 +475,13 @@ def _env(lang: str = "en") -> Environment:
         "longdate": lambda d: i18n.long_date(d, lang),
         "health": lambda bits: health_text(bits, lang),
         "decimal": lambda x, d=2: "—" if x is None else i18n.group_digits(f"{x:.{d}f}", lang),
+        "qval": lambda q: (
+            "—"
+            if q is None or (isinstance(q, float) and math.isnan(q))
+            else ("< " + i18n.group_digits("0.01", lang))
+            if q < 0.01
+            else i18n.group_digits(f"{q:.2f}", lang)
+        ),
     }
     env.globals |= {
         "tz": WARSAW,
@@ -494,10 +553,13 @@ def digest_message(ctx: SiteContext, max_items: int = 5) -> tuple[str, dict[str,
         verdict = {
             "holds_up": "✓ holds up",
             "eaten_by_costs": "eaten by costs",
+            "untested": "not yet tested",
             "noise": "probably noise",
-        }[st["verdict"]]
+            "too_few": "too few events",
+        }.get(st["verdict"], st["verdict"])
         lines.append(f"<b>{e(item['ticker'])}</b> · {e(item['label'])}: {e(item['fact'][:120])}")
-        lines.append(f"Past: {pct(st['mean_car'])} / 20d · n={st['n']} · {verdict}")
+        h = item.get("horizon", HORIZON_DEFAULT)
+        lines.append(f"Past: {pct(st['mean_car'])} / {h}d after entry · n={st['n']} · {verdict}")
     if not ctx.worth:
         lines.append("No event today has enough history for statistics yet.")
     lines += ["", f"<i>{e(ctx.health)}</i>", "Not investment advice. Historical statistics only."]

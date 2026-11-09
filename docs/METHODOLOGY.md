@@ -55,6 +55,11 @@ Code: `src/undercurrent/study.py` (event studies), `dbt/models/gold/adjusted_pri
   published change to ±0.5 pp.
 - Look-ahead note: back-adjusted *levels* use future factors, so the study uses only daily
   *returns*. A return on day t depends only on information known on day t.
+- **A daily return exists only between consecutive sessions.** When a stock does not trade
+  for a few sessions (common on NewConnect), the move across the gap spans several sessions
+  and is left out rather than booked as one day; the market-model regression and the event
+  windows treat those sessions as missing. The gates still compare the move since the
+  previous close with the exchange's published change.
 
 ## 3. Event study
 
@@ -66,19 +71,27 @@ Code: `src/undercurrent/study.py` (event studies), `dbt/models/gold/adjusted_pri
   (entry, entry+h]. The chart path stays relative to day 0 ([−5,+20]), so the reaction
   before entry is visible there. An event counts for a window only if every day of it is
   known; events whose entry would be more than 5 sessions after day 0 are skipped.
+- **One event per (signal, stock, day 0).** Several reports about the same news, or a report
+  and its correction, count once.
 - **Statistics per (signal key, horizon):** n, mean and median CAR, hit rate (share of
-  CAR > 0), t-statistic and two-sided p-value of the mean, and a 95 % percentile **bootstrap CI
-  resampling events** (2,000 draws). The seed is derived from SHA-256 of
-  `(20261109, signal key, horizon)`, so results are reproducible and independent of row order.
-  Fewer than 10 events: no statistics are shown.
+  CAR > 0), t-statistic and two-sided p-value of the mean, and a 95 % percentile bootstrap CI
+  (2,000 draws). Both treat **each stock as a cluster**: the t-statistic uses a cluster-robust
+  (CR1) standard error with G − 1 degrees of freedom, and the bootstrap resamples whole stocks.
+  Repeated filings on one stock (an insider buying every day for a week) have overlapping
+  windows and are not independent; on a simulated market with bursts of 8 daily filings per
+  stock and no real effect, the plain t-test called 53 % of runs significant at 5 %, the
+  clustered one 7 %. The seed is derived from SHA-256 of `(20261109, signal key, horizon)`, so
+  results are reproducible and independent of row order. Fewer than 10 events or fewer than 5
+  stocks: no statistics are shown.
 - **Multiple testing:** Benjamini–Hochberg q-values across every (signal key, horizon) tested
   that night.
 
 ## 4. Walk-forward test (does it survive trading?)
 
-- Expanding yearly windows. Before each calendar year Y, the rule is chosen **only from events
-  before Y**: direction (long/short) and holding period h ∈ {1, 5, 20, 60}, ranked by the
-  t-statistic of the mean net return. Ranking by raw mean favours the noisiest horizon by
+- Expanding yearly windows. Before each calendar year Y, the rule is chosen **only from trades
+  that had exited before Y began** (a December event's 60-session trade is still open in
+  February, so it cannot inform the rule for that year): direction (long/short) and holding
+  period h ∈ {1, 5, 20, 60}, ranked by the t-statistic of the mean net return. Ranking by raw mean favours the noisiest horizon by
   chance (we saw this happen on synthetic data). If no candidate had a positive past net mean,
   the signal is not traded in Y. At least 30 past events are required.
 - **Trade:** enter at the entry close, exit h sessions later. The return is the abnormal
@@ -95,11 +108,16 @@ Code: `src/undercurrent/study.py` (event studies), `dbt/models/gold/adjusted_pri
 
 | verdict | rule |
 |---|---|
-| `holds_up` | best q across horizons < 0.05 **and** walk-forward mean net return > 0 |
-| `eaten_by_costs` | best q < 0.05, walk-forward not positive after costs |
-| `noise` | everything else |
+| `holds_up` | best q across horizons < 0.05, at least 10 walk-forward trades, mean net return > 0 |
+| `eaten_by_costs` | best q < 0.05, at least 10 walk-forward trades, not positive after costs |
+| `untested` | best q < 0.05 but fewer than 10 walk-forward trades so far |
+| `noise` | statistics exist, no horizon significant |
+| `too_few` | fewer than 10 events (or 5 stocks) at every horizon |
 
-All three are shown on the site. Losers are never hidden.
+All are shown on the site. Losers are never hidden. Cards, event pages and the digest show
+the numbers of the horizon behind the verdict: the holding period of the latest walk-forward
+rule for `holds_up` / `eaten_by_costs`, the most significant horizon for `untested`, and 20
+sessions otherwise.
 
 ## 6. Point-in-time correctness
 

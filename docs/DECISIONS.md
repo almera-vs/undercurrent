@@ -162,6 +162,20 @@ it costs. Method details (event study, walk-forward, verdicts) are in
   (pure noise) and turned the effect into −0.6 % out of sample. Ranking by mean over standard
   error recovers it. Years in which no candidate was net-positive in the past are not traded.
 - Short rules are allowed; METHODOLOGY notes that borrow is rarely available for small caps.
+- **Review fixes (2026-11-09).** A line-by-line review of the statistics found that the
+  formulas themselves are right (Benjamini–Hochberg matches statsmodels on 200 random cases;
+  OLS, t-test and p-values match statsmodels/scipy; bootstrap coverage 95.3 % on iid data)
+  but four things fed them wrongly:
+  1. repeated filings on one stock were treated as independent, which made the t-test call
+     an absent effect significant about half the time; standard errors and the bootstrap are
+     now clustered by stock, and duplicate events are collapsed;
+  2. the walk-forward could pick a rule using trades that had not exited yet; training now
+     uses only trades closed before the year starts;
+  3. a return across a trading gap was booked as a one-day return; it is now left out;
+  4. "eaten by costs" and "noise" were shown when there was simply not enough data; there
+     are now explicit `untested` and `too_few` verdicts.
+  On the site, cards showed the 20-session number next to a verdict that came from another
+  horizon; they now show the verdict's own horizon.
 
 ## Site and digest
 

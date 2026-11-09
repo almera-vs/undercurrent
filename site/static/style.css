@@ -86,7 +86,9 @@ h2 { font-size: 1.15rem; margin: 0 0 0.6rem; }
 .card footer .verdict { margin-left: auto; }
 .v-holds_up { background: var(--good-bg); color: var(--good); }
 .v-eaten_by_costs { background: var(--warn-bg); color: var(--down); }
-.v-noise { background: var(--noise-bg); color: var(--muted); }
+.v-noise, .v-too_few { background: var(--noise-bg); color: var(--muted); }
+.v-untested { background: var(--noise-bg); color: var(--text); }
+.pill-mini { font-size: 0.75rem; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 0 0.4rem; white-space: nowrap; }
 
 .filters { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.8rem; }
 .filters button { font: inherit; font-size: 0.9rem; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 0.35rem 0.75rem; cursor: pointer; }
@@ -117,7 +119,16 @@ td { padding: 0.75rem 0.8rem; border-bottom: 1px solid var(--line); }
 .chart .grid { stroke: var(--line); stroke-width: 1; }
 .chart .zero { stroke: #4b5563; stroke-width: 1.2; }
 .chart .event { stroke: var(--muted); stroke-dasharray: 4 4; }
-.chart .tick { fill: var(--muted); font: 13px var(--mono); }
+.chart .entry { stroke: var(--up); stroke-dasharray: 2 5; stroke-width: 1.5; }
+.chart .tick { fill: var(--muted); font: 15px var(--mono); }
+.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.9rem; margin-top: 0.5rem; }
+.lg { display: inline-block; width: 18px; border-top: 2px dashed var(--muted); vertical-align: middle; }
+.lg-item { display: inline-flex; align-items: center; gap: 0.4rem; }
+.lg { flex: none; }
+.lg-entry { border-top: 2px dotted var(--up); }
+@media (max-width: 640px) {
+  .chart .tick { font-size: 30px; }
+}
 .chart .tick.strong { fill: var(--text); font-weight: 600; }
 .chart .band-up { fill: rgba(108, 182, 255, 0.18); }
 .chart .band-down { fill: rgba(240, 163, 94, 0.18); }

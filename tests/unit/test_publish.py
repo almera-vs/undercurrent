@@ -35,7 +35,7 @@ def test_digest_message_lists_worth_and_disclaimer():
     text, markup = publish.digest_message(_ctx([item] * 7))
     assert text.startswith("<b>GPW digest · Mon 9 Nov</b>")
     assert text.count("KDX") == 5  # at most 5 items
-    assert "+3.1% / 20d · n=146 · ✓ holds up" in text
+    assert "+3.1% / 20d after entry · n=146 · ✓ holds up" in text
     assert "Not investment advice. Historical statistics only." in text
     assert markup["inline_keyboard"][0][0]["url"] == "https://example.test/"
     assert markup["inline_keyboard"][0][1]["url"].endswith("event/gpw-1.html")
@@ -115,7 +115,7 @@ def test_car_chart_svg():
         for d in range(-5, 21)
     ]
     svg = publish.car_chart_svg(path)
-    assert svg.startswith("<svg") and "report published" in svg and "+2.0%" in svg
+    assert svg.startswith("<svg") and 'class="entry"' in svg and "+2.0%" in svg
     assert "Not enough" in publish.car_chart_svg([])
 
 

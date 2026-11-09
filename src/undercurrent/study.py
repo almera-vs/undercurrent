@@ -50,6 +50,11 @@ BOOTSTRAP_DRAWS = 2000
 ROUND_TRIP_COST = 0.003
 MIN_TRAIN_EVENTS = 30
 MIN_EVENTS_FOR_STATS = 10
+# Standard errors and the bootstrap treat each stock as one cluster: repeated notifications
+# on the same stock (daily insider filings, say) are not independent observations.
+MIN_CLUSTERS = 5
+# The walk-forward result counts only with at least this many out-of-sample trades.
+MIN_OOS_TRADES = 10
 SEED = 20261109
 SIGNIFICANCE = 0.05
 WARSAW = ZoneInfo("Europe/Warsaw")
@@ -162,6 +167,7 @@ class EventAR:
     event_date: date
     ar: FloatArray  # index 0 ↔ relative day PATH_WINDOW[0]; extended past max(HORIZONS)
     entry: int = 1  # entry session relative to day 0; -1 if not yet known
+    day0_idx: int = -1  # position of day 0 in the session calendar
 
 
 def _offset_range() -> range:
@@ -232,7 +238,9 @@ def compute_event_ars(inputs: StudyInputs) -> list[EventAR]:
         ar[valid] = ri[p] - (a + b * mkt[p])
         entry = entry_offset(row["known_at"], row["event_date"], cal)
         out.append(
-            EventAR(row["report_id"], row["signal_key"], row["isin"], row["event_date"], ar, entry)
+            EventAR(
+                row["report_id"], row["signal_key"], row["isin"], row["event_date"], ar, entry, e
+            )
         )
     return out
 
@@ -267,6 +275,40 @@ def bootstrap_ci(values: FloatArray, key: str, alpha: float = 0.05) -> tuple[flo
     means = values[draws].mean(axis=1)
     lo, hi = np.quantile(means, [alpha / 2, 1 - alpha / 2])
     return float(lo), float(hi)
+
+
+def bootstrap_ci_clustered(
+    values: FloatArray, groups: list[str], key: str, alpha: float = 0.05
+) -> tuple[float, float]:
+    """Percentile bootstrap CI of the pooled mean, resampling whole clusters (stocks)."""
+    rng = np.random.default_rng(_seed(key))
+    names = sorted(set(groups))
+    sums = np.array([values[[g == n for g in groups]].sum() for n in names])
+    counts = np.array([sum(1 for g in groups if g == n) for n in names], dtype=np.float64)
+    draws = rng.integers(0, len(names), size=(BOOTSTRAP_DRAWS, len(names)))
+    means = sums[draws].sum(axis=1) / counts[draws].sum(axis=1)
+    lo, hi = np.quantile(means, [alpha / 2, 1 - alpha / 2])
+    return float(lo), float(hi)
+
+
+def cluster_t(values: FloatArray, groups: list[str]) -> tuple[float, float, int]:
+    """t-statistic of the mean with cluster-robust (CR1) standard error; (t, p, clusters).
+
+    ``se² = G/(G−1) · Σ_g (Σ_{i∈g} (x_i − x̄))² / n²`` with ``G − 1`` degrees of freedom. With
+    one observation per cluster this equals the usual standard error of the mean.
+    """
+    n = len(values)
+    names = sorted(set(groups))
+    g = len(names)
+    if g < 2:
+        return math.nan, math.nan, g
+    dev = values - values.mean()
+    score = np.array([dev[[x == nm for x in groups]].sum() for nm in names])
+    se = math.sqrt(g / (g - 1) * float((score**2).sum())) / n
+    if se == 0:
+        return math.nan, math.nan, g
+    t = float(values.mean() / se)
+    return t, float(2 * sps.t.sf(abs(t), df=g - 1)), g
 
 
 def benjamini_hochberg(p: FloatArray) -> FloatArray:
@@ -320,10 +362,25 @@ class Rule:
     horizon: int
 
 
-def _trade_returns(evs: list[EventAR], horizon: int) -> tuple[FloatArray, list[date]]:
-    """Abnormal return from the entry close to ``horizon`` sessions later, per event."""
+def exit_index(e: EventAR, horizon: int) -> int:
+    """Calendar position of the exit session of a ``horizon``-session trade, or -1."""
+    if e.day0_idx < 0 or not 0 <= e.entry <= MAX_ENTRY_LAG:
+        return -1
+    return e.day0_idx + e.entry + horizon
+
+
+def _trade_returns(
+    evs: list[EventAR], horizon: int, known_before: int | None = None
+) -> tuple[FloatArray, list[date]]:
+    """Abnormal return from the entry close to ``horizon`` sessions later, per event.
+
+    With ``known_before``, only trades whose exit session lies before that calendar
+    position count, so a rule is never chosen with returns that were still in the future.
+    """
     vals, dates = [], []
     for e in evs:
+        if known_before is not None and not 0 <= exit_index(e, horizon) < known_before:
+            continue
         v = trade_car(e, horizon)
         if math.isfinite(v):
             vals.append(v)
@@ -331,7 +388,7 @@ def _trade_returns(evs: list[EventAR], horizon: int) -> tuple[FloatArray, list[d
     return np.array(vals, dtype=np.float64), dates
 
 
-def choose_rule(train: list[EventAR]) -> Rule | None:
+def choose_rule(train: list[EventAR], known_before: int | None = None) -> Rule | None:
     """Pick the (direction, horizon) with the best t-statistic of net returns on ``train``.
 
     Ranking by raw mean would favour the noisiest (longest) horizon by chance, so we rank by
@@ -340,7 +397,7 @@ def choose_rule(train: list[EventAR]) -> Rule | None:
     """
     best: tuple[float, Rule] | None = None
     for h in HORIZONS:
-        r, _ = _trade_returns(train, h)
+        r, _ = _trade_returns(train, h, known_before)
         if len(r) < MIN_TRAIN_EVENTS:
             continue
         se = float(np.std(r, ddof=1)) / math.sqrt(len(r))
@@ -354,15 +411,22 @@ def choose_rule(train: list[EventAR]) -> Rule | None:
     return best[1] if best else None
 
 
-def walk_forward(evs: list[EventAR]) -> tuple[FloatArray, list[Rule]]:
-    """Expanding yearly walk-forward. Returns out-of-sample net trade returns and rules used."""
+def walk_forward(
+    evs: list[EventAR], calendar: list[date] | None = None
+) -> tuple[FloatArray, list[Rule]]:
+    """Expanding yearly walk-forward. Returns out-of-sample net trade returns and rules used.
+
+    The rule for year Y is chosen from trades that had *exited* before Y began (a December
+    event's 60-session trade is still open in January, so it can't inform January's rule).
+    """
     years = sorted({e.event_date.year for e in evs})
     oos: list[float] = []
     rules: list[Rule] = []
     for y in years:
         train = [e for e in evs if e.event_date.year < y]
         test = [e for e in evs if e.event_date.year == y]
-        rule = choose_rule(train)
+        cutoff = bisect.bisect_left(calendar, date(y, 1, 1)) if calendar is not None else None
+        rule = choose_rule(train, cutoff)
         if rule is None:
             continue
         r, _ = _trade_returns(test, rule.horizon)
@@ -397,7 +461,8 @@ STATS_SCHEMA: dict[str, Any] = {
 def compute_signal_stats(inputs: StudyInputs) -> tuple[pl.DataFrame, pl.DataFrame]:
     """Return (signal_stats, car_paths). Pure function of ``inputs``."""
     assert_point_in_time(inputs)
-    ars = compute_event_ars(inputs)
+    ars = dedupe_events(compute_event_ars(inputs))
+    calendar = inputs.benchmark["trade_date"].to_list()
     by_key: dict[str, list[EventAR]] = {}
     for e in ars:
         by_key.setdefault(e.signal_key, []).append(e)
@@ -407,16 +472,17 @@ def compute_signal_stats(inputs: StudyInputs) -> tuple[pl.DataFrame, pl.DataFram
     wf: dict[str, tuple[FloatArray, list[Rule]]] = {}
     for key in sorted(by_key):
         evs = sorted(by_key[key], key=lambda e: (e.event_date, e.report_id))
-        wf[key] = walk_forward(evs)
+        wf[key] = walk_forward(evs, calendar)
         for h in HORIZONS:
-            cars = np.array([trade_car(e, h) for e in evs])
-            cars = cars[np.isfinite(cars)]
+            pairs = [(trade_car(e, h), e.isin) for e in evs]
+            pairs = [(v, g) for v, g in pairs if math.isfinite(v)]
+            cars = np.array([v for v, _ in pairs], dtype=np.float64)
+            groups = [g for _, g in pairs]
             n = len(cars)
             row: dict[str, Any] = {"as_of": inputs.as_of, "signal_key": key, "horizon": h, "n": n}
-            if n >= MIN_EVENTS_FOR_STATS:
-                sd = float(np.std(cars, ddof=1))
-                t = float(np.mean(cars) / (sd / math.sqrt(n))) if sd > 0 else math.nan
-                lo, hi = bootstrap_ci(cars, f"{key}|{h}")
+            if n >= MIN_EVENTS_FOR_STATS and len(set(groups)) >= MIN_CLUSTERS:
+                t, p_val, _ = cluster_t(cars, groups)
+                lo, hi = bootstrap_ci_clustered(cars, groups, f"{key}|{h}")
                 row |= {
                     "mean_car": float(np.mean(cars)),
                     "median_car": float(np.median(cars)),
@@ -424,9 +490,7 @@ def compute_signal_stats(inputs: StudyInputs) -> tuple[pl.DataFrame, pl.DataFram
                     "ci_lo": lo,
                     "ci_hi": hi,
                     "t_stat": t,
-                    "p_value": float(2 * sps.t.sf(abs(t), df=n - 1))
-                    if math.isfinite(t)
-                    else math.nan,
+                    "p_value": p_val,
                 }
             rows.append(row)
         # average [-5, +20] CAR path with a bootstrap band
@@ -510,18 +574,27 @@ def compute_signal_stats(inputs: StudyInputs) -> tuple[pl.DataFrame, pl.DataFram
         },
     )
     df = df.join(ex, on="signal_key", how="left")
-    best_q = df.group_by("signal_key").agg(pl.col("q_value").min().alias("best_q"))
+    best = df.group_by("signal_key").agg(
+        pl.col("q_value").min().alias("best_q"),
+        pl.col("mean_car").is_not_null().any().alias("has_stats"),
+    )
+    significant = pl.col("best_q") < SIGNIFICANCE
+    tested = pl.col("oos_n").fill_null(0) >= MIN_OOS_TRADES
     df = (
-        df.join(best_q, on="signal_key", how="left")
+        df.join(best, on="signal_key", how="left")
         .with_columns(
-            pl.when((pl.col("best_q") < SIGNIFICANCE) & (pl.col("oos_mean_net") > 0))
+            pl.when(~pl.col("has_stats"))
+            .then(pl.lit("too_few"))
+            .when(significant & ~tested)
+            .then(pl.lit("untested"))
+            .when(significant & (pl.col("oos_mean_net") > 0))
             .then(pl.lit("holds_up"))
-            .when(pl.col("best_q") < SIGNIFICANCE)
+            .when(significant)
             .then(pl.lit("eaten_by_costs"))
             .otherwise(pl.lit("noise"))
             .alias("verdict")
         )
-        .drop("best_q")
+        .drop("best_q", "has_stats")
     )
     df = df.select(list(STATS_SCHEMA)).cast(STATS_SCHEMA).sort(["signal_key", "horizon"])  # type: ignore[arg-type]
     path_df = pl.DataFrame(
@@ -537,6 +610,22 @@ def compute_signal_stats(inputs: StudyInputs) -> tuple[pl.DataFrame, pl.DataFram
         },
     )
     return df, path_df.sort(["signal_key", "day"])
+
+
+def dedupe_events(ars: list[EventAR]) -> list[EventAR]:
+    """One event per (signal, stock, day 0).
+
+    Several reports about the same news (or a report and its correction) would otherwise
+    count the same price move several times.
+    """
+    seen: set[tuple[str, str, date]] = set()
+    out = []
+    for e in sorted(ars, key=lambda e: (e.signal_key, e.isin, e.event_date, e.report_id)):
+        k = (e.signal_key, e.isin, e.event_date)
+        if k not in seen:
+            seen.add(k)
+            out.append(e)
+    return out
 
 
 def event_cars(inputs: StudyInputs) -> pl.DataFrame:

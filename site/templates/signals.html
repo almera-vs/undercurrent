@@ -33,7 +33,7 @@
         <td class="r mono {{ r.mean_car|tone }}">{{ r.mean_car|pct }}</td>
         <td class="r mono muted">{{ r.ci_lo|pct }} … {{ r.ci_hi|pct }}</td>
         <td class="r mono">{{ (r.hit_rate|pct if r.hit_rate is none else ((r.hit_rate * 100)|round|int|string + '%')) }}</td>
-        <td class="r mono">{{ r.q_value|decimal }}</td>
+        <td class="r mono">{{ r.q_value|qval }}</td>
         <td class="r mono">{{ r.oos_mean_net|pct }} <small class="muted">({{ _('{n} trades', n=r.oos_n or 0) }}{{ ', ' + r.oos_last_rule if r.oos_last_rule else '' }})</small></td>
         <td class="r mono">{{ r.deflated_sharpe|decimal }}</td>
         <td><span class="verdict v-{{ r.verdict }}">{{ r.verdict|verdict }}</span></td>

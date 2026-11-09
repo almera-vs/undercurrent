@@ -30,14 +30,14 @@
       </header>
       <p class="fact" lang="{{ 'pl' if e.signal_type != 'insider_tx' else lang }}"><a href="event/{{ e.slug }}.html">{{ e|fact }}</a></p>
       <footer>
-        <span>{{ _('Past 20-day excess return') }} <b class="mono {{ s.mean_car|tone }}">{{ s.mean_car|pct }}</b></span>
+        <span>{{ _('Past excess return, {h} sessions after entry', h=e.horizon) }} <b class="mono {{ s.mean_car|tone }}">{{ s.mean_car|pct }}</b></span>
         {% if s.hit_rate is not none %}
         {% set share = ((s.hit_rate if (s.mean_car or 0) >= 0 else 1 - s.hit_rate) * 100)|round|int %}
         <span>{{ _('Rose in {p} of {n} cases' if (s.mean_car or 0) >= 0 else 'Fell in {p} of {n} cases', p='<b class="mono">%d%%</b>'|format(share)|safe, n=s.n)|safe }}</span>
         {% else %}
         <span>{{ _('{n} past cases (too few for statistics)', n=s.n) }}</span>
         {% endif %}
-        <span>{{ _('FDR q') }} <b class="mono">{{ s.q_value|decimal }}</b></span>
+        <span>{{ _('FDR q') }} <b class="mono">{{ s.q_value|qval }}</b></span>
         <span class="verdict v-{{ s.verdict }}">{{ s.verdict|verdict }}</span>
       </footer>
     </article>

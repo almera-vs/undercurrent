@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ _('Pipeline · Undercurrent') }}{% endblock %}
 {% block main %}
-<section class="hero"><div><p class="eyebrow">{{ _('Unattended runs · GitHub Actions · weekdays 17:47 UTC') }}</p><h1>{{ _('Pipeline health') }}</h1></div>
+<section class="hero"><div><p class="eyebrow">{{ _('Unattended runs · GitHub Actions · weekdays 18:47 Warsaw time (19:47 in summer)') }}</p><h1>{{ _('Pipeline health') }}</h1></div>
 <p class="lede">{{ _('Freshness SLO: digest sent by 20:30 Warsaw time on every trading day.') }} {{ ctx.health_bits|health }}</p></section>
 <section class="panel"><div class="scroll"><table>
   <thead><tr><th>{{ _('Run date') }}</th><th>{{ _('Status') }}</th><th>{{ _('Finished (Warsaw)') }}</th><th class="r">{{ _('Within SLO') }}</th><th class="r">{{ _('New reports') }}</th><th class="r">{{ _('Failed reports') }}</th><th class="r">{{ _('GPW rows') }}</th><th class="r">{{ _('NC rows') }}</th><th>{{ _('Notes') }}</th></tr></thead>
@@ -11,8 +11,8 @@
   <tr><td class="mono">{{ r.run_date }}</td>
   <td><span class="verdict v-{{ 'holds_up' if r.status == 'ok' else ('eaten_by_costs' if r.status == 'degraded' else 'noise') }}">{{ _(r.status) }}</span></td>
   <td class="mono">{{ fin.strftime('%Y-%m-%d %H:%M') if fin else '—' }}</td>
-  <td class="r">{{ '✓' if fin and fin.date() == r.run_date and fin.strftime('%H:%M') <= '20:30' else '✗' }}</td>
-  <td class="r mono">{{ r.reports_new }}</td><td class="r mono">{{ r.reports_failed }}</td><td class="r mono">{{ r.prices_gpw_rows }}</td><td class="r mono">{{ r.prices_nc_rows }}</td><td class="muted small" lang="en">{{ r.notes or '' }}</td></tr>
+  <td class="r">{{ '✓' if r.within_slo else '✗' }}</td>
+  <td class="r mono">{{ r.reports_new }}</td><td class="r mono">{{ r.reports_failed }}</td><td class="r mono">{{ r.prices_gpw_rows }}</td><td class="r mono">{{ r.prices_nc_rows }}</td><td class="muted small" lang="en">{{ r.notes or '' }}{% if r.reruns %} <span class="pill-mini">{{ _('{n} earlier run(s) replaced', n=r.reruns) }}</span>{% endif %}</td></tr>
   {% else %}
   <tr><td colspan="9" class="muted">{{ _('No runs recorded yet.') }}</td></tr>
   {% endfor %}

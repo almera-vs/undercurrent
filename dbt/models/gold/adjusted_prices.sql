@@ -56,22 +56,34 @@ factored as (
 ),
 adj as (
     select
-        *,
-        close * exp(coalesce(sum(ln(factor)) over (
-            partition by isin order by trade_date
+        f.*,
+        s.session_idx,
+        lag(s.session_idx) over (partition by f.isin order by f.trade_date) as prev_session_idx,
+        f.close * exp(coalesce(sum(ln(f.factor)) over (
+            partition by f.isin order by f.trade_date
             rows between 1 following and unbounded following
         ), 0)) as adj_close
-    from factored
+    from factored f
+    left join {{ ref('sessions') }} s using (trade_date)
+),
+ret as (
+    select
+        *,
+        -- A daily return only between consecutive sessions. After a gap (no trades, or a
+        -- missing file) the move spans several sessions and must not be booked as one day.
+        case
+            when session_idx - prev_session_idx = 1
+            then adj_close / lag(adj_close) over (partition by isin order by trade_date) - 1
+        end as adj_ret,
+        adj_close / lag(adj_close) over (partition by isin order by trade_date) - 1
+            as adj_ret_since_prev
+    from adj
 )
 select
     isin, trade_date, market, ticker, short_name, close, prev_close, prev_date, change_pct,
     exch_reference, exch_factor, factor, factor_source, override_action, override_comment,
-    volume, known_at, adj_close,
-    adj_close / lag(adj_close) over (partition by isin order by trade_date) - 1 as adj_ret,
+    volume, known_at, adj_close, adj_ret, adj_ret_since_prev,
     -- the move is the market's own: it agrees with the change the exchange published
     change_pct is not null
-        and abs(
-            (adj_close / lag(adj_close) over (partition by isin order by trade_date) - 1) * 100
-            - change_pct
-        ) < 0.5 as exchange_confirmed
-from adj
+        and abs(adj_ret_since_prev * 100 - change_pct) < 0.5 as exchange_confirmed
+from ret
