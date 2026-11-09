@@ -1,0 +1,34 @@
+name: probe-sources
+
+# Manual reachability check of every official source from a GitHub-hosted runner.
+# Results go to the job summary and docs/SOURCES.md.
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "trading day to probe (YYYY-MM-DD)"
+        default: "2026-11-06"
+      attachment:
+        description: "relative attachment path from a report page"
+        default: "attachment/zal01_Powiadomienie_art_19_MAR_MG.pdf,20261106_083050_0000622750,20261106"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv python install 3.12
+      - run: uv sync --locked --no-dev
+      - name: runner egress IP
+        run: curl -s https://api.github.com/meta >/dev/null; curl -s https://ifconfig.me || true
+      - name: probe
+        run: uv run undercurrent probe --date "${{ inputs.date }}" --attachment "${{ inputs.attachment }}" --json probe.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: probe-results
+          path: probe.json
