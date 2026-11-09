@@ -193,3 +193,27 @@ an Imperva/Incapsula JavaScript challenge (`/_Incapsula_Resource`). From the Git
 home page sometimes returns 200. A bot-protected site that sometimes lets a datacenter IP
 through is not a dependable or clearly permitted source, so we do not use it. Its data is a
 subset of §1–3 anyway, apart from attachments.
+
+## 9. Copies of ESPI attachments on financial portals (candidates, not yet used)
+
+The insider notification forms (§4) are blocked at the exchange, but several financial
+portals republish ESPI reports and host their own copies of the attachments. Checked on
+2026-11-09 with the project's client (one request per second, project User-Agent):
+
+| Portal | Report pages | Attachment copies | Discovery | robots.txt | Result |
+|---|---|---|---|---|---|
+| Parkiet (parkiet.com) | `/komunikaty-espi/art{id}-{issuer}-{title}` | `i.gremicdn.pl/file/{hash}/{name}.pdf` | monthly sitemaps `/sitemaps/sitemap.YYYYMM.xml` (≈1,500 ESPI pages per month recently, back to 2015; some months sparse) | allows report pages and sitemaps; disallows search and infinite scroll | ✅ PDF downloaded, text extractable |
+| Bankier (bankier.pl) | `/wiadomosc/{ISSUER}-{title}-{id}.html` | `bonnier.pl/static/att/emitent/YYYY-MM/{name}.pdf` | `/gielda/wiadomosci/komunikaty-spolek/{n}` (34 per page) and per company `/gielda/notowania/akcje/{TICKER}/komunikaty` | allows report pages and listings; no robots.txt on bonnier.pl | ✅ PDF downloaded, text extractable (some pre-2024 links return 404) |
+| BiznesRadar (biznesradar.pl) | `/a/{id},{issuer}-{number}-{title}` | `/storage/a/…/{name}.pdf` | `/temat/76,espi-ebi,{n}` | `Allow: /` | ✅ PDF downloaded, text extractable |
+| StockWatch (stockwatch.pl) | | | | `Disallow: /*.pdf` | ⛔ not usable |
+| financialreports.eu | | | | | ⛔ HTTP 403 |
+
+- **What the PDFs contain:** the standard MAR Art. 19(1) notification form (name, position,
+  issuer and LEI, then per transaction: instrument, nature, price(s) and volume(s),
+  aggregated volume and price, date, venue). pdfplumber extracts it as text.
+- **Terms of use:** all three portals forbid copying or republishing their own materials; none
+  addresses automated reading. Only facts are extracted from the issuers' forms; PDFs are
+  not stored or republished.
+- **Matching:** each portal page names the issuer and carries the report title and number,
+  which match the exchange listing (§1–2). Using three portals means a report missing from
+  one can still be found on another.
