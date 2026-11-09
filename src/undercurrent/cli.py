@@ -7,7 +7,7 @@ import logging
 import os
 import sys
 from collections.abc import Sequence
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -65,6 +65,14 @@ def _build_parser() -> argparse.ArgumentParser:
     al = sub.add_parser("alert", help="send a Telegram alert (job failure / stale data)")
     al.add_argument("message", nargs="?", default=None)
     al.add_argument("--if-stale", action="store_true", help="only alert if data is stale")
+
+    cp = sub.add_parser("compact", help="merge daily bronze partitions of past months")
+    cp.add_argument(
+        "--keep-months",
+        type=int,
+        default=2,
+        help="leave the current and previous N-1 months as daily partitions",
+    )
 
     pr = sub.add_parser("probe", help="check reachability of every official source")
     pr.add_argument("--date", type=_parse_date, default=date(2026, 11, 6))
@@ -131,6 +139,26 @@ def cmd_alert(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_compact(args: argparse.Namespace) -> int:
+    """Compact every bronze table's months older than ``--keep-months``."""
+    from undercurrent import lake
+
+    today = datetime.now(WARSAW).date().replace(day=1)
+    cutoff = today
+    for _ in range(args.keep_months - 1):
+        cutoff = (cutoff - timedelta(days=1)).replace(day=1)
+    bronze = args.data_dir / "bronze"
+    if not bronze.exists():
+        return 0
+    for table in sorted(p.name for p in bronze.iterdir() if p.is_dir()):
+        months = sorted({d.name[5:12] for d in (bronze / table).glob("date=*")})
+        for m in months:
+            month = date.fromisoformat(f"{m}-01")
+            if month < cutoff:
+                lake.compact_month(args.data_dir, "bronze", table, month)
+    return 0
+
+
 def cmd_check_lake(args: argparse.Namespace) -> int:
     """Size check for the ``data`` branch (keep it well under 1 GB)."""
     from undercurrent.lake import lake_size_bytes
@@ -171,6 +199,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "transform": cmd_transform,
         "publish": cmd_publish,
         "alert": cmd_alert,
+        "compact": cmd_compact,
     }
     return handlers[args.command](args)
 

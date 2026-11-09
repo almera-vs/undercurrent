@@ -651,7 +651,7 @@ def ingest_gpw_prices(
     now = now or datetime.now(UTC)
     out: dict[str, int] = {}
     for table, itype in (("prices_gpw", TYPE_SHARES), ("indices_gpw", TYPE_INDICES)):
-        if lake.partition_parts(root, "bronze", table, day):
+        if lake.partition_exists(root, "bronze", table, day):
             out[table] = 0
             continue
         res = client.get(gpw_archive_url(day, instrument_type=itype, xls=True), max_age_s=3600)
@@ -676,7 +676,7 @@ def ingest_nc_prices(
 ) -> int:
     """Land NewConnect shares for ``day``. Raises :class:`NoSessionError` if not published."""
     now = now or datetime.now(UTC)
-    if lake.partition_parts(root, "bronze", "prices_nc", day):
+    if lake.partition_exists(root, "bronze", "prices_nc", day):
         return 0
     for url, xlsx in nc_daily_candidates(day):
         res = client.get(url, max_age_s=0)

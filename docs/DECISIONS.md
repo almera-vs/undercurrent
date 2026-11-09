@@ -167,3 +167,64 @@ free quota and Pages deploys will fail.
   nightly job via `dbt build`.
 - **Cross-check with ESPI** (split/reverse split/dividend reports vs detected factors) is
   deferred until the backfill provides enough history to make it meaningful.
+
+## Milestone 5 — backfill (2026-11-09) — workflow verified, full run waiting on repo visibility
+
+- `backfill.yml` was verified on a runner for 2026-10-19 … 25
+  ([run 42632612405](https://github.com/almera-vs/undercurrent/actions/runs/42632612405)):
+  7 days, 0 failures, partitions pushed to `data`, 9 min. Re-running is idempotent.
+- At ≈ 9 min per week, 2015-01-01 → today is ≈ 80 runner-hours in ~143 sequential monthly jobs
+  (~4 days wall-clock).
+- **Not started**, because the repo is still private. 80 hours would exhaust the free private
+  quota (2,000 min/month, shared with the owner's other private repos) within the first day.
+  On a public repo standard runners are free and unmetered. Once public:
+  `gh workflow run backfill -f start=2015-01-01 -f end=<yesterday>`.
+- **Monthly compaction** (`compact.yml`) merges daily partitions older than two months into
+  `month=YYYY-MM/part-0.parquet` with a `_partition_date` column, so a single day can still be
+  found. Ingest checks both layouts before fetching, so compaction never causes re-downloads
+  (tested). Late rows that arrive for an already compacted month land as a new daily part
+  next to the month file. Both are read.
+
+## Milestone 6 — event studies (2026-11-09)
+
+- Implemented as specified (see METHODOLOGY.md). Gates: `tests/reproducibility` (identical
+  SHA-256 over two runs) and `tests/replay` (as-of recomputation never sees later rows; an
+  unfiltered input raises `LookAheadError`). Both run in CI.
+- Day 0 = first session whose 17:05 close is after `known_at`.
+- Tested on a seeded synthetic market with a planted +3 % day-1 effect: detected (q < 0.05,
+  CI excludes 0), the null signal is `noise`.
+
+## Milestone 7 — walk-forward (2026-11-09) — implemented, result pending backfill
+
+- **Rule choice by t-statistic, not mean.** On the synthetic market, choosing the horizon with
+  the best past *mean* picked 60-day holds (pure noise) and turned a real +3 % effect into
+  −0.6 % out of sample. Ranking by mean / standard error fixed it. Years where no candidate
+  was net-positive in the past are not traded.
+- Short rules are allowed, and METHODOLOGY flags that borrow is unrealistic for small caps.
+- The README "Honest results" section says there are no results until the backfill runs.
+
+## Milestone 8 — site and Telegram (2026-11-09)
+
+- Static site: Today, Signals (one page per horizon: 1/5/20/60d, default 20d), event detail
+  pages with an inline-SVG CAR chart and bootstrap band, and a Pipeline page (the `runs` table
+  with an SLO column). Dark theme, blue up / orange down, Inter + JetBrains Mono, AA contrast,
+  no horizontal scroll at 375 px (checked).
+- Facts on cards come only from parsed fields or the report title. When insider details are
+  missing the card says so ("trade details are only in the attached PDF") instead of
+  guessing.
+- **Telegram**: the daily run sent the first digest for 2026-11-06
+  ([run 42635875485](https://github.com/almera-vs/undercurrent/actions/runs/42635875485)).
+  Header, counts, up to 5 items, two URL buttons, health line, disclaimer. On job failure an
+  alert is sent instead. On a weekday with no GPW session data the digest is replaced by an
+  alert. `watchdog.yml` alerts if there's no successful run by 20:15 Warsaw.
+- **Keepalive:** the run commits `digests/YYYY/MM/DD.md` to `main` every night. We can't verify
+  within a session whether data-branch commits alone keep schedules alive, so we do both.
+- **GitHub Pages is not live**: it isn't available for private repos on the free plan. The
+  deploy job is `continue-on-error`, so the digest is unaffected. To go live: make the repo
+  public, then Settings → Pages → Source: GitHub Actions.
+
+## Milestone 9 — unattended run (started 2026-11-09)
+
+- The `runs` state table records every run (status, timings, counts, NewConnect pending), and
+  the Pipeline page shows it with a "within SLO" column (finished on the run date by 20:30
+  Warsaw). Counting 30 consecutive trading days starts with the first scheduled run.

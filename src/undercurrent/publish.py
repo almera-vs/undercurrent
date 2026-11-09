@@ -495,6 +495,7 @@ def send_telegram(
         # never echo the URL (it contains the token)
         log.error("Telegram send failed: HTTP %s %s", r.status_code, r.text[:200])
         return False
+    log.info("Telegram message sent (%d chars)", len(text))
     return True
 
 

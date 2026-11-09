@@ -1,0 +1,33 @@
+name: compact
+
+# Once a month: merge daily bronze partitions older than two months into one file per
+# month (fewer files in the data branch tree). Idempotent.
+on:
+  schedule:
+    - cron: "23 4 3 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily
+  cancel-in-progress: false
+
+jobs:
+  compact:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: data
+          path: data
+          fetch-depth: 1
+      - uses: astral-sh/setup-uv@v6
+      - run: uv python install 3.12
+      - run: uv sync --locked --no-dev
+      - run: uv run undercurrent --data-dir data compact --keep-months 2
+      - run: uv run undercurrent --data-dir data check-lake --max-mb 900
+      - run: scripts/commit_data.sh "compact $(date -u +%Y-%m)"

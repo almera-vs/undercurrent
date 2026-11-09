@@ -208,3 +208,31 @@ def test_no_session_detected(tmp_path):
         pytest.raises(NoSessionError),
     ):
         ingest_gpw_prices(c, tmp_path / "lake", date(2026, 11, 8))
+
+
+def test_compaction_keeps_idempotency(tmp_path):
+    calls: list[str] = []
+    root = tmp_path / "lake"
+    with PoliteClient(
+        tmp_path / "cache",
+        min_interval_s=0,
+        max_jitter_s=0,
+        transport=httpx.MockTransport(_fake_site(calls)),
+    ) as c:
+        ingest_reports(c, root, DAY)
+        ingest_gpw_prices(c, root, DAY)
+        before = lake.read_partition(root, "bronze", "reports", DAY)
+        for t in ("reports", "prices_gpw", "indices_gpw"):
+            assert lake.compact_month(root, "bronze", t, DAY) is not None
+        assert not list((root / "bronze" / "reports").glob("date=*"))
+        n = len(calls)
+        s = ingest_reports(c, root, DAY)
+        p = ingest_gpw_prices(c, root, DAY)
+        assert s.written == 0 and p == {"prices_gpw": 0, "indices_gpw": 0}
+        assert len(calls) - n == 2  # only the two listings, no detail or price refetch
+    after = lake.read_partition(root, "bronze", "reports", DAY)
+    assert after is not None and before is not None
+    assert after.sort("report_id").equals(before.sort("report_id"))
+    whole = lake.read_table(root, "bronze", "reports")
+    assert whole is not None and "_partition_date" not in whole.columns
+    assert lake.compact_month(root, "bronze", "reports", DAY) is None  # idempotent
