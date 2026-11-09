@@ -15,6 +15,10 @@ on:
         description: "poll for the NewConnect price file"
         type: boolean
         default: true
+      send:
+        description: "send the Telegram digest"
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -27,8 +31,12 @@ jobs:
   run:
     runs-on: ubuntu-latest
     timeout-minutes: 150
+    env:
+      DATE: ${{ inputs.date || 'today' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/checkout@v4
         with:
           ref: data
@@ -46,19 +54,70 @@ jobs:
           restore-keys: http-
       - name: undercurrent run
         env:
-          DATE: ${{ inputs.date || 'today' }}
           WAIT_NC: ${{ github.event_name == 'schedule' || inputs.wait_nc }}
+          SEND: ${{ github.event_name == 'schedule' || inputs.send }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
         run: |
           flags=""
-          if [ "$WAIT_NC" != "true" ]; then flags="--no-wait-nc"; fi
+          if [ "$WAIT_NC" != "true" ]; then flags="$flags --no-wait-nc"; fi
+          if [ "$SEND" != "true" ]; then
+            unset TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID
+          fi
           uv run undercurrent --data-dir data run --date "$DATE" $flags
       - name: lake size check
         run: uv run undercurrent --data-dir data check-lake --max-mb 900
       - name: commit data
         if: always()
-        run: scripts/commit_data.sh "daily ${{ inputs.date || 'today' }} (run ${{ github.run_id }})"
+        run: scripts/commit_data.sh "daily ${DATE} (run ${{ github.run_id }})"
+      - name: commit digest archive to main (keeps scheduled workflows alive)
+        if: success()
+        run: |
+          git config user.name "undercurrent-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add digests
+          if git diff --cached --quiet; then echo "no digest changes"; exit 0; fi
+          git commit -q -m "digest ${DATE}"
+          for i in 1 2 3; do
+            git pull -q --rebase origin main && git push -q origin HEAD:main && exit 0
+            sleep 5
+          done
+          exit 1
+      - uses: actions/upload-pages-artifact@v3
+        if: success()
+        with:
+          path: _site
       - uses: actions/cache/save@v4
         if: always()
         with:
           path: .cache/http
           key: http-${{ github.run_id }}
+      - name: alert on failure
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          uv run undercurrent --data-dir data alert \
+            "Nightly run for ${DATE} failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            || true
+
+  deploy:
+    needs: run
+    runs-on: ubuntu-latest
+    # GitHub Pages must be enabled (Settings → Pages → Source: GitHub Actions). Free only
+    # for public repos; until then this job fails without affecting the digest.
+    continue-on-error: true
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

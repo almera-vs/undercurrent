@@ -84,8 +84,13 @@ class RunResult:
 
 
 def _record_run(root: Path, result: RunResult) -> None:
+    """Upsert this run's row (keyed by run_date + started_at) into ``state/runs``."""
     new = pl.DataFrame([result.row()], schema=RUNS_SCHEMA)
     old = lake.read_state(root, "runs")
+    if old is not None:
+        old = old.filter(
+            ~((pl.col("run_date") == result.run_date) & (pl.col("started_at") == result.started_at))
+        )
     df = new if old is None else pl.concat([old, new], how="diagonal_relaxed")
     lake.write_state(root, "runs", df.sort("started_at"))
 
@@ -149,6 +154,8 @@ def run_day(
     publish: bool = True,
     wait_for_nc: bool = True,
     run_transform: bool = True,
+    site_dir: Path = Path("_site"),
+    digest_dir: Path = Path("digests"),
     client: PoliteClient | None = None,
     sleep: Callable[[float], None] = time_mod.sleep,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
@@ -175,7 +182,22 @@ def run_day(
             stats_path = study.run_study(transform.duckdb_path(work_dir), work_dir, day)
             snapshot_gold(data_dir, stats_path, day)
         res.status = "ok" if not res.notes else "degraded"
-        if not publish:
+        if publish and run_transform:
+            from undercurrent import publish as pub
+
+            # record the run first so the site and digest show it
+            res.finished_at = clock()
+            _record_run(data_dir, res)
+            no_session = any(n.startswith("no GPW session") for n in res.notes)
+            pub.publish(
+                work_dir, data_dir, day, out=site_dir, digest_dir=digest_dir, send=not no_session
+            )
+            if no_session:
+                pub.send_alert(
+                    f"No GPW session data for {day} (holiday, or the archive is late). "
+                    "No digest tonight."
+                )
+        elif not publish:
             log.info("publish disabled")
         return 0
     except Exception as exc:
@@ -184,7 +206,8 @@ def run_day(
         log.exception("run %s failed", day)
         return 1
     finally:
-        res.finished_at = clock()
+        if res.finished_at is None or res.status == "failed":
+            res.finished_at = clock()
         _record_run(data_dir, res)
         if own_client:
             client.close()

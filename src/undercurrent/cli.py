@@ -57,6 +57,15 @@ def _build_parser() -> argparse.ArgumentParser:
     tr.add_argument("--as-of", default=None, help="point-in-time cut-off (ISO timestamp)")
     tr.add_argument("--no-dbt", action="store_true")
 
+    pb = sub.add_parser("publish", help="render the site and send the Telegram digest")
+    pb.add_argument("--date", type=_parse_date, default=_parse_date("today"))
+    pb.add_argument("--out", type=Path, default=Path("_site"))
+    pb.add_argument("--no-send", action="store_true", help="render only, no Telegram")
+
+    al = sub.add_parser("alert", help="send a Telegram alert (job failure / stale data)")
+    al.add_argument("message", nargs="?", default=None)
+    al.add_argument("--if-stale", action="store_true", help="only alert if data is stale")
+
     pr = sub.add_parser("probe", help="check reachability of every official source")
     pr.add_argument("--date", type=_parse_date, default=date(2026, 11, 6))
     pr.add_argument("--geru-id", type=int, default=500131)
@@ -100,6 +109,28 @@ def cmd_transform(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_publish(args: argparse.Namespace) -> int:
+    """Render site + digest."""
+    from undercurrent import publish
+
+    publish.publish(args.work_dir, args.data_dir, args.date, out=args.out, send=not args.no_send)
+    return 0
+
+
+def cmd_alert(args: argparse.Namespace) -> int:
+    """Send an alert, or check staleness first with ``--if-stale``."""
+    from undercurrent import publish
+
+    msg = args.message
+    if args.if_stale:
+        reason = publish.is_stale(args.data_dir)
+        if reason is None:
+            return 0
+        msg = f"Data is stale: {reason}."
+    publish.send_alert(msg or "The nightly job failed. See the Actions log.")
+    return 0
+
+
 def cmd_check_lake(args: argparse.Namespace) -> int:
     """Size check for the ``data`` branch (keep it well under 1 GB)."""
     from undercurrent.lake import lake_size_bytes
@@ -138,6 +169,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "probe": cmd_probe,
         "check-lake": cmd_check_lake,
         "transform": cmd_transform,
+        "publish": cmd_publish,
+        "alert": cmd_alert,
     }
     return handlers[args.command](args)
 

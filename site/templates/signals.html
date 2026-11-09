@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Signals · Undercurrent{% endblock %}
+{% block main %}
+{% set rows = ctx.stats[horizon] %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">Rebuilt nightly · {{ ctx.coverage.first_event or '—' }} → {{ ctx.day }} · {{ ctx.coverage.events_studied|num }} studied events</p>
+    <h1>Which signals actually hold up</h1>
+  </div>
+  <p class="lede">“Holds up” means FDR-adjusted q below 0.05 and a positive result in the walk-forward test after 0.3% round-trip costs. Everything else is shown, not hidden.</p>
+</section>
+<section class="tiles">
+  <div class="tile"><span>Signal types tested</span><b>{{ ctx.summary.tested }}</b></div>
+  <div class="tile"><span>Hold up after costs</span><b class="v-holds_up-text">{{ ctx.summary.holds_up }}</b></div>
+  <div class="tile"><span>Significant, but eaten by costs</span><b class="down">{{ ctx.summary.eaten_by_costs }}</b></div>
+  <div class="tile"><span>Noise</span><b>{{ ctx.summary.noise }}</b></div>
+</section>
+<section class="panel">
+  <div class="table-head">
+    <h2>Signal library</h2>
+    <nav class="horizons" aria-label="Horizon">Horizon
+      {% for h in ctx.stats %}<a href="signals-{{ h }}d.html" {% if h == horizon %}aria-current="page"{% endif %}>{{ h }}d</a>{% endfor %}
+    </nav>
+  </div>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Signal</th><th>Legal basis</th><th class="r">Events</th><th class="r">Avg excess [0,+{{ horizon }}]</th><th class="r">95% CI</th><th class="r">Hit rate</th><th class="r">FDR q</th><th class="r">Walk-forward after costs</th><th class="r">Deflated SR</th><th>Verdict</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td>{{ r.label }}</td><td class="muted">{{ r.basis }}</td>
+        <td class="r mono">{{ r.n|num }}</td>
+        <td class="r mono {{ r.mean_car|tone }}">{{ r.mean_car|pct }}</td>
+        <td class="r mono muted">{{ r.ci_lo|pct }} … {{ r.ci_hi|pct }}</td>
+        <td class="r mono">{{ (((r.hit_rate or 0) * 100)|round|int|string + '%') if r.hit_rate is not none else '—' }}</td>
+        <td class="r mono">{{ '%.2f'|format(r.q_value) if r.q_value is not none else '—' }}</td>
+        <td class="r mono">{{ r.oos_mean_net|pct }} <small class="muted">({{ r.oos_n or 0 }} trades{{ ', ' + r.oos_last_rule if r.oos_last_rule else '' }})</small></td>
+        <td class="r mono">{{ '%.2f'|format(r.deflated_sharpe) if r.deflated_sharpe is not none else '—' }}</td>
+        <td><span class="verdict v-{{ r.verdict }}">{{ VERDICT_LABEL[r.verdict] }}</span></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="10" class="muted">No statistics yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="muted small">Excess return vs WIG (market model, days −250…−30) on prices adjusted with the exchange's own reference prices (splits, dividends, rights issues). Every event is placed at the moment Undercurrent could have known it (known_at), so there is no look-ahead. Signal types with fewer than 10 events show no statistics.</p>
+</section>
+{% endblock %}

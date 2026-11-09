@@ -21,3 +21,4 @@ dbt/dbt_packages/
 .env
 .work/
 dbt/.user.yml
+_site/

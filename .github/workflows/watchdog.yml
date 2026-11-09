@@ -1,0 +1,39 @@
+name: watchdog
+
+# Freshness SLO guard: if today's nightly run hasn't succeeded by 20:15 Warsaw time, send a
+# Telegram alert. Two crons cover both CET and CEST; the step skips itself unless the
+# Warsaw clock is between 20:15 and 21:00.
+on:
+  schedule:
+    - cron: "20 18 * * 1-5"  # 20:20 CEST (summer)
+    - cron: "20 19 * * 1-5"  # 20:20 CET (winter)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: data
+          path: data
+          fetch-depth: 1
+      - uses: astral-sh/setup-uv@v6
+      - run: uv python install 3.12
+      - run: uv sync --locked --no-dev
+      - name: alert if stale
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MANUAL: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          hm=$(TZ=Europe/Warsaw date +%H%M)
+          if [ "$MANUAL" != "true" ] && { [ "$hm" -lt 2015 ] || [ "$hm" -ge 2100 ]; }; then
+            echo "Warsaw time $hm outside the check window; skipping"; exit 0
+          fi
+          uv run undercurrent --data-dir data alert --if-stale

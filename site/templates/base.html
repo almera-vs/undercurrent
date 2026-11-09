@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Undercurrent{% endblock %}</title>
+<meta name="description" content="Undercurrent — what moves beneath the tape. Nightly GPW + NewConnect event radar. Not investment advice.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ root }}static/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="{{ root }}index.html" aria-label="Undercurrent home">
+    <svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true"><path d="M1 3c3-2 5 2 8 0s5-2 8 0 3 1 4 0M1 8c3-2 5 2 8 0s5-2 8 0 3 1 4 0M1 13c3-2 5 2 8 0s5-2 8 0 3 1 4 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <span>UNDERCURRENT</span>
+  </a>
+  <nav>
+    <a href="{{ root }}index.html" {% if page == 'today' %}aria-current="page"{% endif %}>Today</a>
+    <a href="{{ root }}signals.html" {% if page == 'signals' %}aria-current="page"{% endif %}>Signals</a>
+    <a href="{{ root }}pipeline.html" {% if page == 'pipeline' %}aria-current="page"{% endif %}>Pipeline</a>
+  </nav>
+  {% set st = ctx.run.get('status', 'unknown') %}
+  <span class="pill status-{{ st }}"><i></i>{{ {'ok': 'Fresh', 'degraded': 'Degraded', 'failed': 'Failed'}.get(st, 'Unknown') }} · run {{ ctx.run.finished_at.astimezone(tz).strftime('%H:%M') if ctx.run.get('finished_at') else '—' }}</span>
+</header>
+<main>
+{% block main %}{% endblock %}
+</main>
+<footer>
+  <p>Not investment advice. Historical statistics only. Data: official GPW / NewConnect ESPI-EBI pages and quote archives.
+  Source: <a href="https://github.com/almera-vs/undercurrent">github.com/almera-vs/undercurrent</a>.</p>
+</footer>
+</body>
+</html>

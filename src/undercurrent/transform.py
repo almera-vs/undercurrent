@@ -55,6 +55,10 @@ def run_dbt(
         json.dumps(dbt_vars),
         "--quiet",
     ]
+    if command in ("build", "seed", "run"):
+        # Everything is rebuilt from bronze each run; full refresh also picks up seed
+        # schema changes that an incremental seed load would ignore.
+        args.append("--full-refresh")
     res = dbtRunner().invoke(args)
     if not res.success:
         raise DbtError(f"dbt {command} failed: {res.exception or 'see dbt logs'}")

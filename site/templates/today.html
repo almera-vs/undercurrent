@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Today · Undercurrent{% endblock %}
+{% block main %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">{{ ctx.day.strftime('%A, %d %B %Y') }} · GPW + NewConnect</p>
+    <h1>{{ ctx.worth|length }} event{{ '' if ctx.worth|length == 1 else 's' }} worth a look today</h1>
+  </div>
+  <p class="lede">Ranked by how strongly this kind of event has moved prices in the past, after costs. History so far: {{ ctx.coverage.events_studied|num }} studied events since {{ ctx.coverage.first_event or '—' }}.</p>
+</section>
+
+<section class="tiles">
+  <div class="tile"><span>Reports ingested</span><b>{{ ctx.counts.reports }}</b><small>{{ ctx.counts.espi }} ESPI · {{ ctx.counts.ebi }} EBI</small></div>
+  <div class="tile"><span>Classified</span><b>{{ ctx.counts.classified }}</b><small class="{{ 'warn' if ctx.counts.queued else '' }}">{{ ctx.counts.queued }} queued for retry</small></div>
+  <div class="tile"><span>Insider transactions</span><b>{{ ctx.counts.insider }}</b><small>{{ ctx.counts.insider_buy }} buys · {{ ctx.counts.insider_sell }} sells stated (Art. 19 MAR)</small></div>
+  <div class="tile"><span>Holder thresholds crossed</span><b>{{ ctx.counts.holder }}</b><small>Art. 69 Public Offering Act</small></div>
+</section>
+
+<div class="split">
+  <section>
+    <h2 class="eyebrow">Worth a look</h2>
+    {% for e in ctx.worth %}
+    {% set s = e.stat %}
+    <article class="card">
+      <header>
+        <span class="tick-sym">{{ e.ticker }}</span>
+        <span class="muted">{{ e.issuer_name|title }}</span>
+        <span class="chip chip-{{ e.filter }}">{{ e.label }}</span>
+        <time class="mono muted">{{ e.pub_time }}</time>
+      </header>
+      <p class="fact"><a href="event/{{ e.slug }}.html">{{ e.fact }}</a></p>
+      <footer>
+        <span>Past 20-day excess return <b class="mono {{ s.mean_car|tone }}">{{ s.mean_car|pct }}</b></span>
+        {% if s.hit_rate is not none %}
+        <span>{{ 'Rose' if (s.mean_car or 0) >= 0 else 'Fell' }} in <b class="mono">{{ ((s.hit_rate if (s.mean_car or 0) >= 0 else 1 - s.hit_rate) * 100)|round|int }}%</b> of {{ s.n }} cases</span>
+        {% else %}
+        <span>{{ s.n }} past cases (too few for statistics)</span>
+        {% endif %}
+        <span>FDR q <b class="mono">{{ '%.2f'|format(s.q_value) if s.q_value is not none else '—' }}</b></span>
+        <span class="verdict v-{{ s.verdict }}">{{ VERDICT_LABEL[s.verdict] }}</span>
+      </footer>
+    </article>
+    {% else %}
+    <p class="card muted">No event today has a signal type with enough history for statistics yet.</p>
+    {% endfor %}
+  </section>
+
+  <aside class="panel">
+    <h2 class="eyebrow">All reports today</h2>
+    <div class="filters" role="group" aria-label="Filter reports by type">
+      {% for f, name, n in [('all', 'All', ctx.counts.reports), ('insider', 'Insider', ctx.counts.insider), ('inside', 'Inside info', ctx.counts.inside), ('holdings', 'Holdings', ctx.counts.holder), ('other', 'Other', ctx.counts.other)] %}
+      <button type="button" data-filter="{{ f }}" aria-pressed="{{ 'true' if f == 'all' else 'false' }}">{{ name }} <span class="mono">{{ n }}</span></button>
+      {% endfor %}
+    </div>
+    <ul class="feed">
+      {% for r in ctx.feed %}
+      <li data-type="{{ r.filter }}"><time class="mono muted">{{ r.pub_time }}</time>
+        <span><b class="mono">{{ r.ticker }}</b>
+        {% if r.filter != 'other' %}<a href="event/{{ r.slug }}.html">{{ r.fact }}</a>{% else %}<a href="{{ r.source_url }}" rel="noopener">{{ r.fact }}</a>{% endif %}</span></li>
+      {% else %}
+      <li class="muted">No reports in this window.</li>
+      {% endfor %}
+    </ul>
+  </aside>
+</div>
+
+<section class="panel run">
+  <h2 class="eyebrow">Tonight's run</h2>
+  <ul class="steps mono">
+    <li>✓ Ingest {{ ctx.run.reports_new or 0 }} new reports</li>
+    <li>{{ '✓' if not ctx.run.reports_failed else '!' }} {{ ctx.run.reports_failed or 0 }} failed, queued for retry</li>
+    <li>✓ Prices: GPW {{ ctx.run.prices_gpw_rows or 0 }} rows, NC {{ 'pending' if ctx.run.nc_pending else ((ctx.run.prices_nc_rows or 0)|string + ' rows') }}</li>
+    <li>✓ dbt build + data tests, 0 unexplained jumps</li>
+    <li>✓ Event studies rebuilt</li>
+  </ul>
+  <p class="muted small">{{ ctx.health }}</p>
+</section>
+<script>
+document.querySelectorAll('.filters button').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var f = b.dataset.filter;
+    document.querySelectorAll('.filters button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+    document.querySelectorAll('.feed li[data-type]').forEach(function (li) { li.hidden = f !== 'all' && li.dataset.type !== f; });
+  });
+});
+</script>
+{% endblock %}
