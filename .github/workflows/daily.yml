@@ -34,6 +34,9 @@ jobs:
     env:
       DATE: ${{ inputs.date || 'today' }}
     steps:
+      - name: resolve date
+        run: |
+          if [ "$DATE" = "today" ]; then echo "DATE=$(TZ=Europe/Warsaw date +%F)" >> "$GITHUB_ENV"; fi
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
