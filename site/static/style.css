@@ -41,6 +41,8 @@ a:hover, a:focus-visible { text-decoration: underline; }
 .top nav a { color: var(--muted); padding: 0.45rem 0.9rem; border-radius: 8px; }
 .top nav a[aria-current="page"] { color: var(--text); background: var(--panel-2); font-weight: 600; }
 .pill { font-family: var(--mono); font-size: 0.85rem; padding: 0.3rem 0.8rem; border-radius: 999px; background: var(--good-bg); color: var(--good); display: inline-flex; align-items: center; gap: 0.5rem; }
+.lang { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 0.2rem 0.5rem; }
+.lang:hover { color: var(--text); }
 .pill i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; display: inline-block; }
 .pill.status-degraded { background: var(--warn-bg); color: var(--down); }
 .pill.status-failed, .pill.status-unknown { background: var(--noise-bg); color: var(--muted); }

@@ -1,20 +1,20 @@
 {% extends "base.html" %}
-{% block title %}Pipeline · Undercurrent{% endblock %}
+{% block title %}{{ _('Pipeline · Undercurrent') }}{% endblock %}
 {% block main %}
-<section class="hero"><div><p class="eyebrow">Unattended runs · GitHub Actions · weekdays 17:47 UTC</p><h1>Pipeline health</h1></div>
-<p class="lede">Freshness SLO: digest sent by 20:30 Warsaw time on every trading day. {{ ctx.health }}</p></section>
+<section class="hero"><div><p class="eyebrow">{{ _('Unattended runs · GitHub Actions · weekdays 17:47 UTC') }}</p><h1>{{ _('Pipeline health') }}</h1></div>
+<p class="lede">{{ _('Freshness SLO: digest sent by 20:30 Warsaw time on every trading day.') }} {{ ctx.health_bits|health }}</p></section>
 <section class="panel"><div class="scroll"><table>
-  <thead><tr><th>Run date</th><th>Status</th><th>Finished (Warsaw)</th><th class="r">Within SLO</th><th class="r">New reports</th><th class="r">Failed</th><th class="r">GPW rows</th><th class="r">NC rows</th><th>Notes</th></tr></thead>
+  <thead><tr><th>{{ _('Run date') }}</th><th>{{ _('Status') }}</th><th>{{ _('Finished (Warsaw)') }}</th><th class="r">{{ _('Within SLO') }}</th><th class="r">{{ _('New reports') }}</th><th class="r">{{ _('Failed reports') }}</th><th class="r">{{ _('GPW rows') }}</th><th class="r">{{ _('NC rows') }}</th><th>{{ _('Notes') }}</th></tr></thead>
   <tbody>
   {% for r in ctx.runs %}
   {% set fin = r.finished_at.astimezone(tz) if r.finished_at else none %}
   <tr><td class="mono">{{ r.run_date }}</td>
-  <td><span class="verdict v-{{ 'holds_up' if r.status == 'ok' else ('eaten_by_costs' if r.status == 'degraded' else 'noise') }}">{{ r.status }}</span></td>
+  <td><span class="verdict v-{{ 'holds_up' if r.status == 'ok' else ('eaten_by_costs' if r.status == 'degraded' else 'noise') }}">{{ _(r.status) }}</span></td>
   <td class="mono">{{ fin.strftime('%Y-%m-%d %H:%M') if fin else '—' }}</td>
   <td class="r">{{ '✓' if fin and fin.date() == r.run_date and fin.strftime('%H:%M') <= '20:30' else '✗' }}</td>
-  <td class="r mono">{{ r.reports_new }}</td><td class="r mono">{{ r.reports_failed }}</td><td class="r mono">{{ r.prices_gpw_rows }}</td><td class="r mono">{{ r.prices_nc_rows }}</td><td class="muted small">{{ r.notes or '' }}</td></tr>
+  <td class="r mono">{{ r.reports_new }}</td><td class="r mono">{{ r.reports_failed }}</td><td class="r mono">{{ r.prices_gpw_rows }}</td><td class="r mono">{{ r.prices_nc_rows }}</td><td class="muted small" lang="en">{{ r.notes or '' }}</td></tr>
   {% else %}
-  <tr><td colspan="9" class="muted">No runs recorded yet.</td></tr>
+  <tr><td colspan="9" class="muted">{{ _('No runs recorded yet.') }}</td></tr>
   {% endfor %}
   </tbody></table></div></section>
 {% endblock %}

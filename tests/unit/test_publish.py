@@ -117,3 +117,36 @@ def test_car_chart_svg():
     svg = publish.car_chart_svg(path)
     assert svg.startswith("<svg") and "report published" in svg and "+2.0%" in svg
     assert "Not enough" in publish.car_chart_svg([])
+
+
+def test_polish_formatting_and_plurals() -> None:
+    from undercurrent import i18n
+
+    assert i18n.pct(0.031, "pl") == "+3,1%"
+    assert i18n.num(1234567, "pl") == "1\xa0234\xa0567"
+    assert i18n.num(18.4, "pl") == "18,40"
+    assert i18n.short_pln(772800, "pl") == "773 tys."
+    assert [i18n.plural("pl", n, "event worth a look today").split()[0] for n in (1, 3, 5, 22)] == [
+        "zdarzenie",
+        "zdarzenia",
+        "zdarzeń",
+        "zdarzenia",
+    ]
+    assert i18n.long_date(date(2026, 11, 9), "pl") == "poniedziałek, 9 listopada 2026"
+
+
+def test_fact_line_polish_and_english() -> None:
+    row = {
+        "signal_type": "insider_tx",
+        "insider_role": "CEO",
+        "insider_side": "buy",
+        "insider_volume": 42000.0,
+        "insider_avg_price": 18.4,
+        "insider_value": 772800.0,
+    }
+    assert publish._fact_line(row, "pl") == (
+        "Zakup (prezes zarządu): 42\xa0000 akcji po 18,40 zł (773 tys. zł)."
+    )
+    assert publish._fact_line(row) == "CEO bought 42,000 shares at 18.40 PLN (773k PLN)."
+    gift = {**row, "insider_side": "gift", "insider_volume": None}
+    assert "Darowizna" in publish._fact_line(gift, "pl")

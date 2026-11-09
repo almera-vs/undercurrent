@@ -12,9 +12,10 @@ and a static dashboard, rebuilt every night by GitHub Actions.
 
 ![Design mock-up of the Today page](assets/design/today.png)
 
-*Design mock-up (sample data). The live site is at
-https://almera-vs.github.io/undercurrent/ once GitHub Pages is enabled. Its numbers come from
-the real pipeline and will look different.*
+*Design mock-up (sample data). The live site is at https://almera-vs.github.io/undercurrent/
+in Polish, with an English version at https://almera-vs.github.io/undercurrent/en/. Report
+titles are always shown as published, in Polish. Its numbers come from the real pipeline and
+will look different.*
 
 ## How it works
 
@@ -42,7 +43,8 @@ flowchart LR
 4. **Study** (`study.py`): CARs vs WIG, 95 % bootstrap CIs, Benjamini–Hochberg q-values,
    expanding-window walk-forward with 0.3 % costs, deflated Sharpe, and a verdict per signal.
    Point-in-time and byte-for-byte reproducible.
-5. **Publish** (`publish.py`): Jinja2 site with inline SVG charts, plus a Telegram digest via
+5. **Publish** (`publish.py`, `i18n.py`): Jinja2 site in Polish and English with inline SVG
+   charts, plus a Telegram digest via
    the Bot API.
 6. **Commit**: new partitions to the `data` branch, digest archive to `main`.
 

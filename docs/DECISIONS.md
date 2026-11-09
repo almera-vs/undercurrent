@@ -137,6 +137,18 @@ free quota and Pages deploys will fail.
 - **Number/date parsers** are Hypothesis-tested: round-trips over Polish (`1 234,56`),
   dotted (`1.234.567,89`) and English (`1,234.56`) formats, and ISO / `DD.MM.YYYY` /
   `5 listopada 2026` dates.
+- **Audit of the 30 insider reports in the lake (2026-11-09).** In 5 the text named the person
+  but the parser missed it: a name right after the role with no "Pan/Pani", a "Pan/Pani"
+  list not introduced by "od/przez", a foreign fund without a Polish legal form (`SCA`), and a
+  long Portuguese name. One report was a share gift and one a warrant grant from an incentive
+  plan, both previously counted as buys or left blank. Fixed: new person patterns, sides
+  `gift` and `incentive` (both map to `insider_tx:unknown`, since neither is a market trade),
+  and a generic `pdmr` role when the text only says "osoba pełniąca obowiązki zarządcze".
+  Regression tests use fictional names. All remaining blanks in those 30 reports are
+  genuinely absent from the text.
+- **Attachments, re-checked:** ESPI attachments are bot-protected on newconnect.pl as well as
+  gpw.pl, so the insider forms stay out of reach. NewConnect EBI files under `/ebi/files/` are
+  downloadable but not parsed (no EBI report feeds a signal). See SOURCES.md §4.
 
 ## Milestone 4 — prices (2026-11-09)
 

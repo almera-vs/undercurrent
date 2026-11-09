@@ -218,7 +218,7 @@ def _extract_gpwdata(wrap: LexborNode, page: ReportPage) -> None:
             body_parts.append(t)
     page.body_text = "\n".join(body_parts) or None
     if page.body_text is None:
-        page.notes.append("body only in attachment (PDF), not retrievable")
+        page.notes.append("body only in PDF attachments (downloadable, not parsed)")
     for a in wrap.css("a.file"):
         href = a.attributes.get("href") or ""
         page.attachments.append({"name": _clean(a.text()) or "", "href": href})

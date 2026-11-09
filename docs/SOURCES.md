@@ -126,6 +126,11 @@ row 1; confirmed from the runner in the same probe run, along with a NewConnect 
   ID is: …`) plus an obfuscated JavaScript challenge, never the PDF. Reproduced on four
   different attachments, from the residential IP and from the GitHub runner, with and without
   the session cookie and Referer of the report page.
+- **newconnect.pl:** ESPI attachments there use the same `attachment/…` path and are blocked
+  the same way (checked 2026-11-09 on an Art. 19 notification). NewConnect **EBI** reports in
+  the 2026 format link their files under `/ebi/files/gpwdata/…` instead, and those download
+  normally (HTTP 200, `application/pdf`). Their `main.xhtml` holds only the header and
+  signatures; the report text itself is in the PDFs, which we don't parse (see METHODOLOGY).
 - **Decision:** this is bot protection aimed at automated clients. Per C6 we do
   **not** work around it (no headless browser, no JS-challenge solving, no browser UA
   spoofing). See `DECISIONS.md` → "Blocker: PDF attachments".

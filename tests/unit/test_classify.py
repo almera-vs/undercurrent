@@ -172,3 +172,45 @@ def test_insider_person_company_tj_and_pledge():
     assert g.person == "Stefana Kruka" and g.role == "supervisory_board"
     h = extract_insider_fields(None, "ustanowienia przez Pana Jerzego Malinowskiego zastawu")
     assert h.side == "pledge"
+
+
+@pytest.mark.parametrize(
+    ("body", "person"),
+    [
+        (
+            "o transakcji nabycia akcji Spółki przez członka Rady Nadzorczej Spółki "
+            "Tadeusza Nowaka. Treść powiadomienia stanowi załącznik.",
+            "Tadeusza Nowaka",
+        ),
+        (
+            "Spółka otrzymała od Prezesa Zarządu Spółki, Pana Adama Lisa, oraz Członków "
+            "Zarządu powiadomienia",
+            "Adama Lisa",
+        ),
+        (
+            "otrzymało zawiadomienie od Example Capital Funds SCA. Example Capital Funds SCA "
+            "jest osobą blisko związaną z członkiem Rady Nadzorczej",
+            "Example Capital Funds SCA",
+        ),
+        (
+            "informuje o otrzymaniu w dniu 22 października 2026 r. od Joao Pedro Da Silva "
+            "Santosa powiadomienia o transakcjach na akcjach Spółki",
+            "Joao Pedro Da Silva Santosa",
+        ),
+    ],
+)
+def test_insider_person_without_pan_after_od(body: str, person: str) -> None:
+    assert extract_insider_fields(None, body).person == person
+
+
+def test_insider_gift_incentive_and_generic_pdmr() -> None:
+    gift = extract_insider_fields(None, "polegała na darowiźnie akcji Spółki do fundacji")
+    assert gift.side == "gift"
+    grant = extract_insider_fields(
+        None, "transakcji objęcia warrantów subskrypcyjnych w ramach Programu Motywacyjnego"
+    )
+    assert grant.side == "incentive"
+    pdmr = extract_insider_fields(
+        "Powiadomienie o transakcjach dokonanych przez osobę pełniącą obowiązki zarządcze", ""
+    )
+    assert pdmr.role == "pdmr"

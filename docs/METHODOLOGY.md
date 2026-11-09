@@ -14,7 +14,9 @@ Code: `src/undercurrent/study.py` (event studies), `dbt/models/gold/adjusted_pri
   Art. 56 ust. 1 pkt 1) with a keyword sub-type, `periodic`, `other`.
 - Statistics are grouped by **signal key**: `inside_info:<subtype>`, `holder_threshold`,
   `insider_tx:buy|sell|unknown`. The insider side is only known when the report text states it
-  (the PDF form is not retrievable), so most insider events fall in `insider_tx:unknown`.
+  (the PDF form is an ESPI attachment, bot-protected on both gpw.pl and newconnect.pl), so most
+  insider events fall in `insider_tx:unknown`. Gifts (`gift`) and incentive-plan grants
+  (`incentive`) are recognised but count as `unknown`: they are not market trades.
 - **`known_at`** is the publication timestamp on the exchange page. It is the earliest moment
   Undercurrent could have known the report.
 - **Day 0** is the first GPW session whose close (17:05 Warsaw) is after `known_at`. A report
@@ -103,7 +105,9 @@ All three are shown on the site. Losers are never hidden.
 - Insider trade details (side, volume, price, value) are mostly missing because the PDF forms
   are blocked by bot protection (see DECISIONS). Size as % of free float is always missing:
   there is no free-float source within the constraints.
-- 2026-format EBI reports keep their body only in a PDF, so sub-typing falls back to the title.
+- 2026-format EBI reports (NewConnect) keep their body only in PDF attachments. Those PDFs are
+  downloadable from `newconnect.pl/ebi/files/…` (unlike ESPI attachments), but they are not
+  parsed: EBI current reports feed no signal, so sub-typing falls back to the title.
 - Dividends under 0.2 % yield are ignored by the factor tolerance.
 - Survivorship: the price universe is built from archive files, which include delisted
   companies for the days they traded, so there is no survivorship filter. Events of companies

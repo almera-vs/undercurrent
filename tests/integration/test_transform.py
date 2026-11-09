@@ -36,6 +36,7 @@ def test_run_day_with_transform_builds_gold(tmp_path):
     assert n_events > 0
     assert sigs["insider_tx"] > 0
     assert (tmp_path / "site" / "index.html").exists()
+    assert (tmp_path / "site" / "en" / "index.html").exists()
     assert (tmp_path / "site" / "signals-20d.html").exists()
     assert (
         (tmp_path / "digests" / "2026" / "11" / "06.md")

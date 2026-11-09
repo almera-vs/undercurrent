@@ -24,7 +24,7 @@ import httpx
 import polars as pl
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from undercurrent import lake
+from undercurrent import i18n, lake
 
 log = logging.getLogger(__name__)
 WARSAW = ZoneInfo("Europe/Warsaw")
@@ -32,71 +32,20 @@ SITE_DIR = Path(__file__).resolve().parents[2] / "site"
 DEFAULT_SITE_URL = "https://almera-vs.github.io/undercurrent/"
 HORIZON_DEFAULT = 20
 VERDICT_ORDER = {"holds_up": 0, "eaten_by_costs": 1, "noise": 2}
-VERDICT_LABEL = {"holds_up": "Holds up", "eaten_by_costs": "Eaten by costs", "noise": "Noise"}
-
-SIGNAL_LABELS = {
-    "insider_tx:buy": "Insider buy",
-    "insider_tx:sell": "Insider sell",
-    "insider_tx:unknown": "Insider transaction (details in PDF)",
-    "holder_threshold": "Holder threshold crossed",
-    "inside_info:profit_warning": "Results estimate / profit warning",
-    "inside_info:large_contract": "Large contract",
-    "inside_info:buyback": "Buyback",
-    "inside_info:dividend_change": "Dividend decision",
-    "inside_info:m_and_a": "M&A / tender offer",
-    "inside_info:financing": "Financing (bonds, loans, issues)",
-    "inside_info:strategy": "Strategy",
-    "inside_info:litigation": "Litigation",
-    "inside_info:rating": "Rating",
-    "inside_info:other": "Other inside information",
-}
-BASIS_LABELS = {
-    "insider_tx": "Art. 19 MAR",
-    "holder_threshold": "Art. 69 POA",
-    "inside_info": "Art. 17 MAR",
-}
-ROLE_LABELS = {
-    "CEO": "CEO",
-    "CFO": "CFO",
-    "board": "board",
-    "supervisory_board": "supervisory board",
-    "closely_associated": "closely associated",
-}
+VERDICT_LABEL = i18n.VERDICT_LABELS["en"]
 
 
-def label_for(key: str) -> str:
-    """Human label for a signal key."""
-    return SIGNAL_LABELS.get(key, key.replace("_", " ").replace(":", " · "))
+def label_for(key: str, lang: str = "en") -> str:
+    """Human label for a signal key (or a bare ``other`` / ``periodic`` type)."""
+    labels = i18n.SIGNAL_LABELS[lang]
+    return labels.get(key, key.replace("_", " ").replace(":", " · "))
 
 
 # --------------------------------------------------------------------------- formatting
-
-
-def pct(x: float | None, digits: int = 1, sign: bool = True) -> str:
-    """``0.031`` → ``+3.1%``; ``None`` → ``—``."""
-    if x is None or (isinstance(x, float) and math.isnan(x)):
-        return "—"
-    return f"{x * 100:{'+' if sign else ''}.{digits}f}%"
-
-
-def num(x: float | None) -> str:
-    """Thousands with thin grouping, or ``—``."""
-    if x is None or (isinstance(x, float) and math.isnan(x)):
-        return "—"
-    if abs(x) >= 100 or float(x).is_integer():
-        return f"{x:,.0f}"
-    return f"{x:,.2f}"
-
-
-def short_pln(x: float | None) -> str:
-    """``772800`` → ``773k``."""
-    if x is None:
-        return "—"
-    if abs(x) >= 1e6:
-        return f"{x / 1e6:.1f}m"
-    if abs(x) >= 1e3:
-        return f"{x / 1e3:.0f}k"
-    return f"{x:.0f}"
+# English defaults; the site binds the language through the Jinja filters.
+pct = i18n.pct
+num = i18n.num
+short_pln = i18n.short_pln
 
 
 def tone(x: float | None) -> str:
@@ -109,10 +58,13 @@ def tone(x: float | None) -> str:
 # --------------------------------------------------------------------------- SVG chart
 
 
-def car_chart_svg(path: list[dict[str, Any]], width: int = 900, height: int = 380) -> str:
+def car_chart_svg(
+    path: list[dict[str, Any]], width: int = 900, height: int = 380, lang: str = "en"
+) -> str:
     """Average CAR path [-5, +20] with bootstrap band as inline SVG."""
+    _ = i18n.tr(lang)
     if not path:
-        return '<p class="muted">Not enough past events for a chart yet.</p>'
+        return f'<p class="muted">{_("Not enough past events for a chart yet.")}</p>'
     pad_l, pad_r, pad_t, pad_b = 56, 24, 20, 36
     days = [int(p["day"]) for p in path]
     vals = [float(v) for p in path for v in (p["lo"], p["hi"], p["mean_car"])]
@@ -143,25 +95,25 @@ def car_chart_svg(path: list[dict[str, Any]], width: int = 900, height: int = 38
     end_tone = "up" if last["mean_car"] >= 0 else "down"
     parts = [
         f'<svg class="chart" viewBox="0 0 {width} {height}" role="img" '
-        f'aria-label="Average excess return path, day -5 to +20">',
+        f'aria-label="{_("Average excess return path, day -5 to +20")}">',
         *(
             f'<line class="grid" x1="{pad_l}" x2="{width - pad_r}" '
             f'y1="{y(v):.1f}" y2="{y(v):.1f}"/>'
             f'<text class="tick" x="{pad_l - 8}" y="{y(v) + 4:.1f}" text-anchor="end">'
-            f"{v * 100:+.1f}%</text>"
+            f"{pct(v, lang)}</text>"
             for v in ticks
         ),
         f'<line class="zero" x1="{pad_l}" x2="{width - pad_r}" y1="{y(0):.1f}" y2="{y(0):.1f}"/>',
         f'<line class="event" x1="{x(0):.1f}" x2="{x(0):.1f}" y1="{pad_t}" y2="{height - pad_b}"/>',
-        f'<text class="tick" x="{x(0) + 8:.1f}" y="{pad_t + 12}">report published</text>',
+        f'<text class="tick" x="{x(0) + 8:.1f}" y="{pad_t + 12}">{_("report published")}</text>',
         f'<polygon class="band band-{end_tone}" points="{band}"/>',
         f'<polyline class="line line-{end_tone}" points="{line}"/>',
         f'<circle class="dot-{end_tone}" cx="{lx:.1f}" cy="{ly:.1f}" r="5"/>',
         f'<text class="tick strong" x="{lx - 8:.1f}" y="{ly - 12:.1f}" text-anchor="end">'
-        f"{pct(last['mean_car'])}</text>",
+        f"{pct(last['mean_car'], lang)}</text>",
         *(
             f'<text class="tick" x="{x(d):.1f}" y="{height - 10}" text-anchor="middle">'
-            f"{'day 0' if d == 0 else f'{d:+d}'}</text>"
+            f"{_('day 0') if d == 0 else f'{d:+d}'}</text>"
             for d in (-5, 0, 5, 10, 15, 20)
             if d in days
         ),
@@ -190,7 +142,19 @@ class SiteContext:
     coverage: dict[str, Any]
     health: str
     site_url: str
+    health_bits: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
     steps: list[str] = field(default_factory=list)
+
+
+def health_text(bits: list[tuple[str, dict[str, Any]]], lang: str) -> str:
+    """One-line run health summary, e.g. ``Run ok · history since 2015-03-02``."""
+    _ = i18n.tr(lang)
+    out = []
+    for tmpl, kw in bits:
+        kw = {k: (_(v) if isinstance(v, str) and k == "s" else v) for k, v in kw.items()}
+        out.append(_(tmpl, **kw))
+    text = " · ".join(out)
+    return text[:1].upper() + text[1:]
 
 
 def _report_days(day: date) -> list[date]:
@@ -201,24 +165,55 @@ def _report_days(day: date) -> list[date]:
     return [prev + timedelta(days=i) for i in range(1, (day - prev).days + 1)]
 
 
-def _fact_line(r: dict[str, Any]) -> str:
+_FACT_SIDE = {
+    "en": {
+        "buy": "bought",
+        "sell": "sold",
+        "pledge": "pledged",
+        "mixed": "traded",
+        "gift": "gave away",
+        "incentive": "was granted",
+    },
+}
+
+
+def _fact_line(r: dict[str, Any], lang: str = "en") -> str:
     """One line of fact for a card / digest, built only from parsed fields or the title."""
-    if r["signal_type"] == "insider_tx":
-        who = ROLE_LABELS.get(r.get("insider_role") or "", "Insider")
-        side = {"buy": "bought", "sell": "sold", "pledge": "pledged", "mixed": "traded"}.get(
-            r.get("insider_side") or ""
-        )
-        if side and r.get("insider_volume"):
-            s = f"{who} {side} {num(r['insider_volume'])} shares"
-            if r.get("insider_avg_price"):
-                s += f" at {r['insider_avg_price']:.2f} PLN"
-            if r.get("insider_value"):
-                s += f" ({short_pln(r['insider_value'])} PLN)"
+    if r["signal_type"] != "insider_tx":
+        return r.get("title") or r.get("subject") or "(no title)"
+    role = r.get("insider_role") or ""
+    side = r.get("insider_side") or ""
+    vol = r.get("insider_volume")
+    price = r.get("insider_avg_price")
+    value = r.get("insider_value")
+    if lang == "pl":
+        who = i18n.ROLE_LABELS["pl"].get(role, "insider")
+        what = i18n.SIDE_LABELS["pl"].get(side)
+        if what and vol:
+            s = f"{what.capitalize()} ({who}): {num(vol, 'pl')} akcji"
+            if price:
+                s += f" po {num(price, 'pl')} zł"
+            if value:
+                s += f" ({short_pln(value, 'pl')} zł)"
             return s + "."
-        if side:
-            return f"{who} {side} shares; volume and price are only in the attached PDF."
-        return f"Art. 19 MAR notification ({who}); trade details are only in the attached PDF."
-    return r.get("title") or r.get("subject") or "(no title)"
+        if what:
+            return f"{what.capitalize()} akcji ({who}); wolumen i cena są tylko w załączonym PDF."
+        return (
+            f"Powiadomienie z art. 19 MAR ({who}); szczegóły transakcji są tylko w załączonym PDF."
+        )
+    who = i18n.ROLE_LABELS["en"].get(role, "insider")
+    who = who[:1].upper() + who[1:]
+    verb = _FACT_SIDE["en"].get(side)
+    if verb and vol:
+        s = f"{who} {verb} {num(vol)} shares"
+        if price:
+            s += f" at {price:.2f} PLN"
+        if value:
+            s += f" ({short_pln(value)} PLN)"
+        return s + "."
+    if verb:
+        return f"{who} {verb} shares; volume and price are only in the attached PDF."
+    return f"Art. 19 MAR notification ({who}); trade details are only in the attached PDF."
 
 
 def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_URL) -> SiteContext:
@@ -254,7 +249,7 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
     by_h: dict[int, list[dict[str, Any]]] = {h: [] for h in HORIZONS}
     for r in stats_rows:
         r["label"] = label_for(r["signal_key"])
-        r["basis"] = BASIS_LABELS.get(r["signal_key"].split(":")[0], "")
+        r["basis"] = i18n.BASIS_LABELS["en"].get(r["signal_key"].split(":")[0], "")
         by_h[int(r["horizon"])].append(r)
     for h, rows in by_h.items():
         rows.sort(
@@ -274,12 +269,12 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
     feed, worth, events = [], [], []
     for r in today.iter_rows(named=True):
         key = signal_key(r["signal_type"], r["subtype"], r["insider_side"])
+        label_key = key if r["signal_type"] not in ("other", "periodic") else r["signal_type"]
         item = {
             **r,
             "signal_key": key,
-            "label": label_for(key)
-            if r["signal_type"] not in ("other", "periodic")
-            else r["signal_type"].capitalize(),
+            "label_key": label_key,
+            "label": label_for(label_key),
             "fact": _fact_line(r),
             "ticker": r["ticker"] or r["short_name"] or "—",
             "filter": {
@@ -311,6 +306,7 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
     # detail pages: path chart + closest past events of the same signal
     for e in events:
         p = paths_df.filter(pl.col("signal_key") == e["signal_key"]).sort("day").to_dicts()
+        e["path"] = p
         e["chart"] = car_chart_svg(p)
         e["path_n"] = p[0]["n"] if p else 0
         past = (
@@ -371,14 +367,14 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
         "other": today.filter(pl.col("signal_type").is_in(["other", "periodic"])).height,
     }
     status = run.get("status", "unknown")
-    health_bits = [f"Run {status}"]
+    health_bits: list[tuple[str, dict[str, Any]]] = [("Run {s}", {"s": status})]
     if run.get("nc_pending"):
-        health_bits.append("NewConnect prices pending")
+        health_bits.append(("NewConnect prices pending", {}))
     if stuck:
-        health_bits.append(f"{stuck} reports failed 5+ times")
+        health_bits.append(("{n} reports failed 5+ times", {"n": stuck}))
     if failed and not stuck:
-        health_bits.append(f"{failed} queued for retry")
-    health_bits.append(f"history since {coverage['first_event'] or '—'}")
+        health_bits.append(("{n} queued for retry", {"n": failed}))
+    health_bits.append(("history since {d}", {"d": coverage["first_event"] or "—"}))
     return SiteContext(
         day=day,
         generated_at=datetime.now(UTC),
@@ -391,7 +387,8 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
         events=events,
         runs=runs[:60],
         coverage=coverage,
-        health=" · ".join(health_bits),
+        health=health_text(health_bits, "en"),
+        health_bits=health_bits,
         site_url=site_url,
     )
 
@@ -399,39 +396,84 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
 # --------------------------------------------------------------------------- site
 
 
-def _env() -> Environment:
+def _env(lang: str = "en") -> Environment:
     env = Environment(
         loader=FileSystemLoader(SITE_DIR / "templates"),
         autoescape=select_autoescape(["html"]),
         trim_blocks=True,
         lstrip_blocks=True,
     )
-    env.filters |= {"pct": pct, "num": num, "short_pln": short_pln, "tone": tone}
-    env.globals |= {"VERDICT_LABEL": VERDICT_LABEL, "tz": WARSAW}
+    _ = i18n.tr(lang)
+
+    def lookup(table: dict[str, dict[str, str]]) -> Any:
+        return lambda k: table[lang].get(k or "", k or "—") if k else "—"
+
+    env.filters |= {
+        "pct": lambda x: pct(x, lang),
+        "num": lambda x: num(x, lang),
+        "short_pln": lambda x: short_pln(x, lang),
+        "tone": tone,
+        "label": lambda k: label_for(k, lang),
+        "basis": lambda k: i18n.BASIS_LABELS[lang].get((k or "").split(":")[0], ""),
+        "verdict": lookup(i18n.VERDICT_LABELS),
+        "role": lookup(i18n.ROLE_LABELS),
+        "side": lookup(i18n.SIDE_LABELS),
+        "venue": lambda k: i18n.VENUE_LABELS[lang].get(k, k) if k else "",
+        "fact": lambda r: _fact_line(r, lang),
+        "chart": lambda p: car_chart_svg(p, lang=lang),
+        "longdate": lambda d: i18n.long_date(d, lang),
+        "health": lambda bits: health_text(bits, lang),
+        "decimal": lambda x, d=2: "—" if x is None else i18n.group_digits(f"{x:.{d}f}", lang),
+    }
+    env.globals |= {
+        "tz": WARSAW,
+        "_": _,
+        "lang": lang,
+        "plural": lambda n, key: i18n.plural(lang, n, key),
+    }
     return env
 
 
-def render_site(ctx: SiteContext, out: Path) -> list[Path]:
-    """Write the static site into ``out``. Returns the files written."""
-    if out.exists():
-        shutil.rmtree(out)
-    (out / "event").mkdir(parents=True)
-    shutil.copytree(SITE_DIR / "static", out / "static")
-    env = _env()
+def _render_lang(ctx: SiteContext, out: Path, lang: str) -> list[Path]:
+    """Render every page of one language. Polish lives at the root, others in ``<lang>/``."""
+    default = lang == i18n.DEFAULT_LANG
+    base = out if default else out / lang
+    (base / "event").mkdir(parents=True, exist_ok=True)
+    env = _env(lang)
+    up = "" if default else "../"  # from a top-level page of this language to the site root
     written: list[Path] = []
 
-    def write(name: str, template: str, **kw: Any) -> None:
-        p = out / name
-        p.write_text(env.get_template(template).render(ctx=ctx, **kw), encoding="utf-8")
-        written.append(p)
+    def write(name: str, template: str, depth: int = 0, **kw: Any) -> None:
+        to_lang_root = "../" * depth
+        to_site_root = to_lang_root + up
+        other = f"{to_site_root}en/{name}" if default else f"{to_site_root}{name}"
+        text = env.get_template(template).render(
+            ctx=ctx,
+            root=to_lang_root,
+            assets=to_site_root,
+            other_lang_url=other,
+            other_lang="en" if default else i18n.DEFAULT_LANG,
+            **kw,
+        )
+        (base / name).write_text(text, encoding="utf-8")
+        written.append(base / name)
 
-    write("index.html", "today.html", page="today", root="")
+    write("index.html", "today.html", page="today")
     for h in ctx.stats:
-        write(f"signals-{h}d.html", "signals.html", page="signals", root="", horizon=h)
-    shutil.copy(out / f"signals-{HORIZON_DEFAULT}d.html", out / "signals.html")
-    write("pipeline.html", "pipeline.html", page="pipeline", root="")
+        write(f"signals-{h}d.html", "signals.html", page="signals", horizon=h)
+    shutil.copy(base / f"signals-{HORIZON_DEFAULT}d.html", base / "signals.html")
+    write("pipeline.html", "pipeline.html", page="pipeline")
     for e in ctx.events:
-        write(f"event/{e['slug']}.html", "event.html", page="event", root="../", e=e)
+        write(f"event/{e['slug']}.html", "event.html", depth=1, page="event", e=e)
+    return written
+
+
+def render_site(ctx: SiteContext, out: Path) -> list[Path]:
+    """Write the static site into ``out``: Polish at the root, English under ``en/``."""
+    if out.exists():
+        shutil.rmtree(out)
+    shutil.copytree(SITE_DIR / "static", out / "static")
+    written = [p for lang in i18n.LANGS for p in _render_lang(ctx, out, lang)]
     (out / ".nojekyll").write_text("", encoding="utf-8")
     return written
 

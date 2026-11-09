@@ -135,22 +135,44 @@ ROLE_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("CFO", re.compile(r"dyrektor\w* finansow|\bcfo\b|czlon\w* zarzadu ds\.? finans")),
     ("supervisory_board", re.compile(r"rad\w* nadzorcz")),
     ("board", re.compile(r"wiceprezes\w*|czlon\w* zarzadu|zarzadu|prokurent")),
+    # Last resort: the text says "a PDMR" without naming the function.
+    ("pdmr", re.compile(r"pelni\w* obowiazk\w* zarzadcz")),
 )
+_UP = "A-ZŁŚŻŹĆŃÓĘĄ"
+_LO = "a-ząćęłńóśźżäöüéèáíúçãõ"
 _PERSON = re.compile(
-    r"\b(?i:od|przez)\s+(?i:pana|pani|panem|panią|pania)\s+"
-    r"(?P<name>[A-ZŁŚŻŹĆŃÓĘĄ][\wąćęłńóśźż-]+(?:\s+[A-ZŁŚŻŹĆŃÓĘĄ][\wąćęłńóśźż-]+){1,2})"
+    r"(?<![\w-])(?i:pana|pani|panem|panią|pania)\s+"
+    rf"(?P<name>[{_UP}][\w{_LO}-]+(?:\s+[{_UP}][\w{_LO}-]+){{1,2}})"
 )
 _PERSON_COMPANY = re.compile(
     r"\b(?i:od|przez)\s+(?:(?i:spolki|spółki|podmiotu)\s+)?"
-    r"(?P<name>[A-ZŁŚŻŹĆŃÓĘĄ0-9][^,;()\n]{0,60}?"
-    r"\s(?:S\.A\.|SA|[Ss]p\. z o\.o\.|S\.K\.A\.|AG|N\.V\.|Ltd\.?|Limited|SE|ASI S\.A\.))"
+    rf"(?P<name>[{_UP}0-9][^,;()\n]{{0,60}}?"
+    r"\s(?:S\.A\.|SA|[Ss]p\. z o\.o\.|S\.K\.A\.|AG|N\.V\.|B\.V\.|Ltd\.?|Limited|SE|"
+    r"ASI S\.A\.|SCA|S\.C\.A\.|GmbH|LLC|Inc\.|plc|PLC))"
     r"(?=[\s,;.)]|$)"
 )
 _PERSON_TJ = re.compile(
     r"\b(?i:tj\.|to jest)\s+(?!Pan|Pani)"
-    r"(?P<name>[A-ZŁŚŻŹĆŃÓĘĄ][a-ząćęłńóśźż-]+\s+[A-ZŁŚŻŹĆŃÓĘĄ][a-ząćęłńóśźż-]+)\b"
+    rf"(?P<name>[{_UP}][{_LO}-]+\s+[{_UP}][{_LO}-]+)\b"
 )
+# "członka Rady Nadzorczej Spółki Konrada Miterskiego" (a name right after the role).
+_PERSON_ROLE = re.compile(
+    r"(?i:członk\w*|czlonk\w*|prezes\w*|wiceprezes\w*|przewodnicząc\w*|przewodniczac\w*)\s+"
+    r"(?i:rady nadzorczej|zarządu|zarzadu)(?:\s+(?i:spółki|spolki|emitenta|banku))?,?\s+"
+    r"(?!Pan|Pani|Spółk|Spolk|Emitent)"
+    rf"(?P<name>[{_UP}][{_LO}-]+\s+[{_UP}][{_LO}-]+)(?=[\s,.;)]|$)"
+)
+# Foreign names after "od", ended by the notice itself:
+# "od Annibala Jose Da Cunha Saraiva Soaresa powiadomienia".
+_PERSON_OD = re.compile(
+    r"\b(?i:od)\s+(?!Pan|Pani|Spółk|Spolk|Emitent|Prezes|Członk|Czlonk|Przewodnicz|Zarz|Rad[ay])"
+    rf"(?P<name>[{_UP}][\w{_LO}-]+(?:\s+(?:[{_UP}][\w{_LO}-]+|da|de|do|dos|du|di|van|von|der|la|le)){{1,6}})"
+    r"\s+(?=(?i:powiadomie|zawiadomie|informacj))"
+)
+_PERSON_RULES = (_PERSON_COMPANY, _PERSON, _PERSON_TJ, _PERSON_ROLE, _PERSON_OD)
 _PLEDGE = re.compile(r"\bzastaw\w*")
+_GIFT = re.compile(r"\bdarowizn\w*")
+_INCENTIVE = re.compile(r"\bwarrant\w*|program\w* motywacyjn\w*|opcj\w* menedzersk\w*")
 _BUY = re.compile(r"\b(nabyci\w*|nabyl\w*|zakup\w*|kupn\w*|objeci\w* akcji|subskrypc\w*)")
 _SELL = re.compile(r"\b(zbyci\w*|zbyl\w*|sprzedaz\w*|sprzedal\w*)")
 # Up to three words may sit between the count and "akcji" ("1.000.000 nowo emitowanych akcji").
@@ -214,7 +236,7 @@ def extract_insider_fields(title: str | None, body: str | None) -> InsiderFields
     if not body:
         f.notes.append("no body text")
     # The notifier is the earliest person/entity introduced by "od"/"przez"/"tj.".
-    hits = [m for rx in (_PERSON_COMPANY, _PERSON, _PERSON_TJ) if (m := rx.search(raw))]
+    hits = [m for rx in _PERSON_RULES if (m := rx.search(raw))]
     m = min(hits, key=lambda h: h.start()) if hits else None
     if m:
         f.person = m.group("name").strip()
@@ -228,6 +250,11 @@ def extract_insider_fields(title: str | None, body: str | None) -> InsiderFields
         f.notes.append("role not stated")
     buy, sell = bool(_BUY.search(norm)), bool(_SELL.search(norm))
     f.side = "mixed" if buy and sell else "buy" if buy else "sell" if sell else None
+    # Gifts and incentive-plan grants are not market trades, whatever verbs appear.
+    if _GIFT.search(norm):
+        f.side = "gift"
+    elif _INCENTIVE.search(norm):
+        f.side = "incentive"
     if f.side is None and _PLEDGE.search(norm):
         f.side = "pledge"
     if f.side is None:
