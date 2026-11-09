@@ -87,12 +87,10 @@ free quota and Pages deploys will fail.
 
 ## Milestone 2 — ingest (2026-11-09)
 
-- **Green on a GitHub runner.** Run
-  [42629599476](https://github.com/almera-vs/undercurrent/actions/runs/42629599476) landed 295
+- **Green on a GitHub runner.** The first daily run (2026-11-09) landed 295
   reports (2026-11-03 … 06, 0 failed, 0 blocked) and 10 sessions of GPW shares, WIG and NC
   prices. Its commit step failed (missing exec bit on `scripts/commit_data.sh`, fixed). The
-  re-run [42630917651](https://github.com/almera-vs/undercurrent/actions/runs/42630917651)
-  pushed the partitions to `data` in 36 s thanks to the HTTP cache.
+  re-run pushed the partitions to `data` in 36 s thanks to the HTTP cache.
 - **Partition key = publication date (Warsaw) for reports, session date for prices.** A
   report published after the nightly run lands in the next `part-N` of its own date's
   partition on the following run. Existing files are never rewritten. Re-runs that find
@@ -171,8 +169,7 @@ free quota and Pages deploys will fail.
 ## Milestone 5 — backfill (2026-11-09) — workflow verified, full run waiting on repo visibility
 
 - `backfill.yml` was verified on a runner for 2026-10-19 … 25
-  ([run 42632612405](https://github.com/almera-vs/undercurrent/actions/runs/42632612405)):
-  7 days, 0 failures, partitions pushed to `data`, 9 min. Re-running is idempotent.
+  on 2026-11-09: 7 days, 0 failures, partitions pushed to `data`, 9 min. Re-running is idempotent.
 - At ≈ 9 min per week, 2015-01-01 → today is ≈ 80 runner-hours in ~143 sequential monthly jobs
   (~4 days wall-clock).
 - **Not started**, because the repo is still private. 80 hours would exhaust the free private
@@ -213,7 +210,7 @@ free quota and Pages deploys will fail.
   missing the card says so ("trade details are only in the attached PDF") instead of
   guessing.
 - **Telegram**: the daily run sent the first digest for 2026-11-06
-  ([run 42635875485](https://github.com/almera-vs/undercurrent/actions/runs/42635875485)).
+  (run on 2026-11-09).
   Header, counts, up to 5 items, two URL buttons, health line, disclaimer. On job failure an
   alert is sent instead. On a weekday with no GPW session data the digest is replaced by an
   alert. `watchdog.yml` alerts if there's no successful run by 20:15 Warsaw.

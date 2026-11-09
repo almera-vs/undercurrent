@@ -3,10 +3,10 @@
 Every endpoint Undercurrent touches. All were verified on **2026-11-09** from two vantage
 points:
 
-- a residential IP in Poland (developer PC), and
+- a residential connection in Poland, and
 - a GitHub-hosted `ubuntu-latest` runner (egress 20.55.8.72, Azure), via the
   [`probe-sources`](../.github/workflows/probe.yml) workflow, run
-  [42626622683](https://github.com/almera-vs/undercurrent/actions/runs/42626622683).
+  [42651323684](https://github.com/almera-vs/undercurrent/actions/runs/42651323684).
 
 Re-run the probe whenever a source misbehaves: `gh workflow run probe-sources`.
 
@@ -32,7 +32,7 @@ requests where the server sends validators, on-disk cache in `.cache/http`.
 | 8 | espiebi.pap.pl | alternative ESPI/EBI mirror | **Incapsula challenge** | 200 | ⛔ not used |
 
 ¹ The NewConnect listing uses the same `ajaxindex.php` handler on the same infrastructure as
-row 1; confirmed from the runner in probe run [42627237165](https://github.com/almera-vs/undercurrent/actions/runs/42627237165), along with a NewConnect report page.
+row 1; confirmed from the runner in the same probe run, along with a NewConnect report page.
 
 ---
 
