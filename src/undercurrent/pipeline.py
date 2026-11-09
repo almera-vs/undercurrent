@@ -34,6 +34,9 @@ NC_WAIT_UNTIL_LOCAL = time(20, 5)
 NC_POLL_EVERY_S = 300
 # Time the nightly run may spend, after publishing, on insider forms of older months.
 FORMS_CATCH_UP_S = 20 * 60
+# Calendar days of insider reports checked for forms every night (how far the listing
+# portals reach). Reports that already have forms cost no requests.
+FORMS_WINDOW_DAYS = 21
 # Backfill yields to the nightly job inside this UTC window on weekdays.
 NIGHTLY_WINDOW_UTC = (time(17, 30), time(19, 30))
 
@@ -121,7 +124,7 @@ def _catch_up_forms(client: PoliteClient, root: Path, budget_s: float) -> None:
     from undercurrent import forms
 
     try:
-        done = forms.catch_up(client, root, budget_s=budget_s)
+        done = forms.catch_up(client, root, budget_s=budget_s, skip_recent_days=FORMS_WINDOW_DAYS)
         log.info("insider forms catch-up: %d months", len(done))
     except Exception:
         log.exception("insider forms catch-up failed; continuing without")
@@ -194,7 +197,8 @@ def run_day(
         prev_month = (this_month - timedelta(days=1)).replace(day=1)
         retry = [d for d in ingest.failed_days(data_dir, [prev_month, this_month]) if d not in days]
         _ingest_report_days(client, data_dir, retry + days, res)
-        _collect_forms(client, data_dir, retry + days)
+        forms_days = [day - timedelta(days=i) for i in range(FORMS_WINDOW_DAYS - 1, -1, -1)]
+        _collect_forms(client, data_dir, sorted(set(retry + forms_days)))
         _fill_price_gaps(client, data_dir, day, res)
         wait_until = None
         if wait_for_nc:

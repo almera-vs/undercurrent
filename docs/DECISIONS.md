@@ -92,9 +92,11 @@ it costs. Method details (event study, walk-forward, verdicts) are in
   shares; Polish forms win over English translations, and corrected forms ("zmiana")
   replace the originals. Where the form is silent, the field parsed from the report text
   stays. Nothing is inferred.
-- **Retries and history.** A report without a portal copy is retried on later runs for 14
-  days (`state/insider_forms_pending`). After publishing, the nightly run spends up to 20
-  minutes on older months, newest first, recording finished months in
+- **Retries and history.** Every nightly run checks insider reports of the last 21 days (as
+  far back as the listing portals reach); reports that already have forms cost no
+  requests. Older reports without a copy stay in `state/insider_forms_pending` for 14 days.
+  After publishing, the nightly run spends up to 20 minutes on older months, newest first,
+  recording finished months in
   `state/insider_forms_months`; the same is available as `undercurrent forms`.
 - **Portal quirk:** Parkiet's sitemap stores the Warsaw publication time as if it were UTC
   and then renders it in local time (14:27 Warsaw appears as `16:27+02:00`). Its UTC reading
