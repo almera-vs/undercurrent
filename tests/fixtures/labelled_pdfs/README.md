@@ -3,7 +3,8 @@
 The plan called for 300+ hand-labelled insider notification **PDFs**. The PDF attachments are
 behind a bot-protection wall (see `docs/DECISIONS.md` → "Blocker: PDF attachments"), so these
 fixtures are labelled **report-page texts** (`title` + `Treść raportu`) of real Art. 19 MAR
-reports. The directory keeps its original name.
+reports. The directory keeps its original name. Names of natural persons in these texts (and
+in the page fixtures) are replaced with fictional ones; company names are real.
 
 `insider_labels.jsonl` has one JSON object per report: `report_id`, `source_url`, `title`,
 `body_text`, `labels`, `labelled_by`, `labelled_on`.

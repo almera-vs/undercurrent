@@ -4,8 +4,8 @@
 set -euo pipefail
 msg="${1:-data update}"
 cd data
-git config user.name "undercurrent-bot"
-git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+git config user.name "almera-vs"
+git config user.email "60035016+almera-vs@users.noreply.github.com"
 git add -A
 if git diff --cached --quiet; then
   echo "no data changes"

@@ -217,8 +217,8 @@ free quota and Pages deploys will fail.
   Header, counts, up to 5 items, two URL buttons, health line, disclaimer. On job failure an
   alert is sent instead. On a weekday with no GPW session data the digest is replaced by an
   alert. `watchdog.yml` alerts if there's no successful run by 20:15 Warsaw.
-- **Keepalive:** the run commits `digests/YYYY/MM/DD.md` to `main` every night. We can't verify
-  within a session whether data-branch commits alone keep schedules alive, so we do both.
+- **Keepalive:** the run commits `digests/YYYY/MM/DD.md` to `main` every night. It isn't documented
+  whether data-branch commits alone keep schedules alive, so we do both.
 - **GitHub Pages is not live**: it isn't available for private repos on the free plan. The
   deploy job is `continue-on-error`, so the digest is unaffected. To go live: make the repo
   public, then Settings → Pages → Source: GitHub Actions.

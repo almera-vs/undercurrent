@@ -10,9 +10,9 @@ and a static dashboard, rebuilt every night by GitHub Actions.
 
 **Not investment advice. Historical statistics only.**
 
-![Design canvas for the Today page](assets/Undercurrent%20%E2%80%94%20UI-png/Today%20%E2%80%94%20daily%20digest.png)
+![Design mock-up of the Today page](assets/design/today.png)
 
-*Design canvas (sample data). The live site is at
+*Design mock-up (sample data). The live site is at
 https://almera-vs.github.io/undercurrent/ once GitHub Pages is enabled. Its numbers come from
 the real pipeline and will look different.*
 
@@ -87,12 +87,18 @@ Secrets (GitHub Actions only): `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
 
 ## Constraints it was built under
 
-- **Zero cost**: no service that asks for a payment method. GitHub (public repo, standard
-  runners, Pages) and a Telegram bot only.
-- **No machine of mine involved**: every job, including backfills and tests, runs in Actions.
-- **No LLMs or AI APIs**: classification and parsing are deterministic rules.
-- **Official sources only, scraped politely**: ≤ 1 request/s with jitter, an honest
-  User-Agent, conditional requests and caching. Bot-protected endpoints are documented, not
-  bypassed.
-- **Small stack**: Python 3.12, uv, DuckDB, Parquet, dbt-duckdb, Polars, Jinja2. No Kafka,
-  Iceberg, orchestrator or cloud database (see SCALING.md for why).
+The docs refer to these as C1–C6.
+
+- **C1 Zero cost**: no service that asks for a payment method. GitHub (Actions, Pages) and a
+  Telegram bot only.
+- **C2 Runs in GitHub Actions**: every job, including backfills and tests, runs there. No
+  personal machine involved.
+- **C3 No LLMs or AI APIs**: classification and parsing are deterministic rules.
+- **C4 Public repo, no secrets in git**: secrets live in GitHub Actions only, and jobs use
+  standard hosted runners.
+- **C5 Official sources only**: gpw.pl and newconnect.pl. No raw PDFs in git.
+- **C6 Polite scraping**: ≤ 1 request/s with jitter, an honest User-Agent, conditional
+  requests and caching. Bot-protected endpoints are documented, not bypassed.
+
+Small stack on purpose: Python 3.12, uv, DuckDB, Parquet, dbt-duckdb, Polars, Jinja2. No Kafka,
+Iceberg, orchestrator or cloud database (see SCALING.md for why).
