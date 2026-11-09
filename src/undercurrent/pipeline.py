@@ -135,6 +135,12 @@ def _wait_for_nc(
             sleep(NC_POLL_EVERY_S)
 
 
+def snapshot_gold(data_dir: Path, stats_path: Path, day: date) -> None:
+    """Keep an immutable daily copy of signal_stats on the data branch (small: KBs/day)."""
+    df = pl.read_parquet(stats_path)
+    lake.append_partition(data_dir, "gold", "signal_stats", day, df)
+
+
 def run_day(
     day: date,
     *,
@@ -163,9 +169,11 @@ def run_day(
             wait_until = datetime.combine(day, NC_WAIT_UNTIL_LOCAL, tzinfo=WARSAW).astimezone(UTC)
         _wait_for_nc(client, data_dir, day, res, wait_until=wait_until, sleep=sleep, clock=clock)
         if run_transform:
-            from undercurrent import transform
+            from undercurrent import study, transform
 
             transform.build(data_dir, work_dir)
+            stats_path = study.run_study(transform.duckdb_path(work_dir), work_dir, day)
+            snapshot_gold(data_dir, stats_path, day)
         res.status = "ok" if not res.notes else "degraded"
         if not publish:
             log.info("publish disabled")

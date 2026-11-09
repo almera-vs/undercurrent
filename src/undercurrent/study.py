@@ -1,3 +1,543 @@
-"""Event studies, bootstrap CIs, Benjamini-Hochberg FDR and walk-forward tests."""
+"""Event studies, bootstrap CIs, Benjamini-Hochberg FDR, walk-forward and deflated Sharpe.
+
+Method (details and caveats in ``docs/METHODOLOGY.md``):
+
+* **Day 0** is the first session whose close (17:05 Warsaw) is after ``known_at``.
+* **Market model** ``r_i = a + b·r_WIG`` estimated by OLS on sessions [−250, −30]
+  (at least ``MIN_EST_OBS`` valid returns). Abnormal return ``AR_t = r_t − (a + b·r_WIG,t)``.
+* **CAR windows** [0,+1], [0,+5], [0,+20], [0,+60]; the [−5,+20] path for charts.
+* **Uncertainty:** 95 % percentile bootstrap over events, fixed seed per signal/horizon.
+* **Multiple testing:** BH q-values across every (signal, horizon).
+* **Walk-forward:** expanding yearly windows. Before each year the rule (direction and
+  holding period) is chosen from earlier events only; trades enter at the close of day 0
+  and exit at the close of day +h, net of 0.3 % round-trip costs.
+* **Point in time:** every input row must have ``known_at <= as_of``; post-event returns
+  that weren't known by ``as_of`` make the event ineligible for that horizon.
+
+Everything is deterministic: sorted inputs, seeded RNGs, no wall-clock values in outputs.
+"""
 
 from __future__ import annotations
+
+import hashlib
+import logging
+import math
+from dataclasses import dataclass
+from datetime import UTC, date, datetime
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+import numpy.typing as npt
+import polars as pl
+from scipy import stats as sps
+
+from undercurrent import lake
+
+log = logging.getLogger(__name__)
+
+HORIZONS: tuple[int, ...] = (1, 5, 20, 60)
+PATH_WINDOW = (-5, 20)
+EST_WINDOW = (-250, -30)
+MIN_EST_OBS = 120
+BOOTSTRAP_DRAWS = 2000
+ROUND_TRIP_COST = 0.003
+MIN_TRAIN_EVENTS = 30
+MIN_EVENTS_FOR_STATS = 10
+SEED = 20261109
+SIGNIFICANCE = 0.05
+
+FloatArray = npt.NDArray[np.float64]
+
+
+class LookAheadError(AssertionError):
+    """An input row was known after the as-of date."""
+
+
+# --------------------------------------------------------------------------- inputs
+
+
+@dataclass(frozen=True)
+class StudyInputs:
+    """Point-in-time inputs: events, per-ISIN adjusted returns and WIG returns."""
+
+    as_of: datetime
+    events: pl.DataFrame  # report_id, signal_key, isin, known_at, event_date
+    returns: pl.DataFrame  # isin, trade_date, adj_ret, known_at
+    benchmark: pl.DataFrame  # trade_date, wig_ret, known_at
+
+
+def signal_key(signal_type: str, subtype: str | None, insider_side: str | None) -> str:
+    """Grouping key for statistics, e.g. ``inside_info:profit_warning``, ``insider_tx:buy``."""
+    if signal_type == "insider_tx":
+        return f"insider_tx:{insider_side if insider_side in ('buy', 'sell') else 'unknown'}"
+    return f"{signal_type}:{subtype}" if subtype else signal_type
+
+
+def load_inputs(duckdb_file: Path, as_of: datetime) -> StudyInputs:
+    """Read gold tables from DuckDB and cut them at ``as_of`` by ``known_at``."""
+    import duckdb
+
+    con = duckdb.connect(str(duckdb_file))
+    try:
+        ev = con.sql(
+            "select report_id, signal_type, subtype, insider_side, isin, known_at, event_date "
+            "from events where isin is not null and event_date is not null"
+        ).pl()
+        rets = con.sql(
+            "select isin, trade_date, adj_ret, known_at from adjusted_prices "
+            "where adj_ret is not null"
+        ).pl()
+        bench = con.sql(
+            "select b.trade_date, b.wig_ret, s.known_at from benchmark_returns b "
+            "join benchmark s using (trade_date) where b.wig_ret is not null"
+        ).pl()
+    finally:
+        con.close()
+    return cut_inputs(ev, rets, bench, as_of)
+
+
+def cut_inputs(
+    events: pl.DataFrame, returns: pl.DataFrame, benchmark: pl.DataFrame, as_of: datetime
+) -> StudyInputs:
+    """Apply the point-in-time filter and build signal keys."""
+    ts = pl.lit(as_of).cast(pl.Datetime("us", "UTC"))
+
+    def cut(df: pl.DataFrame) -> pl.DataFrame:
+        return df.with_columns(pl.col("known_at").cast(pl.Datetime("us", "UTC"))).filter(
+            pl.col("known_at") <= ts
+        )
+
+    ev = cut(events).with_columns(
+        pl.struct("signal_type", "subtype", "insider_side")
+        .map_elements(
+            lambda s: signal_key(s["signal_type"], s["subtype"], s["insider_side"]),
+            return_dtype=pl.String,
+        )
+        .alias("signal_key")
+    )
+    ev = ev.select("report_id", "signal_key", "isin", "known_at", "event_date").sort("report_id")
+    return StudyInputs(
+        as_of=as_of,
+        events=ev,
+        returns=cut(returns).sort(["isin", "trade_date"]),
+        benchmark=cut(benchmark).sort("trade_date"),
+    )
+
+
+def assert_point_in_time(inputs: StudyInputs) -> None:
+    """Raise :class:`LookAheadError` if any input row is known after ``as_of``."""
+    ts = inputs.as_of
+    for name, df in (
+        ("events", inputs.events),
+        ("returns", inputs.returns),
+        ("benchmark", inputs.benchmark),
+    ):
+        if df.height and df["known_at"].max() > ts:  # type: ignore[operator]
+            raise LookAheadError(f"{name} has rows known after {ts.isoformat()}")
+
+
+# --------------------------------------------------------------------------- per-event ARs
+
+
+@dataclass(frozen=True)
+class EventAR:
+    """Abnormal returns of one event over the path window, NaN where unknown."""
+
+    report_id: str
+    signal_key: str
+    isin: str
+    event_date: date
+    ar: FloatArray  # index 0 ↔ relative day PATH_WINDOW[0]; extended to max(HORIZONS)
+
+
+def _offset_range() -> range:
+    return range(PATH_WINDOW[0], max(max(HORIZONS), PATH_WINDOW[1]) + 1)
+
+
+def compute_event_ars(inputs: StudyInputs) -> list[EventAR]:
+    """Market-model abnormal returns for every eligible event."""
+    cal = inputs.benchmark["trade_date"].to_list()
+    idx = {d: i for i, d in enumerate(cal)}
+    mkt = inputs.benchmark["wig_ret"].to_numpy().astype(np.float64)
+    n_cal = len(cal)
+    by_isin: dict[str, FloatArray] = {}
+    for isin, grp in inputs.returns.group_by("isin", maintain_order=True):
+        arr = np.full(n_cal, np.nan)
+        for d, r in zip(grp["trade_date"].to_list(), grp["adj_ret"].to_list(), strict=True):
+            i = idx.get(d)
+            if i is not None and r is not None and math.isfinite(r):
+                arr[i] = r
+        by_isin[str(isin[0])] = arr
+
+    offsets = np.array(list(_offset_range()))
+    out: list[EventAR] = []
+    for row in inputs.events.iter_rows(named=True):
+        e = idx.get(row["event_date"])
+        ri = by_isin.get(row["isin"])
+        if e is None or ri is None:
+            continue
+        lo, hi = e + EST_WINDOW[0], e + EST_WINDOW[1]
+        if lo < 0:
+            continue
+        y, x = ri[lo : hi + 1], mkt[lo : hi + 1]
+        ok = np.isfinite(y) & np.isfinite(x)
+        if ok.sum() < MIN_EST_OBS:
+            continue
+        b, a = np.polyfit(x[ok], y[ok], 1)
+        pos = e + offsets
+        ar = np.full(len(offsets), np.nan)
+        valid = (pos >= 0) & (pos < n_cal)
+        p = pos[valid]
+        ar[valid] = ri[p] - (a + b * mkt[p])
+        out.append(EventAR(row["report_id"], row["signal_key"], row["isin"], row["event_date"], ar))
+    return out
+
+
+def _car(ar: FloatArray, start: int, end: int) -> float:
+    """Sum of ARs over relative days [start, end]; NaN if any day is unknown."""
+    i0, i1 = start - PATH_WINDOW[0], end - PATH_WINDOW[0]
+    seg = ar[i0 : i1 + 1]
+    return float(seg.sum()) if np.all(np.isfinite(seg)) else math.nan
+
+
+# --------------------------------------------------------------------------- statistics
+
+
+def _seed(*parts: object) -> int:
+    h = hashlib.sha256("|".join(map(str, (SEED, *parts))).encode()).digest()
+    return int.from_bytes(h[:8], "big")
+
+
+def bootstrap_ci(values: FloatArray, key: str, alpha: float = 0.05) -> tuple[float, float]:
+    """Percentile bootstrap CI of the mean, resampling events, seeded by ``key``."""
+    rng = np.random.default_rng(_seed(key))
+    n = len(values)
+    draws = rng.integers(0, n, size=(BOOTSTRAP_DRAWS, n))
+    means = values[draws].mean(axis=1)
+    lo, hi = np.quantile(means, [alpha / 2, 1 - alpha / 2])
+    return float(lo), float(hi)
+
+
+def benjamini_hochberg(p: FloatArray) -> FloatArray:
+    """BH-adjusted q-values (NaNs stay NaN)."""
+    q = np.full_like(p, np.nan)
+    ok = np.isfinite(p)
+    pv = p[ok]
+    m = len(pv)
+    if m == 0:
+        return q
+    order = np.argsort(pv, kind="stable")
+    ranked = pv[order] * m / np.arange(1, m + 1)
+    ranked = np.minimum.accumulate(ranked[::-1])[::-1]
+    res = np.empty(m)
+    res[order] = np.minimum(ranked, 1.0)
+    q[ok] = res
+    return q
+
+
+def deflated_sharpe(returns: FloatArray, n_trials: int, sr_trials_var: float) -> float:
+    """Deflated Sharpe ratio of per-trade returns.
+
+    ``sr_trials_var`` is the cross-sectional variance of the Sharpe ratios of all trials.
+    Returns a probability in [0, 1]; NaN if there are too few observations.
+    """
+    t = len(returns)
+    if t < 3 or np.std(returns) == 0:
+        return math.nan
+    sr = float(np.mean(returns) / np.std(returns, ddof=1))
+    g3 = float(sps.skew(returns))
+    g4 = float(sps.kurtosis(returns, fisher=False))
+    emc = 0.5772156649
+    n = max(n_trials, 2)
+    sr0 = math.sqrt(max(sr_trials_var, 0.0)) * (
+        (1 - emc) * sps.norm.ppf(1 - 1 / n) + emc * sps.norm.ppf(1 - 1 / (n * math.e))
+    )
+    denom = 1 - g3 * sr + (g4 - 1) / 4 * sr**2
+    if denom <= 0:
+        return math.nan
+    return float(sps.norm.cdf((sr - sr0) * math.sqrt(t - 1) / math.sqrt(denom)))
+
+
+# --------------------------------------------------------------------------- walk-forward
+
+
+@dataclass(frozen=True)
+class Rule:
+    """A tradable rule: direction and holding period, picked from past events."""
+
+    direction: int  # +1 long, −1 short
+    horizon: int
+
+
+def _trade_returns(evs: list[EventAR], horizon: int) -> tuple[FloatArray, list[date]]:
+    """Abnormal return from close of day 0 to close of day +h for each event."""
+    vals, dates = [], []
+    for e in evs:
+        v = _car(e.ar, 1, horizon)
+        if math.isfinite(v):
+            vals.append(v)
+            dates.append(e.event_date)
+    return np.array(vals, dtype=np.float64), dates
+
+
+def choose_rule(train: list[EventAR]) -> Rule | None:
+    """Pick the (direction, horizon) with the best t-statistic of net returns on ``train``.
+
+    Ranking by raw mean would favour the noisiest (longest) horizon by chance, so we rank by
+    ``mean_net / standard_error``. If no candidate has a positive past net mean, return
+    ``None`` (don't trade that year).
+    """
+    best: tuple[float, Rule] | None = None
+    for h in HORIZONS:
+        r, _ = _trade_returns(train, h)
+        if len(r) < MIN_TRAIN_EVENTS:
+            continue
+        se = float(np.std(r, ddof=1)) / math.sqrt(len(r))
+        for d in (1, -1):
+            net = float(np.mean(d * r)) - ROUND_TRIP_COST
+            if net <= 0 or se == 0:
+                continue
+            t = net / se
+            if best is None or t > best[0]:
+                best = (t, Rule(d, h))
+    return best[1] if best else None
+
+
+def walk_forward(evs: list[EventAR]) -> tuple[FloatArray, list[Rule]]:
+    """Expanding yearly walk-forward. Returns out-of-sample net trade returns and rules used."""
+    years = sorted({e.event_date.year for e in evs})
+    oos: list[float] = []
+    rules: list[Rule] = []
+    for y in years:
+        train = [e for e in evs if e.event_date.year < y]
+        test = [e for e in evs if e.event_date.year == y]
+        rule = choose_rule(train)
+        if rule is None:
+            continue
+        r, _ = _trade_returns(test, rule.horizon)
+        oos.extend((rule.direction * r - ROUND_TRIP_COST).tolist())
+        rules.append(rule)
+    return np.array(oos, dtype=np.float64), rules
+
+
+# --------------------------------------------------------------------------- signal_stats
+
+STATS_SCHEMA: dict[str, Any] = {
+    "as_of": pl.Datetime("us", "UTC"),
+    "signal_key": pl.String,
+    "horizon": pl.Int64,
+    "n": pl.Int64,
+    "mean_car": pl.Float64,
+    "median_car": pl.Float64,
+    "hit_rate": pl.Float64,
+    "ci_lo": pl.Float64,
+    "ci_hi": pl.Float64,
+    "t_stat": pl.Float64,
+    "p_value": pl.Float64,
+    "q_value": pl.Float64,
+    "oos_n": pl.Int64,
+    "oos_mean_net": pl.Float64,
+    "oos_last_rule": pl.String,
+    "deflated_sharpe": pl.Float64,
+    "verdict": pl.String,
+}
+
+
+def compute_signal_stats(inputs: StudyInputs) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """Return (signal_stats, car_paths). Pure function of ``inputs``."""
+    assert_point_in_time(inputs)
+    ars = compute_event_ars(inputs)
+    by_key: dict[str, list[EventAR]] = {}
+    for e in ars:
+        by_key.setdefault(e.signal_key, []).append(e)
+
+    rows: list[dict[str, Any]] = []
+    paths: list[dict[str, Any]] = []
+    wf: dict[str, tuple[FloatArray, list[Rule]]] = {}
+    for key in sorted(by_key):
+        evs = sorted(by_key[key], key=lambda e: (e.event_date, e.report_id))
+        wf[key] = walk_forward(evs)
+        for h in HORIZONS:
+            cars = np.array([_car(e.ar, 0, h) for e in evs])
+            cars = cars[np.isfinite(cars)]
+            n = len(cars)
+            row: dict[str, Any] = {"as_of": inputs.as_of, "signal_key": key, "horizon": h, "n": n}
+            if n >= MIN_EVENTS_FOR_STATS:
+                sd = float(np.std(cars, ddof=1))
+                t = float(np.mean(cars) / (sd / math.sqrt(n))) if sd > 0 else math.nan
+                lo, hi = bootstrap_ci(cars, f"{key}|{h}")
+                row |= {
+                    "mean_car": float(np.mean(cars)),
+                    "median_car": float(np.median(cars)),
+                    "hit_rate": float(np.mean(cars > 0)),
+                    "ci_lo": lo,
+                    "ci_hi": hi,
+                    "t_stat": t,
+                    "p_value": float(2 * sps.t.sf(abs(t), df=n - 1))
+                    if math.isfinite(t)
+                    else math.nan,
+                }
+            rows.append(row)
+        # average [-5, +20] CAR path with a bootstrap band
+        lo_d, hi_d = PATH_WINDOW
+        mat = np.array([np.cumsum(e.ar[: hi_d - lo_d + 1]) for e in evs])
+        mat = mat[np.all(np.isfinite(mat), axis=1)] if len(mat) else mat
+        if len(mat) >= MIN_EVENTS_FOR_STATS:
+            rng = np.random.default_rng(_seed(key, "path"))
+            draws = rng.integers(0, len(mat), size=(BOOTSTRAP_DRAWS, len(mat)))
+            boot = mat[draws].mean(axis=1)
+            band_lo, band_hi = np.quantile(boot, [0.025, 0.975], axis=0)
+            for i, d in enumerate(range(lo_d, hi_d + 1)):
+                paths.append(
+                    {
+                        "as_of": inputs.as_of,
+                        "signal_key": key,
+                        "day": d,
+                        "mean_car": float(mat[:, i].mean()),
+                        "lo": float(band_lo[i]),
+                        "hi": float(band_hi[i]),
+                        "n": len(mat),
+                    }
+                )
+
+    df = pl.DataFrame(
+        rows,
+        schema={
+            k: v
+            for k, v in STATS_SCHEMA.items()
+            if k
+            in {
+                "as_of",
+                "signal_key",
+                "horizon",
+                "n",
+                "mean_car",
+                "median_car",
+                "hit_rate",
+                "ci_lo",
+                "ci_hi",
+                "t_stat",
+                "p_value",
+            }
+        },
+    )
+    q = benjamini_hochberg(df["p_value"].fill_null(np.nan).to_numpy().astype(np.float64))
+    df = df.with_columns(pl.Series("q_value", q).fill_nan(None))
+
+    # deflated Sharpe: one trial per (key, horizon, direction)
+    srs = []
+    for oos, _ in wf.values():
+        if len(oos) >= 3 and np.std(oos) > 0:
+            srs.append(float(np.mean(oos) / np.std(oos, ddof=1)))
+    sr_var = float(np.var(srs, ddof=1)) if len(srs) > 1 else 0.0
+    n_trials = max(1, len(by_key) * len(HORIZONS) * 2)
+
+    extra = []
+    for key in sorted(by_key):
+        oos, rules = wf[key]
+        last = rules[-1] if rules else None
+        dsr = deflated_sharpe(oos, n_trials, sr_var)
+        extra.append(
+            {
+                "signal_key": key,
+                "oos_n": len(oos),
+                "oos_mean_net": float(np.mean(oos)) if len(oos) else None,
+                "oos_last_rule": (
+                    f"{'long' if last.direction > 0 else 'short'} {last.horizon}d" if last else None
+                ),
+                "deflated_sharpe": None if math.isnan(dsr) else dsr,
+            }
+        )
+    ex = pl.DataFrame(
+        extra,
+        schema={
+            "signal_key": pl.String,
+            "oos_n": pl.Int64,
+            "oos_mean_net": pl.Float64,
+            "oos_last_rule": pl.String,
+            "deflated_sharpe": pl.Float64,
+        },
+    )
+    df = df.join(ex, on="signal_key", how="left")
+    best_q = df.group_by("signal_key").agg(pl.col("q_value").min().alias("best_q"))
+    df = (
+        df.join(best_q, on="signal_key", how="left")
+        .with_columns(
+            pl.when((pl.col("best_q") < SIGNIFICANCE) & (pl.col("oos_mean_net") > 0))
+            .then(pl.lit("holds_up"))
+            .when(pl.col("best_q") < SIGNIFICANCE)
+            .then(pl.lit("eaten_by_costs"))
+            .otherwise(pl.lit("noise"))
+            .alias("verdict")
+        )
+        .drop("best_q")
+    )
+    df = df.select(list(STATS_SCHEMA)).cast(STATS_SCHEMA).sort(["signal_key", "horizon"])  # type: ignore[arg-type]
+    path_df = pl.DataFrame(
+        paths,
+        schema={
+            "as_of": pl.Datetime("us", "UTC"),
+            "signal_key": pl.String,
+            "day": pl.Int64,
+            "mean_car": pl.Float64,
+            "lo": pl.Float64,
+            "hi": pl.Float64,
+            "n": pl.Int64,
+        },
+    )
+    return df, path_df.sort(["signal_key", "day"])
+
+
+def event_cars(inputs: StudyInputs) -> pl.DataFrame:
+    """Per-event CARs (for the event detail page and "closest past events")."""
+    out = []
+    for e in compute_event_ars(inputs):
+        out.append(
+            {
+                "report_id": e.report_id,
+                "signal_key": e.signal_key,
+                "isin": e.isin,
+                "event_date": e.event_date,
+                **{f"car_{h}": _car(e.ar, 0, h) for h in HORIZONS},
+                "path": [float(x) for x in np.cumsum(e.ar[: PATH_WINDOW[1] - PATH_WINDOW[0] + 1])],
+            }
+        )
+    df = pl.DataFrame(
+        out,
+        schema={
+            "report_id": pl.String,
+            "signal_key": pl.String,
+            "isin": pl.String,
+            "event_date": pl.Date,
+            **{f"car_{h}": pl.Float64 for h in HORIZONS},
+            "path": pl.List(pl.Float64),
+        },
+    )
+    return df.with_columns(pl.col(f"car_{h}").fill_nan(None) for h in HORIZONS).sort("report_id")
+
+
+def as_of_for(day: date) -> datetime:
+    """As-of timestamp of a nightly run: 23:59:59 Warsaw on ``day``, in UTC."""
+    from zoneinfo import ZoneInfo
+
+    return datetime(
+        day.year, day.month, day.day, 23, 59, 59, tzinfo=ZoneInfo("Europe/Warsaw")
+    ).astimezone(UTC)
+
+
+def sha256_file(path: Path) -> str:
+    """SHA-256 of a file (reproducibility check)."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def run_study(duckdb_file: Path, work: Path, day: date) -> Path:
+    """Compute and write ``{work}/gold/signal_stats.parquet`` (+ CAR paths, event CARs)."""
+    inputs = load_inputs(duckdb_file, as_of_for(day))
+    stats, paths = compute_signal_stats(inputs)
+    out = work / "gold" / "signal_stats.parquet"
+    lake.write_frame(stats, out)
+    lake.write_frame(paths, work / "gold" / "car_paths.parquet")
+    lake.write_frame(event_cars(inputs), work / "gold" / "event_cars.parquet")
+    log.info("signal_stats: %d rows, sha256=%s", stats.height, sha256_file(out))
+    return out
