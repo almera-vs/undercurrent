@@ -8,9 +8,28 @@ from undercurrent.fetch import PoliteClient, SourceBlockedError, is_block_page
 from undercurrent.sources import espi_list_form, gpw_archive_url, nc_daily_url
 
 
-def test_cli_run_stub_exits_zero(tmp_path):
-    argv = ["--data-dir", str(tmp_path), "run", "--date", "2026-11-06", "--no-publish"]
+def test_cli_run_dispatches(tmp_path, monkeypatch):
+    from undercurrent import pipeline
+
+    seen = {}
+
+    def fake_run_day(day, **kw):
+        seen.update(day=day, **kw)
+        return 0
+
+    monkeypatch.setattr(pipeline, "run_day", fake_run_day)
+    argv = [
+        "--data-dir",
+        str(tmp_path),
+        "run",
+        "--date",
+        "2026-11-06",
+        "--no-publish",
+        "--no-wait-nc",
+    ]
     assert cli.main(argv) == 0
+    assert seen["day"] == date(2026, 11, 6)
+    assert seen["publish"] is False and seen["wait_for_nc"] is False
 
 
 def test_cli_backfill_rejects_reversed_range(tmp_path):
@@ -68,3 +87,9 @@ def test_client_sends_conditional_headers_and_uses_304(tmp_path):
     assert not first.from_cache and second.from_cache
     assert seen[0]["user-agent"].startswith("undercurrent/")
     assert seen[1]["if-none-match"] == '"v1"'
+
+
+def test_check_lake_budget(tmp_path):
+    (tmp_path / "x.parquet").write_bytes(b"0" * 2_000_000)
+    assert cli.main(["--data-dir", str(tmp_path), "check-lake", "--max-mb", "5"]) == 0
+    assert cli.main(["--data-dir", str(tmp_path), "check-lake", "--max-mb", "1"]) == 1

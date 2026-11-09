@@ -1,0 +1,73 @@
+name: backfill
+
+# Historical backfill, one calendar month per job. Jobs run strictly one at a time
+# (max-parallel: 1) so total request rate to gpw.pl / newconnect.pl stays <= 1/s, and the
+# Python code pauses during the nightly window. Every step is idempotent: re-running a
+# month only fetches what is missing.
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: "first day YYYY-MM-DD"
+        required: true
+        default: "2015-01-01"
+      end:
+        description: "last day YYYY-MM-DD"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      months: ${{ steps.months.outputs.months }}
+    steps:
+      - id: months
+        env:
+          START: ${{ inputs.start }}
+          END: ${{ inputs.end }}
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          from datetime import date, timedelta
+          s, e = date.fromisoformat(os.environ["START"]), date.fromisoformat(os.environ["END"])
+          out, d = [], s
+          while d <= e:
+              nxt = (d.replace(day=1) + timedelta(days=32)).replace(day=1)
+              out.append({"start": d.isoformat(), "end": min(e, nxt - timedelta(days=1)).isoformat()})
+              d = nxt
+          assert len(out) <= 256, "split the range: max 256 months per workflow run"
+          print("months=" + json.dumps(out))
+          PY
+
+  month:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        month: ${{ fromJson(needs.plan.outputs.months) }}
+    name: ${{ matrix.month.start }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: data
+          path: data
+          fetch-depth: 1
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --locked --no-dev
+      - name: backfill
+        run: uv run undercurrent --data-dir data backfill --start "${{ matrix.month.start }}" --end "${{ matrix.month.end }}"
+      - name: lake size check
+        run: uv run undercurrent --data-dir data check-lake --max-mb 900
+      - name: commit data
+        if: always()
+        run: scripts/commit_data.sh "backfill ${{ matrix.month.start }}..${{ matrix.month.end }}"

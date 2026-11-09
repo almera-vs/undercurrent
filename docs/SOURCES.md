@@ -32,7 +32,7 @@ requests where the server sends validators, on-disk cache in `.cache/http`.
 | 8 | espiebi.pap.pl | alternative ESPI/EBI mirror | **Incapsula challenge** | 200 | ⛔ not used |
 
 ¹ The NewConnect listing uses the same `ajaxindex.php` handler on the same infrastructure as
-row 1; it was checked from the runner in the ingest smoke run (see DECISIONS, milestone 2).
+row 1; confirmed from the runner in probe run [42627237165](https://github.com/almera-vs/undercurrent/actions/runs/42627237165), along with a NewConnect report page.
 
 ---
 

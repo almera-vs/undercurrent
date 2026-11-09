@@ -1,24 +1,233 @@
-"""Pipeline orchestration: ingest → parse → dbt → study → publish → commit.
+"""Pipeline orchestration: ingest → parse → dbt → study → publish.
 
-Plain function calls, no orchestrator (see ``docs/SCALING.md`` for why).
+Plain function calls, no orchestrator (see ``docs/SCALING.md`` for why). The commit of
+new Parquet partitions to the ``data`` branch is a workflow step, not Python.
 """
 
 from __future__ import annotations
 
+import contextlib
+import json
 import logging
-from datetime import date
+import time as time_mod
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
+from typing import Any
+from zoneinfo import ZoneInfo
+
+import polars as pl
+
+from undercurrent import ingest, lake
+from undercurrent.fetch import PoliteClient
 
 log = logging.getLogger(__name__)
+WARSAW = ZoneInfo("Europe/Warsaw")
+
+# Calendar days of reports re-listed every night (covers weekends and late Friday reports).
+REPORT_LOOKBACK_DAYS = 4
+# Weekdays of prices checked for gaps every night.
+PRICE_LOOKBACK_SESSIONS = 10
+# Stop waiting for the NewConnect file at this Warsaw local time (SLO is 20:30).
+NC_WAIT_UNTIL_LOCAL = time(20, 5)
+NC_POLL_EVERY_S = 300
+# Backfill yields to the nightly job inside this UTC window on weekdays.
+NIGHTLY_WINDOW_UTC = (time(17, 30), time(19, 30))
+
+RUNS_SCHEMA: dict[str, Any] = {
+    "run_date": pl.Date,
+    "started_at": pl.Datetime("us", "UTC"),
+    "finished_at": pl.Datetime("us", "UTC"),
+    "status": pl.String,
+    "reports_listed": pl.Int64,
+    "reports_new": pl.Int64,
+    "reports_failed": pl.Int64,
+    "prices_gpw_rows": pl.Int64,
+    "prices_nc_rows": pl.Int64,
+    "nc_pending": pl.Boolean,
+    "notes": pl.String,
+}
 
 
-def run_day(day: date, *, data_dir: Path, publish: bool = True) -> int:
+@dataclass
+class RunResult:
+    """What one nightly run did; becomes a row of ``state/runs``."""
+
+    run_date: date
+    started_at: datetime
+    finished_at: datetime | None = None
+    status: str = "running"
+    reports_listed: int = 0
+    reports_new: int = 0
+    reports_failed: int = 0
+    prices_gpw_rows: int = 0
+    prices_nc_rows: int = 0
+    nc_pending: bool = False
+    notes: list[str] = field(default_factory=list)
+
+    def row(self) -> dict[str, Any]:
+        """Row for the runs table."""
+        return {
+            "run_date": self.run_date,
+            "started_at": self.started_at,
+            "finished_at": self.finished_at,
+            "status": self.status,
+            "reports_listed": self.reports_listed,
+            "reports_new": self.reports_new,
+            "reports_failed": self.reports_failed,
+            "prices_gpw_rows": self.prices_gpw_rows,
+            "prices_nc_rows": self.prices_nc_rows,
+            "nc_pending": self.nc_pending,
+            "notes": "; ".join(self.notes) or None,
+        }
+
+
+def _record_run(root: Path, result: RunResult) -> None:
+    new = pl.DataFrame([result.row()], schema=RUNS_SCHEMA)
+    old = lake.read_state(root, "runs")
+    df = new if old is None else pl.concat([old, new], how="diagonal_relaxed")
+    lake.write_state(root, "runs", df.sort("started_at"))
+
+
+def _ingest_report_days(client: PoliteClient, root: Path, days: list[date], res: RunResult) -> None:
+    for d in days:
+        st = ingest.ingest_reports(client, root, d)
+        res.reports_listed += st.listed
+        res.reports_new += st.written
+        res.reports_failed += st.failed + st.blocked
+        log.info("reports %s: %s", d, json.dumps(st.as_dict(), ensure_ascii=False))
+
+
+def _fill_price_gaps(client: PoliteClient, root: Path, day: date, res: RunResult) -> None:
+    for d in ingest.recent_weekdays(day, PRICE_LOOKBACK_SESSIONS):
+        try:
+            res.prices_gpw_rows += sum(ingest.ingest_gpw_prices(client, root, d).values())
+        except ingest.NoSessionError:
+            if d == day:
+                res.notes.append(f"no GPW session data for {d}")
+        if d == day:
+            continue
+        with contextlib.suppress(ingest.NoSessionError):
+            res.prices_nc_rows += ingest.ingest_nc_prices(client, root, d)
+
+
+def _wait_for_nc(
+    client: PoliteClient,
+    root: Path,
+    day: date,
+    res: RunResult,
+    *,
+    wait_until: datetime | None,
+    sleep: Callable[[float], None],
+    clock: Callable[[], datetime],
+) -> None:
+    while True:
+        try:
+            res.prices_nc_rows += ingest.ingest_nc_prices(client, root, day)
+            return
+        except ingest.NoSessionError:
+            if wait_until is None or clock() + timedelta(seconds=NC_POLL_EVERY_S) > wait_until:
+                res.nc_pending = True
+                res.notes.append(f"NewConnect prices for {day} pending")
+                return
+            log.info("NewConnect file for %s not out yet; retrying in %ds", day, NC_POLL_EVERY_S)
+            sleep(NC_POLL_EVERY_S)
+
+
+def run_day(
+    day: date,
+    *,
+    data_dir: Path,
+    publish: bool = True,
+    wait_for_nc: bool = True,
+    client: PoliteClient | None = None,
+    sleep: Callable[[float], None] = time_mod.sleep,
+    clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+) -> int:
     """Run the nightly pipeline for ``day``. Returns a process exit code."""
-    log.info("run %s (data_dir=%s, publish=%s): stub", day, data_dir, publish)
-    return 0
+    res = RunResult(run_date=day, started_at=clock())
+    own_client = client is None
+    client = client or PoliteClient()
+    try:
+        days = [day - timedelta(days=i) for i in range(REPORT_LOOKBACK_DAYS - 1, -1, -1)]
+        this_month = day.replace(day=1)
+        prev_month = (this_month - timedelta(days=1)).replace(day=1)
+        retry = [d for d in ingest.failed_days(data_dir, [prev_month, this_month]) if d not in days]
+        _ingest_report_days(client, data_dir, retry + days, res)
+        _fill_price_gaps(client, data_dir, day, res)
+        wait_until = None
+        if wait_for_nc:
+            wait_until = datetime.combine(day, NC_WAIT_UNTIL_LOCAL, tzinfo=WARSAW).astimezone(UTC)
+        _wait_for_nc(client, data_dir, day, res, wait_until=wait_until, sleep=sleep, clock=clock)
+        res.status = "ok" if not res.notes else "degraded"
+        # Later stages (parse → dbt → study → publish) hook in here milestone by milestone.
+        if not publish:
+            log.info("publish disabled")
+        return 0
+    except Exception as exc:
+        res.status = "failed"
+        res.notes.append(f"{type(exc).__name__}: {exc}")
+        log.exception("run %s failed", day)
+        return 1
+    finally:
+        res.finished_at = clock()
+        _record_run(data_dir, res)
+        if own_client:
+            client.close()
+        log.info("run summary: %s", json.dumps(res.row(), default=str, ensure_ascii=False))
 
 
-def backfill(start: date, end: date, *, data_dir: Path) -> int:
-    """Backfill every trading day in ``[start, end]``. Returns a process exit code."""
-    log.info("backfill %s..%s (data_dir=%s): stub", start, end, data_dir)
+def _yield_to_nightly(clock: Callable[[], datetime], sleep: Callable[[float], None]) -> None:
+    now = clock()
+    start, end = NIGHTLY_WINDOW_UTC
+    if now.weekday() < 5 and start <= now.time() < end:
+        resume = datetime.combine(now.date(), end, tzinfo=UTC)
+        wait = (resume - now).total_seconds()
+        log.info("inside nightly window; backfill pauses %.0fs", wait)
+        sleep(wait)
+
+
+def backfill(
+    start: date,
+    end: date,
+    *,
+    data_dir: Path,
+    client: PoliteClient | None = None,
+    sleep: Callable[[float], None] = time_mod.sleep,
+    clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+) -> int:
+    """Backfill every day in ``[start, end]``: reports daily, prices on weekdays."""
+    own_client = client is None
+    client = client or PoliteClient()
+    failures = 0
+    try:
+        d = start
+        while d <= end:
+            _yield_to_nightly(clock, sleep)
+            st = ingest.ingest_reports(client, data_dir, d)
+            failures += st.failed + st.blocked
+            prices = 0
+            if d.weekday() < 5:
+                try:
+                    prices += sum(ingest.ingest_gpw_prices(client, data_dir, d).values())
+                except ingest.NoSessionError:
+                    log.info("%s: no GPW session (holiday)", d)
+                try:
+                    prices += ingest.ingest_nc_prices(client, data_dir, d)
+                except ingest.NoSessionError:
+                    log.info("%s: no NewConnect file", d)
+            log.info(
+                "backfill %s: listed=%d new=%d failed=%d price_rows=%d",
+                d,
+                st.listed,
+                st.written,
+                st.failed + st.blocked,
+                prices,
+            )
+            d += timedelta(days=1)
+    finally:
+        if own_client:
+            client.close()
+    log.info("backfill %s..%s done; %d report failures queued for retry", start, end, failures)
     return 0

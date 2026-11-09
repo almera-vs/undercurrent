@@ -1,0 +1,64 @@
+name: daily
+
+# Nightly run. Cron is UTC: 17:47 UTC = 18:47 CET (winter) / 19:47 CEST (summer).
+# :47 avoids the top-of-hour scheduling backlog. The NewConnect price file is polled
+# until 20:05 Warsaw time (DST-aware, computed in Python), see docs/DECISIONS.md.
+on:
+  schedule:
+    - cron: "47 17 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "trading day YYYY-MM-DD, or 'today' (Warsaw)"
+        default: "today"
+      wait_nc:
+        description: "poll for the NewConnect price file"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: data
+          path: data
+          fetch-depth: 1
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --locked --no-dev
+      - uses: actions/cache/restore@v4
+        with:
+          path: .cache/http
+          key: http-${{ github.run_id }}
+          restore-keys: http-
+      - name: undercurrent run
+        env:
+          DATE: ${{ inputs.date || 'today' }}
+          WAIT_NC: ${{ github.event_name == 'schedule' || inputs.wait_nc }}
+        run: |
+          flags=""
+          if [ "$WAIT_NC" != "true" ]; then flags="--no-wait-nc"; fi
+          uv run undercurrent --data-dir data run --date "$DATE" $flags
+      - name: lake size check
+        run: uv run undercurrent --data-dir data check-lake --max-mb 900
+      - name: commit data
+        if: always()
+        run: scripts/commit_data.sh "daily ${{ inputs.date || 'today' }} (run ${{ github.run_id }})"
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: .cache/http
+          key: http-${{ github.run_id }}
