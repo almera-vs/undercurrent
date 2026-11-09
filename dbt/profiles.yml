@@ -1,0 +1,7 @@
+undercurrent:
+  target: default
+  outputs:
+    default:
+      type: duckdb
+      path: "{{ env_var('UNDERCURRENT_DUCKDB', 'target/undercurrent.duckdb') }}"
+      threads: 2

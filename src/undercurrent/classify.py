@@ -62,10 +62,12 @@ _BASIS_RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
         "insider_tx",
         _rx(r"\bart\.?\s*160\b[^;]{0,60}obrocie"),
     ),  # pre-MAR (before 2016-07-03)
+    # Art. 69 notifications, and Art. 70 pkt 1 (issuer publishing one). Art. 70 pkt 3 is the
+    # list of >=5% holders at a general meeting, not a crossing, so it is excluded.
     (
         "basis:oferta69_70",
         "holder_threshold",
-        _rx(r"\bart\.?\s*(69|69a|70)\b[^;]{0,80}(ofercie|oferty|ustawy o ofercie)"),
+        _rx(r"\bart\.?\s*(69a?\b|70\s*(pkt\.?|ust\.?)\s*1\b)[^;]{0,80}(ofercie|oferty)"),
     ),
     (
         "basis:mar17",
@@ -148,6 +150,13 @@ def inside_info_subtype(title: str | None, body: str | None) -> str:
     return "other"
 
 
+# An Art. 19 basis must be backed by some insider wording; issuers occasionally pick the
+# wrong basis from the ESPI dropdown (seen: a monthly revenue estimate filed under Art. 19).
+_INSIDER_SUPPORT = _rx(
+    r"transakcj|powiadomieni|zawiadomieni|art\.?\s*19|zastaw|nabyci|zbyci|obowiazki zarzadcze"
+)
+
+
 def classify(
     legal_basis: str | None,
     title: str | None,
@@ -158,11 +167,13 @@ def classify(
     if kind in PERIODIC_KINDS:
         return Classification("periodic", None, "kind:periodic")
     basis = normalize(legal_basis)
+    text = normalize(title) + " \n " + normalize((body or "")[:2000])
     for rule, signal, rx in _BASIS_RULES:
         if basis and rx.search(basis):
+            if signal == "insider_tx" and (title or body) and not _INSIDER_SUPPORT.search(text):
+                return Classification("other", None, f"{rule}:no_text_support")
             sub = inside_info_subtype(title, body) if signal == "inside_info" else None
             return Classification(signal, sub, rule)
-    text = normalize(title) + " \n " + normalize((body or "")[:2000])
     for rule, signal, rx in _TEXT_RULES:
         if rx.search(text):
             return Classification(signal, None, rule)

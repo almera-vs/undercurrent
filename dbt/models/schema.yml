@@ -1,0 +1,41 @@
+version: 2
+
+models:
+  - name: reports
+    description: One row per ESPI/EBI report, classified and resolved.
+    columns:
+      - name: report_id
+        tests: [unique, not_null]
+      - name: known_at
+        tests: [not_null]
+      - name: signal_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [insider_tx, holder_threshold, inside_info, periodic, other]
+      - name: resolve_method
+        tests:
+          - accepted_values:
+              arguments:
+                values: [override, isin, fuzzy, review, unresolved]
+
+  - name: prices_daily
+    description: Unadjusted daily prices, both markets.
+    tests:
+      - dbt_utils_unique_combination:
+          arguments:
+            columns: [isin, trade_date]
+    columns:
+      - name: close
+        tests: [not_null]
+
+  - name: benchmark
+    columns:
+      - name: trade_date
+        tests: [unique, not_null]
+
+  - name: events
+    columns:
+      - name: report_id
+        tests: [unique, not_null]

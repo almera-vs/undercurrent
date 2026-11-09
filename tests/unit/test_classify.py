@@ -142,3 +142,33 @@ def test_insider_fields_inline_details():
     assert f.trade_date == date(2026, 11, 4)
     assert f.venue == "GPW"
     assert f.pct_free_float is None
+
+
+def test_holder_list_at_gm_is_not_a_crossing():
+    basis = "Art. 70 pkt 3 Ustawy o ofercie - wykaz akcjonariuszy posiadających co najmniej 5%"
+    assert classify(basis, "Wykaz akcjonariuszy", None, "Bieżący").signal_type == "other"
+
+
+def test_wrong_insider_basis_needs_text_support():
+    basis = "Art. 19 ust. 3 Rozporzdzenia MAR informacja o transakcjach"  # mojibake as in source
+    c = classify(basis, "Szacunkowe przychody ze sprzedaży w październiku", "przychody", "Bieżący")
+    assert c.signal_type == "other" and c.rule == "basis:mar19:no_text_support"
+    ok = classify(basis, "Informacja o transakcjach w trybie art. 19 MAR", None, "Bieżący")
+    assert ok.signal_type == "insider_tx"
+
+
+def test_insider_person_company_tj_and_pledge():
+    f = extract_insider_fields(
+        None,
+        "zgłoszone od spółki PKO Bank Polski S.A. jako osoby blisko związanej z osobą "
+        "pełniącą obowiązki zarządcze",
+    )
+    assert f.person == "PKO Bank Polski S.A." and f.role == "closely_associated"
+    g = extract_insider_fields(
+        None,
+        "od osoby pełniącej obowiązki zarządcze, tj. Stefana Kruka, pełniącego funkcję "
+        "Przewodniczącego Rady Nadzorczej",
+    )
+    assert g.person == "Stefana Kruka" and g.role == "supervisory_board"
+    h = extract_insider_fields(None, "ustanowienia przez Pana Jerzego Malinowskiego zastawu")
+    assert h.side == "pledge"

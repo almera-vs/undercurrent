@@ -31,6 +31,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=Path("data"),
         help="root of the Parquet lake (checked out from the `data` branch)",
     )
+    p.add_argument(
+        "--work-dir",
+        type=Path,
+        default=Path(".work"),
+        help="scratch dir for rebuilt silver/gold outputs (never committed)",
+    )
     sub = p.add_subparsers(dest="command", required=True)
 
     run = sub.add_parser("run", help="run the nightly pipeline for one trading day")
@@ -46,6 +52,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
     ck = sub.add_parser("check-lake", help="fail if the Parquet lake exceeds a size budget")
     ck.add_argument("--max-mb", type=float, default=900.0)
+
+    tr = sub.add_parser("transform", help="rebuild silver/gold from bronze (parse + dbt)")
+    tr.add_argument("--as-of", default=None, help="point-in-time cut-off (ISO timestamp)")
+    tr.add_argument("--no-dbt", action="store_true")
 
     pr = sub.add_parser("probe", help="check reachability of every official source")
     pr.add_argument("--date", type=_parse_date, default=date(2026, 11, 6))
@@ -66,6 +76,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     return pipeline.run_day(
         args.date,
         data_dir=args.data_dir,
+        work_dir=args.work_dir,
         publish=not args.no_publish,
         wait_for_nc=not args.no_wait_nc,
     )
@@ -79,6 +90,14 @@ def cmd_backfill(args: argparse.Namespace) -> int:
         log.error("--end %s is before --start %s", args.end, args.start)
         return 2
     return pipeline.backfill(args.start, args.end, data_dir=args.data_dir)
+
+
+def cmd_transform(args: argparse.Namespace) -> int:
+    """Rebuild silver and gold."""
+    from undercurrent import transform
+
+    transform.build(args.data_dir, args.work_dir, as_of=args.as_of, dbt=not args.no_dbt)
+    return 0
 
 
 def cmd_check_lake(args: argparse.Namespace) -> int:
@@ -118,6 +137,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "backfill": cmd_backfill,
         "probe": cmd_probe,
         "check-lake": cmd_check_lake,
+        "transform": cmd_transform,
     }
     return handlers[args.command](args)
 

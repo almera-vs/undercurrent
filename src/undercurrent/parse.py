@@ -130,7 +130,7 @@ def parse_pl_date(text: str | None) -> date | None:
 # --------------------------------------------------------------------------- insider fields
 
 ROLE_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("closely_associated", re.compile(r"blisko zwiazan|osob\w* zwiazan\w* z")),
+    ("closely_associated", re.compile(r"blisko (zwiazan|powiazan)|osob\w* zwiazan\w* z")),
     ("CEO", re.compile(r"\bprezes\w* zarzadu|\bprezes\b(?! rady)|\bceo\b")),
     ("CFO", re.compile(r"dyrektor\w* finansow|\bcfo\b|czlon\w* zarzadu ds\.? finans")),
     ("supervisory_board", re.compile(r"rad\w* nadzorcz")),
@@ -140,9 +140,24 @@ _PERSON = re.compile(
     r"\b(?i:od|przez)\s+(?i:pana|pani|panem|panią|pania)\s+"
     r"(?P<name>[A-ZŁŚŻŹĆŃÓĘĄ][\wąćęłńóśźż-]+(?:\s+[A-ZŁŚŻŹĆŃÓĘĄ][\wąćęłńóśźż-]+){1,2})"
 )
+_PERSON_COMPANY = re.compile(
+    r"\b(?i:od|przez)\s+(?:(?i:spolki|spółki|podmiotu)\s+)?"
+    r"(?P<name>[A-ZŁŚŻŹĆŃÓĘĄ0-9][^,;()\n]{0,60}?"
+    r"\s(?:S\.A\.|SA|[Ss]p\. z o\.o\.|S\.K\.A\.|AG|N\.V\.|Ltd\.?|Limited|SE|ASI S\.A\.))"
+    r"(?=[\s,;.)]|$)"
+)
+_PERSON_TJ = re.compile(
+    r"\b(?i:tj\.|to jest)\s+(?!Pan|Pani)"
+    r"(?P<name>[A-ZŁŚŻŹĆŃÓĘĄ][a-ząćęłńóśźż-]+\s+[A-ZŁŚŻŹĆŃÓĘĄ][a-ząćęłńóśźż-]+)\b"
+)
+_PLEDGE = re.compile(r"\bzastaw\w*")
 _BUY = re.compile(r"\b(nabyci\w*|nabyl\w*|zakup\w*|kupn\w*|objeci\w* akcji|subskrypc\w*)")
 _SELL = re.compile(r"\b(zbyci\w*|zbyl\w*|sprzedaz\w*|sprzedal\w*)")
-_VOLUME = re.compile(r"(?P<n>\d[\d\s\xa0.]*)\s*(?:szt\.?|sztuk|akcji|akcje)\b")
+# Up to three words may sit between the count and "akcji" ("1.000.000 nowo emitowanych akcji").
+_VOLUME = re.compile(
+    r"(?<![\d.,])(?P<n>\d{1,3}(?:[\s\xa0.]\d{3})+|\d+)\s+(?:[a-z]+\s+){0,3}?"
+    r"(?:szt\.?|sztuk\w*|akcj\w*)"
+)
 _PRICE = re.compile(
     r"(?:sredni\w*\s+)?cen\w*\s+(?:jednostkow\w*\s+)?(?:wynosz\w*\s+|w wysokosci\s+|po\s+)?"
     r"(?P<p>\d[\d\s\xa0]*(?:[.,]\d+)?)\s*(?:zl|pln)"
@@ -153,7 +168,8 @@ _VALUE = re.compile(
     r"(?:w wysokosci\s+)?(?P<v>\d[\d\s\xa0.]*(?:,\d+)?)\s*(?:zl|pln)"
 )
 _TRADE_DATE = re.compile(
-    r"(?:transakcj\w*|nabyci\w*|zbyci\w*)[^.]{0,80}?\bw dniu\s+(?P<d>[^,;()]{6,25})"
+    r"(?:transakcj\w*|nabyci\w*|zbyci\w*|objeci\w*|dokonan\w*)[^.]{0,80}?\bw dniu\s+"
+    r"(?P<d>[^,;()]{6,25})"
 )
 _VENUES: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
@@ -172,7 +188,7 @@ class InsiderFields:
 
     person: str | None = None
     role: str | None = None
-    side: str | None = None  # buy | sell | mixed
+    side: str | None = None  # buy | sell | mixed | pledge
     volume: float | None = None
     avg_price: float | None = None
     value: float | None = None
@@ -197,7 +213,9 @@ def extract_insider_fields(title: str | None, body: str | None) -> InsiderFields
     norm = normalize(raw)
     if not body:
         f.notes.append("no body text")
-    m = _PERSON.search(raw)
+    # The notifier is the earliest person/entity introduced by "od"/"przez"/"tj.".
+    hits = [m for rx in (_PERSON_COMPANY, _PERSON, _PERSON_TJ) if (m := rx.search(raw))]
+    m = min(hits, key=lambda h: h.start()) if hits else None
     if m:
         f.person = m.group("name").strip()
     else:
@@ -210,6 +228,8 @@ def extract_insider_fields(title: str | None, body: str | None) -> InsiderFields
         f.notes.append("role not stated")
     buy, sell = bool(_BUY.search(norm)), bool(_SELL.search(norm))
     f.side = "mixed" if buy and sell else "buy" if buy else "sell" if sell else None
+    if f.side is None and _PLEDGE.search(norm):
+        f.side = "pledge"
     if f.side is None:
         f.notes.append("side not stated (details only in attachment)")
     if (m := _VOLUME.search(norm)) is not None:
@@ -222,7 +242,8 @@ def extract_insider_fields(title: str | None, body: str | None) -> InsiderFields
         f.notes.append("volume/price/value not in text")
     # Only the body: titles often start with "Transakcje …" and would anchor on the
     # date the issuer *received* the notice instead of the trade date.
-    if (m := _TRADE_DATE.search(normalize(body))) is not None:
+    body_norm = re.sub(r"tj\.", "tj", normalize(body))  # "tj." must not end the clause
+    if (m := _TRADE_DATE.search(body_norm)) is not None:
         f.trade_date = parse_pl_date(m.group("d"))
     for venue, rx in _VENUES:
         if rx.search(norm):
@@ -272,15 +293,15 @@ def parse_report_row(row: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def build_silver_reports(root: Path) -> pl.DataFrame | None:
-    """Rebuild ``silver/report_fields.parquet`` from all bronze reports (deterministic)."""
+def build_silver_reports(root: Path, work: Path) -> pl.DataFrame | None:
+    """Rebuild ``{work}/silver/report_fields.parquet`` from all bronze reports (deterministic)."""
     bronze = lake.read_table(root, "bronze", "reports")
     if bronze is None:
         return None
     bronze = bronze.sort(["report_id", "ingested_at"]).unique("report_id", keep="last")
     rows = [parse_report_row(r) for r in bronze.iter_rows(named=True)]
     df = pl.DataFrame(rows, schema=SILVER_COLUMNS).sort("report_id")
-    lake.write_frame(df, root / "silver" / "report_fields.parquet")
+    lake.write_frame(df, work / "silver" / "report_fields.parquet")
     log.info(
         "silver report_fields: %d rows; %s",
         df.height,

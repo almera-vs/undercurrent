@@ -73,7 +73,12 @@ def test_run_day_waits_for_newconnect_file(tmp_path):
     clock = FakeClock(datetime(2026, 11, 6, 17, 50, tzinfo=UTC))
     with _client(tmp_path, _site(nc_available_after=2)) as c:
         rc = pipeline.run_day(
-            DAY, data_dir=tmp_path / "lake", client=c, sleep=clock.sleep, clock=clock
+            DAY,
+            data_dir=tmp_path / "lake",
+            client=c,
+            sleep=clock.sleep,
+            clock=clock,
+            run_transform=False,
         )
     assert rc == 0
     assert clock.slept == 2 * pipeline.NC_POLL_EVERY_S
@@ -88,7 +93,12 @@ def test_run_day_marks_newconnect_pending_after_cutoff(tmp_path):
     clock = FakeClock(datetime(2026, 11, 6, 17, 50, tzinfo=UTC))
     with _client(tmp_path, _site(nc_available_after=None)) as c:
         rc = pipeline.run_day(
-            DAY, data_dir=tmp_path / "lake", client=c, sleep=clock.sleep, clock=clock
+            DAY,
+            data_dir=tmp_path / "lake",
+            client=c,
+            sleep=clock.sleep,
+            clock=clock,
+            run_transform=False,
         )
     assert rc == 0
     # cut-off 20:05 Warsaw = 19:05 UTC in November; never sleeps past it

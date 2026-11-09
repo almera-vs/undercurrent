@@ -139,8 +139,10 @@ def run_day(
     day: date,
     *,
     data_dir: Path,
+    work_dir: Path = Path(".work"),
     publish: bool = True,
     wait_for_nc: bool = True,
+    run_transform: bool = True,
     client: PoliteClient | None = None,
     sleep: Callable[[float], None] = time_mod.sleep,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
@@ -160,8 +162,11 @@ def run_day(
         if wait_for_nc:
             wait_until = datetime.combine(day, NC_WAIT_UNTIL_LOCAL, tzinfo=WARSAW).astimezone(UTC)
         _wait_for_nc(client, data_dir, day, res, wait_until=wait_until, sleep=sleep, clock=clock)
+        if run_transform:
+            from undercurrent import transform
+
+            transform.build(data_dir, work_dir)
         res.status = "ok" if not res.notes else "degraded"
-        # Later stages (parse → dbt → study → publish) hook in here milestone by milestone.
         if not publish:
             log.info("publish disabled")
         return 0

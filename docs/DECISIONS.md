@@ -84,3 +84,58 @@ polite rate (~1.25 s/request) that is ≈ 92 runner-hours, split into ~143 month
 The GitHub repo is currently **private**. C4 requires public (free Actions minutes,
 free Pages). Flipping visibility is the owner's action; until then CI runs on the private
 free quota and Pages deploys will fail.
+
+## Milestone 2 — ingest (2026-11-09)
+
+- **Green on a GitHub runner.** Run
+  [42629599476](https://github.com/almera-vs/undercurrent/actions/runs/42629599476) landed 295
+  reports (2026-11-03 … 06, 0 failed, 0 blocked) and 10 sessions of GPW shares, WIG and NC
+  prices. Its commit step failed (missing exec bit on `scripts/commit_data.sh`, fixed). The
+  re-run [42630917651](https://github.com/almera-vs/undercurrent/actions/runs/42630917651)
+  pushed the partitions to `data` in 36 s thanks to the HTTP cache.
+- **Partition key = publication date (Warsaw) for reports, session date for prices.** A
+  report published after the nightly run lands in the next `part-N` of its own date's
+  partition on the following run. Existing files are never rewritten. Re-runs that find
+  nothing new write nothing (tested: byte-identical bronze after a second backfill).
+- **Report pages are fetched only for current reports (`Bieżący`).** Periodic reports are
+  classified from the listing, saving ≈ 20 % of requests.
+- **Three page templates** are handled: legacy ESPI (labelled table rows), legacy EBI (free
+  text with a trailing `Podstawa prawna:`), and the 2026 "gpwdata" template, where the
+  legal basis is in the header and the body exists only as a PDF (→ `body_text` null with a
+  note).
+- **Source data quality:** some ESPI pages lack Polish letters at the byte level
+  (`Rozporzdzenia`, `penice`). The source does this, not our decoder. Rules match on
+  diacritic-free tokens and on `MAR`, so these still classify.
+- **Silver/gold are rebuilt every run and never committed.** Only bronze (immutable),
+  `state/` (small) and later small daily gold snapshots go on the `data` branch. Rebuilt
+  tables live in `.work/`. Committing a nightly rewrite of a growing table would bloat git
+  history.
+- **Backfill is sequential** (`max-parallel: 1`) and pauses 17:30–19:30 UTC on weekdays, so
+  total traffic to the GPW sites stays ≤ 1 req/s even while the nightly job runs.
+  Failed-report state is per month, so the two jobs never write the same file.
+
+## Milestone 3 — parse and classify (2026-11-09) — partially met
+
+- **Classification** (`classify.py`) is a pure function: legal basis first, then
+  title/body fallbacks, then keyword sub-types for inside information. Every label carries
+  the rule that produced it (`class_rule`). Corrections found on real data:
+  - Art. 70 pkt 3 (list of ≥5 % holders at a general meeting) is **not** a threshold
+    crossing; only Art. 69/69a and Art. 70 pkt 1 are.
+  - An Art. 19 basis without any insider wording is reclassified `other`
+    (`basis:mar19:no_text_support`). Seen: Artifex Mundi filed a monthly revenue estimate
+    under Art. 19.
+- **Entity resolution:** 295/295 reports resolved by exact ISIN from the listing. The
+  rapidfuzz fallback and review list exist but had nothing to do on this sample.
+- **Insider fields** come from report text (PDFs are blocked). On the 15 real Art. 19
+  reports of 2026-11-02 … 06: field-level accuracy **99.2 %** (all fields, nulls included),
+  **97.1 %** on stated fields. **Caveat: in-sample.** These 15 were used to fix the
+  extractor, so this is a development-set number, not a held-out one.
+- **Coverage is the real limitation:** person/role are stated in 14/15 bodies, but side in
+  2/15, volume 2/15, price 1/15, value 0/15. Trade details live in the blocked PDFs.
+- **Not met:** "≥ 98 % on 300+ hand-labelled PDFs". Blocked on (a) the PDF decision and
+  (b) enough labelled examples. Once the backfill lands, the plan is to label a fresh,
+  held-out batch of Art. 19 report texts (not used for tuning) and report that number.
+  CI already gates on the current labels at ≥ 98 %.
+- **Number/date parsers** are Hypothesis-tested: round-trips over Polish (`1 234,56`),
+  dotted (`1.234.567,89`) and English (`1,234.56`) formats, and ISO / `DD.MM.YYYY` /
+  `5 listopada 2026` dates.

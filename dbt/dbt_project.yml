@@ -1,0 +1,33 @@
+name: undercurrent
+version: "0.1.0"
+config-version: 2
+profile: undercurrent
+
+model-paths: ["models"]
+seed-paths: ["../seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+vars:
+  # Root of the Parquet lake (the checked-out `data` branch). Override with --vars.
+  data_dir: "../data"
+  # Scratch outputs rebuilt every run (Python silver tables). Never committed.
+  work_dir: "../.work"
+  # Point-in-time cut-off: rows with known_at after this are invisible. Default: no cut-off.
+  as_of: "9999-12-31 23:59:59+00"
+
+models:
+  undercurrent:
+    bronze:
+      +materialized: view
+    silver:
+      +materialized: table
+    gold:
+      +materialized: table
+
+seeds:
+  undercurrent:
+    +column_types:
+      isin: varchar
