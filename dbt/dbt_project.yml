@@ -29,5 +29,15 @@ models:
 
 seeds:
   undercurrent:
-    +column_types:
-      isin: varchar
+    corporate_action_overrides:
+      +column_types:
+        isin: varchar
+        ex_date: date
+        action: varchar
+        factor: double
+        comment: varchar
+    issuer_overrides:
+      +column_types:
+        match: varchar
+        isin: varchar
+        comment: varchar

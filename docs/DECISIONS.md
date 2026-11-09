@@ -139,3 +139,31 @@ free quota and Pages deploys will fail.
 - **Number/date parsers** are Hypothesis-tested: round-trips over Polish (`1 234,56`),
   dotted (`1.234.567,89`) and English (`1,234.56`) formats, and ISO / `DD.MM.YYYY` /
   `5 listopada 2026` dates.
+
+## Milestone 4 — prices (2026-11-09)
+
+- **Adjustment factors come from the exchange.** On an ex-date GPW and NewConnect set the
+  session's reference price away from the previous close (dividend, split, rights issue,
+  reverse split). NewConnect publishes the reference price. GPW's archive doesn't, but it
+  publishes the change against the reference, so `reference = close / (1 + change/100)`.
+  `factor = reference / prev_close` applies to all earlier prices. Verified on real data:
+  in 10 sessions the rule found 4 GPW factors (Ambra 0.946, BoomBit 0.958, Ailleron 0.961,
+  Banco Santander 0.988), all in dividend season. **GPW adjusts the reference for
+  dividends**, so adjusted returns are total returns.
+- Factors within 0.2 % of 1 are treated as 1. The published change has 2 decimals, which
+  bounds rounding noise far below that. Dividends under 0.2 % yield are therefore ignored
+  (documented bias, at most 0.2 % on one day).
+- `seeds/corporate_action_overrides.csv` replaces the factor for an `(isin, ex_date)`. Every
+  row needs a `comment` saying why.
+- **Jump gate interpretation.** `assert_no_unexplained_jumps` fails on any adjusted daily
+  move > 35 % that is neither covered by an override nor *confirmed by the exchange*, i.e.
+  our adjusted return agrees (±0.5 pp) with the change the exchange published for that
+  session. Why: NewConnect has genuine > 35 % moves almost daily (6 in the first 10 sessions:
+  FPO, FOX ×2, UFC, BTC ×2), and hand-listing each would make the override file meaningless.
+  What the gate catches is what it is meant to catch: missing or garbled prices, a stale
+  previous close, a missed or wrong factor. `assert_adjusted_returns_reconcile` checks the
+  same agreement on every row, not just big moves.
+- Both gates run in CI against the real `data` branch (`ci.yml` → `data-checks`), and in the
+  nightly job via `dbt build`.
+- **Cross-check with ESPI** (split/reverse split/dividend reports vs detected factors) is
+  deferred until the backfill provides enough history to make it meaningful.

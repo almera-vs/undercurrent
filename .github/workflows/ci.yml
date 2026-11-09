@@ -30,3 +30,24 @@ jobs:
         run: uv run mypy
       - name: pytest
         run: uv run pytest -q
+
+  # Runs the dbt models + data tests (incl. the 35% jump gate) against the real lake.
+  data-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: data
+          path: data
+          fetch-depth: 1
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --locked --no-dev --group dbt
+      - name: lake size
+        run: uv run undercurrent --data-dir data check-lake --max-mb 900
+      - name: transform + dbt tests on real data
+        run: uv run undercurrent --data-dir data transform

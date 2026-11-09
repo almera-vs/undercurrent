@@ -20,3 +20,4 @@ dbt/dbt_packages/
 *.duckdb.wal
 .env
 .work/
+dbt/.user.yml
