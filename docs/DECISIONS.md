@@ -147,6 +147,13 @@ it costs. Method details (event study, walk-forward, verdicts) are in
 ## Event studies and walk-forward
 
 - **Day 0** is the first session whose 17:05 close is after `known_at`.
+- **Returns count from the entry close, not day 0.** A reader learns about a report from the
+  evening digest, so the first close they can trade is the session after that digest. An
+  intraday report's day-0 move (and, for most reports, the day +1 move) happens before then.
+  Measuring from day 0 would credit the strategy with moves nobody using the digest could
+  catch; on a synthetic market with a planted day +1 effect, the day-0 method reported it as
+  tradable and the entry method correctly does not. Statistics, the walk-forward and the
+  per-event table all use (entry, entry+h]; the chart keeps the day-0 view.
 - **Reproducible and point-in-time:** `tests/reproducibility` requires an identical SHA-256
   of `signal_stats` over two runs; `tests/replay` recomputes as of past dates and fails on
   any input row known after the cut-off.

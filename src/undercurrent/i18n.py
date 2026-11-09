@@ -52,7 +52,7 @@ PL: dict[str, str] = {
     "Holder thresholds crossed": "Przekroczone progi akcjonariatu",
     "Art. 69 Public Offering Act": "Art. 69 ustawy o ofercie publicznej",
     "Worth a look": "Warte uwagi",
-    "Past 20-day excess return": "Historyczna nadwyżkowa stopa zwrotu (20 dni)",
+    "Past 20-day excess return": "Historyczna nadwyżka, 20 sesji od wejścia",
     "Rose in {p} of {n} cases": "Wzrost w {p} z {n} przypadków",
     "Fell in {p} of {n} cases": "Spadek w {p} z {n} przypadków",
     "{n} past cases (too few for statistics)": (
@@ -98,7 +98,7 @@ PL: dict[str, str] = {
     "Signal": "Sygnał",
     "Legal basis": "Podstawa prawna",
     "Events": "Zdarzenia",
-    "Avg excess [0,+{h}]": "Śr. nadwyżka [0,+{h}]",
+    "Avg excess [0,+{h}]": "Śr. nadwyżka, {h} sesji od wejścia",
     "95% CI": "95% przedział",
     "Hit rate": "Odsetek wzrostów",
     "FDR q": "q (FDR)",
@@ -111,8 +111,10 @@ PL: dict[str, str] = {
         "Nadwyżkowa stopa zwrotu względem WIG (model rynkowy, sesje −250…−30) na kursach "
         "skorygowanych kursami odniesienia publikowanymi przez giełdę (podziały, dywidendy, "
         "prawa poboru). Każde zdarzenie jest umieszczone w chwili, w której Undercurrent mógł "
-        "się o nim dowiedzieć (known_at), więc nie ma zaglądania w przyszłość. Typy sygnałów z "
-        "mniej niż 10 zdarzeniami nie mają statystyk."
+        "się o nim dowiedzieć (known_at), więc nie ma zaglądania w przyszłość. Wejście to "
+        "zamknięcie pierwszej sesji po wieczornym podsumowaniu, które jako pierwsze podało "
+        "raport; ruch ceny przed tym momentem nie jest liczony. Typy sygnałów z mniej niż 10 "
+        "zdarzeniami nie mają statystyk."
     ),
     # pipeline
     "Unattended runs · GitHub Actions · weekdays 17:47 UTC": (
@@ -163,9 +165,10 @@ PL: dict[str, str] = {
     "What happened after {n} similar events": "Co działo się po podobnych zdarzeniach (n = {n})",
     "event_chart_note": (
         "Średnia nadwyżkowa stopa zwrotu względem WIG, od 5 sesji przed do 20 sesji po "
-        "raporcie, z 95% pasmem bootstrap."
+        "raporcie, z 95% pasmem bootstrap. Dzień 0 to pierwsze zamknięcie po publikacji; "
+        "statystyki liczą się dopiero od zamknięcia sesji po podsumowaniu."
     ),
-    "Avg 20-day excess return": "Śr. nadwyżka w 20 dni",
+    "Avg 20-day excess return": "Śr. nadwyżka, 20 sesji od wejścia",
     "FDR-adjusted q": "q po korekcie FDR",
     "Walk-forward, after 0.3% costs": "Walk-forward, po kosztach 0,3%",
     "Worst case in sample": "Najgorszy przypadek w próbie",
@@ -201,7 +204,9 @@ EN_OVERRIDES: dict[str, str] = {
         "Excess return vs WIG (market model, days −250…−30) on prices adjusted with the "
         "exchange's own reference prices (splits, dividends, rights issues). Every event is "
         "placed at the moment Undercurrent could have known it (known_at), so there is no "
-        "look-ahead. Signal types with fewer than 10 events show no statistics."
+        "look-ahead. Entry is the close of the first session after the evening digest that "
+        "first carried the report; the move before that is not counted. Signal types with "
+        "fewer than 10 events show no statistics."
     ),
     "insider_note": (
         "Fields parsed from the report text: no copy of the notification form was found on "
@@ -215,9 +220,13 @@ EN_OVERRIDES: dict[str, str] = {
     ),
     "event_chart_note": (
         "Average excess return vs WIG, from 5 days before to 20 days after the report, with "
-        "95% bootstrap band."
+        "95% bootstrap band. Day 0 is the first close after publication; the statistics start "
+        "at the close of the session after the digest."
     ),
     "d": "d",
+    "Past 20-day excess return": "Past excess return, 20 sessions after entry",
+    "Avg excess [0,+{h}]": "Avg excess, {h} sessions after entry",
+    "Avg 20-day excess return": "Avg excess, 20 sessions after entry",
 }
 
 # Polish plural forms: (1, 2–4, 5+), keyed by the English singular.

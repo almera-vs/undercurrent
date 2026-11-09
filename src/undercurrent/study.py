@@ -5,12 +5,16 @@ Method (details and caveats in ``docs/METHODOLOGY.md``):
 * **Day 0** is the first session whose close (17:05 Warsaw) is after ``known_at``.
 * **Market model** ``r_i = a + b·r_WIG`` estimated by OLS on sessions [−250, −30]
   (at least ``MIN_EST_OBS`` valid returns). Abnormal return ``AR_t = r_t − (a + b·r_WIG,t)``.
-* **CAR windows** [0,+1], [0,+5], [0,+20], [0,+60]; the [−5,+20] path for charts.
+* **Entry** is the close of the first session after the evening digest that carries the
+  report: a report published at 10:00 is in that evening's digest, so the first close a
+  reader can trade is the next session's. Statistics and the walk-forward measure abnormal
+  returns from that close: windows (entry, entry+h] for h in 1/5/20/60 sessions. The
+  [−5,+20] chart path stays relative to day 0, so the reaction before entry is visible.
 * **Uncertainty:** 95 % percentile bootstrap over events, fixed seed per signal/horizon.
 * **Multiple testing:** BH q-values across every (signal, horizon).
 * **Walk-forward:** expanding yearly windows. Before each year the rule (direction and
-  holding period) is chosen from earlier events only; trades enter at the close of day 0
-  and exit at the close of day +h, net of 0.3 % round-trip costs.
+  holding period) is chosen from earlier events only; trades enter at the entry close and
+  exit h sessions later, net of 0.3 % round-trip costs.
 * **Point in time:** every input row must have ``known_at <= as_of``; post-event returns
   that weren't known by ``as_of`` make the event ineligible for that horizon.
 
@@ -19,13 +23,15 @@ Everything is deterministic: sorted inputs, seeded RNGs, no wall-clock values in
 
 from __future__ import annotations
 
+import bisect
 import hashlib
 import logging
 import math
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import numpy.typing as npt
@@ -46,6 +52,12 @@ MIN_TRAIN_EVENTS = 30
 MIN_EVENTS_FOR_STATS = 10
 SEED = 20261109
 SIGNIFICANCE = 0.05
+WARSAW = ZoneInfo("Europe/Warsaw")
+# The nightly digest is out by this Warsaw time (the freshness SLO). Reports published
+# later reach readers in the next digest.
+DIGEST_LOCAL = time(20, 30)
+# Events whose entry would be more than this many sessions after day 0 are not traded.
+MAX_ENTRY_LAG = 5
 
 FloatArray = npt.NDArray[np.float64]
 
@@ -148,11 +160,39 @@ class EventAR:
     signal_key: str
     isin: str
     event_date: date
-    ar: FloatArray  # index 0 ↔ relative day PATH_WINDOW[0]; extended to max(HORIZONS)
+    ar: FloatArray  # index 0 ↔ relative day PATH_WINDOW[0]; extended past max(HORIZONS)
+    entry: int = 1  # entry session relative to day 0; -1 if not yet known
 
 
 def _offset_range() -> range:
-    return range(PATH_WINDOW[0], max(max(HORIZONS), PATH_WINDOW[1]) + 1)
+    return range(PATH_WINDOW[0], max(max(HORIZONS) + MAX_ENTRY_LAG, PATH_WINDOW[1]) + 1)
+
+
+def digest_day(known_at: datetime, sessions: list[date]) -> date | None:
+    """Session whose evening digest first carries a report known at ``known_at``.
+
+    The nightly run publishes after each session; it covers everything published since the
+    previous run, so weekend and holiday reports land in the next session's digest.
+    """
+    local = known_at.astimezone(WARSAW)
+    d = local.date() + (timedelta(days=1) if local.time() > DIGEST_LOCAL else timedelta(0))
+    i = bisect.bisect_left(sessions, d)
+    return sessions[i] if i < len(sessions) else None
+
+
+def entry_offset(known_at: datetime, event_date: date, sessions: list[date]) -> int:
+    """Entry session relative to day 0: the first session after the digest. -1 if unknown.
+
+    ``sessions`` must be sorted.
+    """
+    dig = digest_day(known_at, sessions)
+    if dig is None:
+        return -1
+    entry = bisect.bisect_right(sessions, dig)
+    day0 = bisect.bisect_left(sessions, event_date)
+    if entry >= len(sessions) or day0 >= len(sessions) or sessions[day0] != event_date:
+        return -1
+    return entry - day0
 
 
 def compute_event_ars(inputs: StudyInputs) -> list[EventAR]:
@@ -190,7 +230,10 @@ def compute_event_ars(inputs: StudyInputs) -> list[EventAR]:
         valid = (pos >= 0) & (pos < n_cal)
         p = pos[valid]
         ar[valid] = ri[p] - (a + b * mkt[p])
-        out.append(EventAR(row["report_id"], row["signal_key"], row["isin"], row["event_date"], ar))
+        entry = entry_offset(row["known_at"], row["event_date"], cal)
+        out.append(
+            EventAR(row["report_id"], row["signal_key"], row["isin"], row["event_date"], ar, entry)
+        )
     return out
 
 
@@ -199,6 +242,13 @@ def _car(ar: FloatArray, start: int, end: int) -> float:
     i0, i1 = start - PATH_WINDOW[0], end - PATH_WINDOW[0]
     seg = ar[i0 : i1 + 1]
     return float(seg.sum()) if np.all(np.isfinite(seg)) else math.nan
+
+
+def trade_car(e: EventAR, horizon: int) -> float:
+    """Abnormal return from the entry close to ``horizon`` sessions later; NaN if unknown."""
+    if not 0 <= e.entry <= MAX_ENTRY_LAG:
+        return math.nan
+    return _car(e.ar, e.entry + 1, e.entry + horizon)
 
 
 # --------------------------------------------------------------------------- statistics
@@ -271,10 +321,10 @@ class Rule:
 
 
 def _trade_returns(evs: list[EventAR], horizon: int) -> tuple[FloatArray, list[date]]:
-    """Abnormal return from close of day 0 to close of day +h for each event."""
+    """Abnormal return from the entry close to ``horizon`` sessions later, per event."""
     vals, dates = [], []
     for e in evs:
-        v = _car(e.ar, 1, horizon)
+        v = trade_car(e, horizon)
         if math.isfinite(v):
             vals.append(v)
             dates.append(e.event_date)
@@ -359,7 +409,7 @@ def compute_signal_stats(inputs: StudyInputs) -> tuple[pl.DataFrame, pl.DataFram
         evs = sorted(by_key[key], key=lambda e: (e.event_date, e.report_id))
         wf[key] = walk_forward(evs)
         for h in HORIZONS:
-            cars = np.array([_car(e.ar, 0, h) for e in evs])
+            cars = np.array([trade_car(e, h) for e in evs])
             cars = cars[np.isfinite(cars)]
             n = len(cars)
             row: dict[str, Any] = {"as_of": inputs.as_of, "signal_key": key, "horizon": h, "n": n}
@@ -499,7 +549,7 @@ def event_cars(inputs: StudyInputs) -> pl.DataFrame:
                 "signal_key": e.signal_key,
                 "isin": e.isin,
                 "event_date": e.event_date,
-                **{f"car_{h}": _car(e.ar, 0, h) for h in HORIZONS},
+                **{f"car_{h}": trade_car(e, h) for h in HORIZONS},
                 "path": [float(x) for x in np.cumsum(e.ar[: PATH_WINDOW[1] - PATH_WINDOW[0] + 1])],
             }
         )

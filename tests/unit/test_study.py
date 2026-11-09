@@ -61,3 +61,32 @@ def test_walk_forward_uses_only_past():
     assert study.choose_rule([e for e in ars if e.event_date.year < years[0]]) is None
     oos, _ = study.walk_forward(ars)
     assert len(oos) <= len(ars) - len(first)
+
+
+def test_reaction_before_entry_is_not_tradable():
+    """A move on day +1 happens before the first tradable close after the digest."""
+    ev, rt, bench, _ = synthetic(effect_day=1)
+    df, paths = study.compute_signal_stats(study.cut_inputs(ev, rt, bench, END))
+    ii = df.filter((df["signal_key"] == "inside_info:large_contract") & (df["horizon"] == 1))
+    row = ii.row(0, named=True)
+    assert abs(row["mean_car"]) < 0.006 and row["verdict"] == "noise"
+    p = paths.filter(paths["signal_key"] == "inside_info:large_contract")
+    jump = p.filter(p["day"] == 1)["mean_car"][0] - p.filter(p["day"] == 0)["mean_car"][0]
+    assert jump == pytest.approx(0.03, abs=0.006)  # still visible on the chart
+
+
+def test_entry_session_follows_the_digest():
+    from datetime import date
+
+    cal = [date(2026, 11, d) for d in (5, 6, 9, 10, 12, 13)]  # 11th: no session
+    w = study.WARSAW
+
+    def at(d: int, hh: int, mm: int = 0) -> datetime:
+        return datetime(2026, 11, d, hh, mm, tzinfo=w)
+
+    assert study.entry_offset(at(5, 10), date(2026, 11, 5), cal) == 1  # daytime → next close
+    assert study.entry_offset(at(5, 18), date(2026, 11, 6), cal) == 0  # after close, before digest
+    assert study.entry_offset(at(5, 21), date(2026, 11, 6), cal) == 1  # after the digest
+    assert study.entry_offset(at(7, 12), date(2026, 11, 9), cal) == 1  # Saturday → Monday digest
+    assert study.entry_offset(at(11, 12), date(2026, 11, 12), cal) == 1  # holiday → Thu digest
+    assert study.entry_offset(at(13, 12), date(2026, 11, 13), cal) == -1  # next session unknown

@@ -28,7 +28,11 @@ def synthetic(
     n_events: int = 240,
     effect: float = 0.03,
     seed: int = 7,
+    effect_day: int = 2,
 ):
+    """Events are published at 09:00 on day 0, so the digest is that evening and the first
+    tradable close is day +1. The planted effect sits on ``effect_day`` (default +2, the
+    first session after entry)."""
     rng = np.random.default_rng(seed)
     cal = sessions(n_sessions)
     mkt = rng.normal(0.0003, 0.01, n_sessions)
@@ -42,9 +46,9 @@ def synthetic(
         key_type = "inside_info" if k % 2 == 0 else "holder_threshold"
         sub = "large_contract" if key_type == "inside_info" else None
         isin = isins[int(rng.integers(0, n_isins))]
-        e = int(rng.integers(300, n_sessions - 70))
+        e = int(rng.integers(300, n_sessions - 80))
         if key_type == "inside_info":
-            rets[isin][e + 1] += effect  # planted abnormal return on day +1
+            rets[isin][e + effect_day] += effect  # planted abnormal return
         pub = datetime.combine(cal[e], time(9, 0), tzinfo=WARSAW).astimezone(UTC)
         events.append(
             {

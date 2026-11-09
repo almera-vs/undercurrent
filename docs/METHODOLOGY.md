@@ -22,6 +22,21 @@ Code: `src/undercurrent/study.py` (event studies), `dbt/models/gold/adjusted_pri
   Undercurrent could have known the report.
 - **Day 0** is the first GPW session whose close (17:05 Warsaw) is after `known_at`. A report
   published at 16:30 has day 0 = that day; one at 17:30 has day 0 = the next session.
+- **Entry** is the close of the first session after the evening digest that first carries the
+  report. The digest goes out after each session (by 20:30 Warsaw) and covers everything
+  published since the previous one, so:
+
+  | published | day 0 | digest | entry |
+  |---|---|---|---|
+  | Tue 10:00 | Tue | Tue evening | Wed close (day +1) |
+  | Tue 18:00 | Wed | Tue evening | Wed close (day 0) |
+  | Tue 21:00 | Wed | Wed evening | Thu close (day +1) |
+  | Sat 12:00 | Mon | Mon evening | Tue close (day +1) |
+
+  Holidays work the same way through the session calendar. Whatever the price does before
+  the entry close is not something a reader of the digest could have traded, so it is left
+  out of the statistics and the walk-forward. Entering at the next open would capture more,
+  but adjusted opening prices are not modelled; the close is the conservative choice.
 
 ## 2. Prices and returns
 
@@ -47,8 +62,10 @@ Code: `src/undercurrent/study.py` (event studies), `dbt/models/gold/adjusted_pri
 - **Market model:** `r_i,t = a + b · r_WIG,t + e`, OLS on sessions [−250, −30] relative to
   day 0, requiring ≥ 120 valid returns (otherwise the event is skipped, not imputed).
 - **Abnormal return:** `AR_t = r_i,t − (a + b · r_WIG,t)`.
-- **CAR windows:** [0,+1], [0,+5], [0,+20], [0,+60]. The [−5,+20] path is used for charts.
-  An event counts for a window only if every day of the window is known.
+- **Windows:** abnormal returns from the entry close over the next 1, 5, 20 and 60 sessions,
+  (entry, entry+h]. The chart path stays relative to day 0 ([−5,+20]), so the reaction
+  before entry is visible there. An event counts for a window only if every day of it is
+  known; events whose entry would be more than 5 sessions after day 0 are skipped.
 - **Statistics per (signal key, horizon):** n, mean and median CAR, hit rate (share of
   CAR > 0), t-statistic and two-sided p-value of the mean, and a 95 % percentile **bootstrap CI
   resampling events** (2,000 draws). The seed is derived from SHA-256 of
@@ -64,8 +81,8 @@ Code: `src/undercurrent/study.py` (event studies), `dbt/models/gold/adjusted_pri
   t-statistic of the mean net return. Ranking by raw mean favours the noisiest horizon by
   chance (we saw this happen on synthetic data). If no candidate had a positive past net mean,
   the signal is not traded in Y. At least 30 past events are required.
-- **Trade:** enter at the close of day 0, exit at the close of day +h. The return is the
-  abnormal return over (0, h] (market-hedged), minus **0.3 % round-trip costs**.
+- **Trade:** enter at the entry close, exit h sessions later. The return is the abnormal
+  return over (entry, entry+h] (market-hedged), minus **0.3 % round-trip costs**.
 - The out-of-sample result is the mean net return of all trades made this way.
 - **Caveat:** the short side assumes stock borrow is available, which is unrealistic for most
   GPW/NewConnect small caps. A `short` rule that "holds up" is a statement about information,
