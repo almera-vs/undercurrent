@@ -52,21 +52,21 @@ Details: [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md) · sources and their verif
 [`docs/SOURCES.md`](docs/SOURCES.md) · every judgment call: [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · what 1,000× would need: [`docs/SCALING.md`](docs/SCALING.md).
 
-## Honest results
+## Results
 
-**No results yet.** The 2015 → today backfill has not run, so no signal has the 250-session
-history the market model needs, and the walk-forward test has nothing to trade. Until it has
-run, the site shows empty statistics rather than made-up ones. When it has, this section
-will say plainly whether any rule held up after costs out of sample, or that none did.
+Statistics need history: the market model uses 250 sessions before each event, and the
+walk-forward test needs past years to choose a rule. The 2015 → today backfill is still
+filling the lake, so the site shows empty statistics rather than made-up ones until enough
+history exists. This section will then state plainly whether any rule held up after costs
+out of sample, or that none did.
 
-Known limitations that will shape those results:
+Limitations that shape the results:
 
 - **Insider trade details are mostly missing.** The MAR Art. 19 notification forms are PDF
-  attachments behind a bot-protection wall that we deliberately don't get around. Side,
-  volume and price are known only when the issuer restates them in the report text (about
-  2 in 15 reports in the first sample).
-- Insider-field accuracy is 99.2 % field-level on 15 hand-labelled real reports, but that set
-  was used for development. A held-out set of 300+ is still to come.
+  attachments behind bot protection, which Undercurrent does not get around. Side, volume
+  and price are known only when the issuer restates them in the report text.
+- Insider-field accuracy is measured on hand-labelled real reports that were also used to
+  develop the rules, so it is optimistic until a held-out set is labelled.
 
 ## Run it
 
@@ -87,20 +87,17 @@ uv run pytest
 
 Secrets (GitHub Actions only): `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
 
-## Constraints it was built under
+## Design principles
 
-The docs refer to these as C1–C6.
-
-- **C1 Zero cost**: no service that asks for a payment method. GitHub (Actions, Pages) and a
-  Telegram bot only.
-- **C2 Runs in GitHub Actions**: every job, including backfills and tests, runs there. No
-  personal machine involved.
-- **C3 No LLMs or AI APIs**: classification and parsing are deterministic rules.
-- **C4 Public repo, no secrets in git**: secrets live in GitHub Actions only, and jobs use
-  standard hosted runners.
-- **C5 Official sources only**: gpw.pl and newconnect.pl. No raw PDFs in git.
-- **C6 Polite scraping**: ≤ 1 request/s with jitter, an honest User-Agent, conditional
-  requests and caching. Bot-protected endpoints are documented, not bypassed.
+- **Zero cost**: GitHub (Actions, Pages) and a Telegram bot. No service that needs a payment
+  method.
+- **Runs entirely in GitHub Actions**, including backfills and tests.
+- **Deterministic rules**: classification and parsing are plain rules, no machine learning.
+- **No secrets in git**: tokens live in GitHub Actions secrets only.
+- **Exchange data first**: reports and prices come from gpw.pl and newconnect.pl. No raw
+  PDFs are stored in git.
+- **Polite scraping**: at most one request per second with jitter, an honest User-Agent,
+  conditional requests and caching. Bot-protected endpoints are not bypassed.
 
 Small stack on purpose: Python 3.12, uv, DuckDB, Parquet, dbt-duckdb, Polars, Jinja2. No Kafka,
 Iceberg, orchestrator or cloud database (see SCALING.md for why).

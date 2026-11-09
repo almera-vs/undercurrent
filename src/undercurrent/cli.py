@@ -87,7 +87,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    """Nightly pipeline (filled in milestone by milestone)."""
+    """Nightly pipeline: ingest, transform, study, publish."""
     from undercurrent import pipeline
 
     return pipeline.run_day(

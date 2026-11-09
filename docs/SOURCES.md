@@ -1,14 +1,8 @@
 # Sources
 
-Every endpoint Undercurrent touches. All were verified on **2026-11-09** from two vantage
-points:
-
-- a residential connection in Poland, and
-- a GitHub-hosted `ubuntu-latest` runner (egress 20.55.8.72, Azure), via the
-  [`probe-sources`](../.github/workflows/probe.yml) workflow, run
-  [42655010127](https://github.com/almera-vs/undercurrent/actions/runs/42655010127).
-
-Re-run the probe whenever a source misbehaves: `gh workflow run probe-sources`.
+Every endpoint Undercurrent touches. Last verified on **2026-11-09** from a residential
+connection and from a GitHub-hosted `ubuntu-latest` runner, using the
+[`probe-sources`](../.github/workflows/probe.yml) workflow (`gh workflow run probe-sources`).
 
 **robots.txt.** `https://www.gpw.pl/robots.txt` and `https://newconnect.pl/robots.txt` both
 contain only `User-agent: *` / `Disallow: /pub/NEWCONNECT/DI/EUROSNACK`. Nothing we use is
@@ -131,9 +125,9 @@ row 1; confirmed from the runner in the same probe run, along with a NewConnect 
   the 2026 format link their files under `/ebi/files/gpwdata/…` instead, and those download
   normally (HTTP 200, `application/pdf`). Their `main.xhtml` holds only the header and
   signatures; the report text itself is in the PDFs, which we don't parse (see METHODOLOGY).
-- **Decision:** this is bot protection aimed at automated clients. Per C6 we do
-  **not** work around it (no headless browser, no JS-challenge solving, no browser UA
-  spoofing). See `DECISIONS.md` → "Blocker: PDF attachments".
+- **Not used:** this is bot protection aimed at automated clients, so these URLs are not
+  fetched (no headless browser, no challenge solving, no browser User-Agent). See
+  DECISIONS.md → "Fetching".
 
 ## 5. Daily prices, main market (gpw.pl quote archive)
 
@@ -190,8 +184,7 @@ row 1; confirmed from the runner in the same probe run, along with a NewConnect 
 - **Validators:** `ETag` and `Last-Modified` (for example `"83014a-18e7b-65f9f8f20e380"`,
   `Fri, 06 Nov 2026 18:12:46 GMT`). Conditional GET is used.
 - **Timing — important:** the file appears **between 16:47 and 18:50 UTC** (sampled
-  2026-10-23 … 2026-11-06), which is often *after* the 17:47 UTC cron. See DECISIONS →
-  "NewConnect price file timing".
+  2026-10-23 … 2026-11-06), which is often *after* the 17:47 UTC cron. See DECISIONS.md → "Ingest".
 
 ## 8. espiebi.pap.pl — not used
 

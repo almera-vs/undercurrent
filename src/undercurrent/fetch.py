@@ -1,6 +1,6 @@
 """Polite HTTP client shared by every ingest step.
 
-Rules enforced here (constraint C6, see README):
+Rules enforced here (see README → Design principles):
 
 * at most one request per second per process, plus random jitter;
 * a fixed, honest User-Agent that names the project (never a browser impersonation);

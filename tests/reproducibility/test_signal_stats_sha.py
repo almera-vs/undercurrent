@@ -1,4 +1,4 @@
-"""Milestone 6 gate: signal_stats is byte-for-byte reproducible."""
+"""Gate: signal_stats is byte-for-byte reproducible."""
 
 from datetime import UTC, datetime
 

@@ -1,4 +1,4 @@
--- Milestone 4 gate: no daily move above 35% in the adjusted series unless it is
+-- Gate: no daily move above 35% in the adjusted series unless it is
 -- explained by a corporate action (exchange reference adjustment or an override row)
 -- or confirmed as a genuine market move by the exchange's own published change.
 -- Rows returned = failures.

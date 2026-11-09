@@ -1,4 +1,4 @@
-"""Milestone 6 gate: point-in-time replay never sees rows known after the as-of date."""
+"""Gate: point-in-time replay never sees rows known after the as-of date."""
 
 from datetime import UTC, datetime, time
 
