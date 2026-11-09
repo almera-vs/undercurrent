@@ -6,7 +6,7 @@ points:
 - a residential connection in Poland, and
 - a GitHub-hosted `ubuntu-latest` runner (egress 20.55.8.72, Azure), via the
   [`probe-sources`](../.github/workflows/probe.yml) workflow, run
-  [42651323684](https://github.com/almera-vs/undercurrent/actions/runs/42651323684).
+  [42655010127](https://github.com/almera-vs/undercurrent/actions/runs/42655010127).
 
 Re-run the probe whenever a source misbehaves: `gh workflow run probe-sources`.
 
@@ -192,6 +192,6 @@ row 1; confirmed from the runner in the same probe run, along with a NewConnect 
 
 PAP's public ESPI/EBI site. From the residential IP every URL, including `robots.txt`, returns
 an Imperva/Incapsula JavaScript challenge (`/_Incapsula_Resource`). From the GitHub runner the
-home page returned 200 once. A bot-protected site that sometimes lets a datacenter IP
+home page sometimes returns 200. A bot-protected site that sometimes lets a datacenter IP
 through is not a dependable or clearly permitted source, so we do not use it. Its data is a
 subset of §1–3 anyway, apart from attachments.
