@@ -1,8 +1,9 @@
 name: watchdog
 
-# Freshness SLO guard: if today's nightly run hasn't succeeded by 20:15 Warsaw time, send a
-# Telegram alert. Two crons cover both CET and CEST; the step skips itself unless the
-# Warsaw clock is between 20:15 and 21:00.
+# Freshness SLO guard: send a Telegram alert if the latest nightly run that should have
+# finished (by 20:15 Warsaw time on a weekday) has not succeeded. Which run that is, is
+# worked out from the clock in Python, so a check that GitHub delivers late still checks
+# the right day. Two crons cover both CET and CEST.
 on:
   schedule:
     - cron: "20 18 * * 1-5"  # 20:20 CEST (summer)
@@ -30,10 +31,4 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          MANUAL: ${{ github.event_name == 'workflow_dispatch' }}
-        run: |
-          hm=$(TZ=Europe/Warsaw date +%H%M)
-          if [ "$MANUAL" != "true" ] && { [ "$hm" -lt 2015 ] || [ "$hm" -ge 2100 ]; }; then
-            echo "Warsaw time $hm outside the check window; skipping"; exit 0
-          fi
-          uv run undercurrent --data-dir data alert --if-stale
+        run: uv run undercurrent --data-dir data alert --if-stale

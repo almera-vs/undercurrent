@@ -89,12 +89,13 @@ PL: dict[str, str] = {
     "Which signals actually hold up": "Które sygnały naprawdę działają",
     "signals_lede": (
         "„Działa po kosztach” oznacza q po korekcie FDR poniżej 0,05 oraz wynik testu "
-        "walk-forward po kosztach transakcyjnych 0,3% w obie strony, który jest dodatni i "
-        "sam istotny statystycznie. Wszystkie pozostałe wyniki też są pokazane, nic nie jest "
-        "ukrywane."
+        "walk-forward po kosztach transakcyjnych w obie strony (0,3% na GPW, 2% na "
+        "NewConnect), który jest dodatni i sam istotny statystycznie. Wszystkie pozostałe "
+        "wyniki też są pokazane, nic nie jest ukrywane."
     ),
     "Signal types tested": "Przetestowane typy sygnałów",
     "Hold up after costs": "Działają po kosztach",
+    "Not confirmed out of sample": "Niepotwierdzone poza próbą",
     "Significant, but eaten by costs": "Istotne, ale zjadane przez koszty",
     "Noise": "Szum",
     "Signal library": "Biblioteka sygnałów",
@@ -178,7 +179,7 @@ PL: dict[str, str] = {
     ),
     "Avg excess, {h} sessions after entry": "Śr. nadwyżka w ciągu {h} sesji od wejścia",
     "FDR-adjusted q": "q po korekcie FDR",
-    "Walk-forward, after 0.3% costs": "Walk-forward, po kosztach 0,3%",
+    "Walk-forward, after costs": "Walk-forward, po kosztach",
     "Worst case in sample": "Najgorszy przypadek w próbie",
     "Worst case for a short, in sample": "Najgorszy przypadek dla krótkiej pozycji w próbie",
     "Most recent past events": "Ostatnie wcześniejsze zdarzenia",
@@ -210,9 +211,9 @@ PL: dict[str, str] = {
 
 EN_OVERRIDES: dict[str, str] = {
     "signals_lede": (
-        "“Holds up” means FDR-adjusted q below 0.05 and a walk-forward result after 0.3% "
-        "round-trip costs that is positive and itself statistically significant. Everything "
-        "else is shown, not hidden."
+        "“Holds up” means FDR-adjusted q below 0.05 and a walk-forward result after "
+        "round-trip costs (0.3% on GPW, 2% on NewConnect) that is positive and itself "
+        "statistically significant. Everything else is shown, not hidden."
     ),
     "signals_footnote": (
         "Excess return vs WIG (market model, days −250…−30) on prices adjusted with the "

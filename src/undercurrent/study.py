@@ -15,7 +15,7 @@ Method (details and caveats in ``docs/METHODOLOGY.md``):
 * **Multiple testing:** BH q-values across every (signal, horizon).
 * **Walk-forward:** expanding yearly windows. Before each year the rule (direction and
   holding period) is chosen from earlier events only; trades enter at the entry close and
-  exit h sessions later, net of 0.3 % round-trip costs.
+  exit h sessions later, net of round-trip costs (0.3 % on GPW, 2 % on NewConnect).
 * **Point in time:** every input row must have ``known_at <= as_of``; post-event returns
   that weren't known by ``as_of`` make the event ineligible for that horizon.
 
@@ -49,6 +49,10 @@ EST_WINDOW = (-250, -30)
 MIN_EST_OBS = 120
 BOOTSTRAP_DRAWS = 2000
 ROUND_TRIP_COST = 0.003
+# NewConnect: wide spreads and thin books. An assumption, not a measurement (no quote data);
+# set high enough that a rule surviving it is not living off the spread.
+ROUND_TRIP_COST_NC = 0.02
+COST_BY_MARKET = {"GPW": ROUND_TRIP_COST, "NC": ROUND_TRIP_COST_NC}
 MIN_TRAIN_EVENTS = 30
 MIN_EVENTS_FOR_STATS = 10
 # Standard errors and the bootstrap treat each stock as one cluster: repeated notifications
@@ -66,6 +70,9 @@ WARSAW = ZoneInfo("Europe/Warsaw")
 DIGEST_CUTOFF_LOCAL = time(18, 30)
 # Events whose entry would be more than this many sessions after day 0 are not traded.
 MAX_ENTRY_LAG = 5
+# Real sessions are never more than a week apart. A longer step in the calendar is a hole in
+# the data (months not backfilled yet): no window may reach across it.
+MAX_SESSION_GAP_DAYS = 7
 
 FloatArray = npt.NDArray[np.float64]
 
@@ -82,7 +89,7 @@ class StudyInputs:
     """Point-in-time inputs: events, per-ISIN adjusted returns and WIG returns."""
 
     as_of: datetime
-    events: pl.DataFrame  # report_id, signal_key, isin, known_at, event_date
+    events: pl.DataFrame  # report_id, signal_key, isin, known_at, event_date, market
     returns: pl.DataFrame  # isin, trade_date, adj_ret, known_at
     benchmark: pl.DataFrame  # trade_date, wig_ret, known_at
 
@@ -101,8 +108,8 @@ def load_inputs(duckdb_file: Path, as_of: datetime) -> StudyInputs:
     con = duckdb.connect(str(duckdb_file))
     try:
         ev = con.sql(
-            "select report_id, signal_type, subtype, insider_side, isin, known_at, event_date "
-            "from events where isin is not null and event_date is not null"
+            "select report_id, signal_type, subtype, insider_side, isin, known_at, event_date, "
+            "market from events where isin is not null and event_date is not null"
         ).pl()
         rets = con.sql(
             "select isin, trade_date, adj_ret, known_at from adjusted_prices "
@@ -136,7 +143,11 @@ def cut_inputs(
         )
         .alias("signal_key")
     )
-    ev = ev.select("report_id", "signal_key", "isin", "known_at", "event_date").sort("report_id")
+    if "market" not in ev.columns:
+        ev = ev.with_columns(pl.lit(None, dtype=pl.String).alias("market"))
+    ev = ev.select("report_id", "signal_key", "isin", "known_at", "event_date", "market").sort(
+        "report_id"
+    )
     return StudyInputs(
         as_of=as_of,
         events=ev,
@@ -171,6 +182,7 @@ class EventAR:
     ar: FloatArray  # index 0 ↔ relative day PATH_WINDOW[0]; extended past max(HORIZONS)
     entry: int = 1  # entry session relative to day 0; -1 if not yet known
     day0_idx: int = -1  # position of day 0 in the session calendar
+    cost: float = ROUND_TRIP_COST  # round-trip trading cost on this stock's market
 
 
 def _offset_range() -> range:
@@ -228,10 +240,23 @@ def entry_offset(known_at: datetime, event_date: date, sessions: list[date]) -> 
     return entry - day0
 
 
+def calendar_segments(cal: list[date]) -> npt.NDArray[np.int64]:
+    """Segment number of each session: it goes up by one after every hole in the calendar."""
+    seg = np.zeros(len(cal), dtype=np.int64)
+    for i in range(1, len(cal)):
+        seg[i] = seg[i - 1] + ((cal[i] - cal[i - 1]).days > MAX_SESSION_GAP_DAYS)
+    return seg
+
+
 def compute_event_ars(inputs: StudyInputs) -> list[EventAR]:
-    """Market-model abnormal returns for every eligible event."""
+    """Market-model abnormal returns for every eligible event.
+
+    The estimation window and every abnormal return stay inside the event's own calendar
+    segment: sessions on the far side of a data hole are not its neighbours.
+    """
     cal = inputs.benchmark["trade_date"].to_list()
     idx = {d: i for i, d in enumerate(cal)}
+    seg = calendar_segments(cal)
     mkt = inputs.benchmark["wig_ret"].to_numpy().astype(np.float64)
     n_cal = len(cal)
     by_isin: dict[str, FloatArray] = {}
@@ -250,23 +275,35 @@ def compute_event_ars(inputs: StudyInputs) -> list[EventAR]:
         ri = by_isin.get(row["isin"])
         if e is None or ri is None:
             continue
+        # day 0 more than a week after publication: the sessions in between are missing
+        published = row["known_at"].astimezone(WARSAW).date()
+        if (row["event_date"] - published).days > MAX_SESSION_GAP_DAYS:
+            continue
         lo, hi = e + EST_WINDOW[0], e + EST_WINDOW[1]
         if lo < 0:
             continue
         y, x = ri[lo : hi + 1], mkt[lo : hi + 1]
-        ok = np.isfinite(y) & np.isfinite(x)
+        ok = np.isfinite(y) & np.isfinite(x) & (seg[lo : hi + 1] == seg[e])
         if ok.sum() < MIN_EST_OBS:
             continue
         b, a = np.polyfit(x[ok], y[ok], 1)
         pos = e + offsets
         ar = np.full(len(offsets), np.nan)
         valid = (pos >= 0) & (pos < n_cal)
+        valid[valid] = seg[pos[valid]] == seg[e]
         p = pos[valid]
         ar[valid] = ri[p] - (a + b * mkt[p])
         entry = entry_offset(row["known_at"], row["event_date"], cal)
         out.append(
             EventAR(
-                row["report_id"], row["signal_key"], row["isin"], row["event_date"], ar, entry, e
+                row["report_id"],
+                row["signal_key"],
+                row["isin"],
+                row["event_date"],
+                ar,
+                entry,
+                e,
+                COST_BY_MARKET.get(row["market"], ROUND_TRIP_COST),
             )
         )
     return out
@@ -418,16 +455,17 @@ def exit_index(e: EventAR, horizon: int) -> int:
 
 def _trade_returns(
     evs: list[EventAR], horizon: int, known_before: int | None = None
-) -> tuple[FloatArray, list[str]]:
+) -> tuple[FloatArray, list[str], FloatArray]:
     """Abnormal return from the entry close to ``horizon`` sessions later, per event.
 
-    Returns the returns and the stock (ISIN) of each.
+    Returns the gross returns, the stock (ISIN) of each and its round-trip cost.
 
     With ``known_before``, only trades whose exit session lies before that calendar
     position count, so a rule is never chosen with returns that were still in the future.
     """
     vals: list[float] = []
     isins: list[str] = []
+    costs: list[float] = []
     for e in evs:
         if known_before is not None and not 0 <= exit_index(e, horizon) < known_before:
             continue
@@ -435,7 +473,8 @@ def _trade_returns(
         if math.isfinite(v):
             vals.append(v)
             isins.append(e.isin)
-    return np.array(vals, dtype=np.float64), isins
+            costs.append(e.cost)
+    return np.array(vals, dtype=np.float64), isins, np.array(costs, dtype=np.float64)
 
 
 def choose_rule(train: list[EventAR], known_before: int | None = None) -> Rule | None:
@@ -447,12 +486,12 @@ def choose_rule(train: list[EventAR], known_before: int | None = None) -> Rule |
     """
     best: tuple[float, Rule] | None = None
     for h in HORIZONS:
-        r, _ = _trade_returns(train, h, known_before)
+        r, _, cost = _trade_returns(train, h, known_before)
         if len(r) < MIN_TRAIN_EVENTS:
             continue
         se = float(np.std(r, ddof=1)) / math.sqrt(len(r))
         for d in (1, -1):
-            net = float(np.mean(d * r)) - ROUND_TRIP_COST
+            net = float(np.mean(d * r - cost))
             if net <= 0 or se == 0:
                 continue
             t = net / se
@@ -488,8 +527,8 @@ def walk_forward_trades(
         rule = choose_rule(train, cutoff)
         if rule is None:
             continue
-        r, isins = _trade_returns(test, rule.horizon)
-        oos.extend((rule.direction * r - ROUND_TRIP_COST).tolist())
+        r, isins, cost = _trade_returns(test, rule.horizon)
+        oos.extend((rule.direction * r - cost).tolist())
         stocks.extend(isins)
         rules.append(rule)
     return np.array(oos, dtype=np.float64), stocks, rules
@@ -525,7 +564,7 @@ def trial_sharpes(by_key: dict[str, list[EventAR]]) -> list[float]:
     out: list[float] = []
     for key in sorted(by_key):
         for h in HORIZONS:
-            r, _ = _trade_returns(by_key[key], h)
+            r, _, _ = _trade_returns(by_key[key], h)
             sr = _sharpe(r)
             if sr is not None:
                 out.append(sr)

@@ -99,7 +99,11 @@ def test_is_stale(tmp_path):
     row["run_date"] = date(2026, 11, 9)
     lake.write_state(tmp_path, "runs", pl.DataFrame([row], schema=pipeline.RUNS_SCHEMA))
     assert publish.is_stale(tmp_path, now) is None
-    assert publish.is_stale(tmp_path, datetime(2026, 11, 8, 12, tzinfo=UTC)) is None  # Sunday
+    # a check delivered late (after midnight) still asks about Monday's run
+    assert publish.is_stale(tmp_path, datetime(2026, 11, 10, 1, 30, tzinfo=UTC)) is None
+    # before 20:15 the run that is due is the previous weekday's; at weekends, Friday's
+    assert "2026-11-06" in publish.is_stale(tmp_path, datetime(2026, 11, 9, 17, 0, tzinfo=UTC))
+    assert "2026-11-06" in publish.is_stale(tmp_path, datetime(2026, 11, 8, 12, tzinfo=UTC))
 
 
 def test_formatting_helpers():

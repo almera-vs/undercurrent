@@ -107,6 +107,23 @@ def test_run_day_marks_newconnect_pending_after_cutoff(tmp_path):
     assert row["status"] == "degraded" and row["nc_pending"]
 
 
+def test_run_started_long_before_the_cutoff_does_not_wait_all_day(tmp_path):
+    """A schedule delivered at 01:50 for a day with no data yet gives up within the cap."""
+    clock = FakeClock(datetime(2026, 11, 6, 0, 50, tzinfo=UTC))
+    with _client(tmp_path, _site(nc_available_after=None)) as c:
+        rc = pipeline.run_day(
+            DAY,
+            data_dir=tmp_path / "lake",
+            client=c,
+            sleep=clock.sleep,
+            clock=clock,
+            run_transform=False,
+        )
+    assert rc == 0
+    assert clock.slept <= pipeline.NC_MAX_WAIT_S
+    assert lake.read_state(tmp_path / "lake", "runs").row(0, named=True)["nc_pending"]
+
+
 def test_backfill_rerun_writes_nothing_new(tmp_path):
     clock = FakeClock(datetime(2026, 11, 9, 10, 0, tzinfo=UTC))
     root = tmp_path / "lake"

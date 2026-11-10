@@ -9,9 +9,10 @@
   </div>
   <p class="lede">{{ _('signals_lede') }}</p>
 </section>
-<section class="tiles">
+<section class="tiles five">
   <div class="tile"><span>{{ _('Signal types tested') }}</span><b>{{ ctx.summary.tested }}</b></div>
   <div class="tile"><span>{{ _('Hold up after costs') }}</span><b class="v-holds_up-text">{{ ctx.summary.holds_up }}</b></div>
+  <div class="tile"><span>{{ _('Not confirmed out of sample') }}</span><b>{{ ctx.summary.unconfirmed }}</b></div>
   <div class="tile"><span>{{ _('Significant, but eaten by costs') }}</span><b class="down">{{ ctx.summary.eaten_by_costs }}</b></div>
   <div class="tile"><span>{{ _('Noise') }}</span><b>{{ ctx.summary.noise }}</b></div>
 </section>

@@ -59,7 +59,8 @@ h2 { font-size: 1.15rem; margin: 0 0 0.6rem; }
 .lede { max-width: 40rem; color: var(--muted); font-size: 1.05rem; margin: 0; }
 
 .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.2rem; margin-bottom: 2rem; }
-.tiles.five { grid-template-columns: repeat(5, 1fr); margin-top: 1.5rem; }
+.tiles.five { grid-template-columns: repeat(5, 1fr); }
+.split + .tiles.five { margin-top: 1.5rem; }
 .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 1.2rem 1.4rem; display: flex; flex-direction: column; gap: 0.3rem; }
 .tile span { color: var(--muted); font-size: 0.95rem; }
 .tile b { font-size: 2.1rem; font-weight: 600; font-family: var(--mono); }

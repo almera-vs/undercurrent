@@ -58,6 +58,11 @@ Code: `src/undercurrent/study.py` (event studies), `dbt/models/gold/adjusted_pri
   published change to ±0.5 pp.
 - Look-ahead note: back-adjusted *levels* use future factors, so the study uses only daily
   *returns*. A return on day t depends only on information known on day t.
+- **Holes in the lake are not adjacency.** While the backfill is incomplete the calendar has
+  holes (whole months, or years). Real sessions are never more than a week apart, so a longer
+  step is treated as a hole: there is no stock or WIG return across it, and no estimation
+  window, event window or trade may reach over it. A report whose day 0 would be more than a
+  week after its publication is skipped.
 - **A daily return exists only between consecutive sessions.** When a stock does not trade
   for a few sessions (common on NewConnect), the move across the gap spans several sessions
   and is left out rather than booked as one day; the market-model regression and the event
@@ -99,7 +104,9 @@ Code: `src/undercurrent/study.py` (event studies), `dbt/models/gold/adjusted_pri
   chance (we saw this happen on synthetic data). If no candidate had a positive past net mean,
   the signal is not traded in Y. At least 30 past events are required.
 - **Trade:** enter at the entry close, exit h sessions later. The return is the abnormal
-  return over (entry, entry+h] (market-hedged), minus **0.3 % round-trip costs**.
+  return over (entry, entry+h] (market-hedged), minus round-trip costs: **0.3 % on GPW, 2 % on
+  NewConnect**. The NewConnect figure is an assumption (there is no quote data to measure
+  spreads from), set high on purpose.
 - The out-of-sample result is the mean net return of all trades made this way.
 - **Caveat:** the short side assumes stock borrow is available, which is unrealistic for most
   GPW/NewConnect small caps. A `short` rule that "holds up" is a statement about information,
@@ -147,9 +154,10 @@ sessions otherwise.
 
 ## 8. Known limitations
 
-- **One cost for both markets.** The 0.3 % round trip is applied to NewConnect as well, where
-  spreads are usually far wider and many stocks do not trade every session. A NewConnect-heavy
-  signal that "holds up" is likely to be overstated.
+- **The NewConnect cost is assumed, not measured.** 2 % per round trip stands in for wide
+  spreads and thin books; many NewConnect stocks do not trade every session, so even that can
+  understate the cost of a real trade. The in-sample averages (mean excess return, q) are
+  before costs on both markets.
 - Insider trade details (side, volume, price, value) depend on a portal copy of the
   notification form. Parkiet's copies end on 2026-10-26 and the listing portals reach back
   about three weeks, so reports no portal carries fall back to the report text (see

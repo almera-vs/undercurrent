@@ -32,6 +32,9 @@ PRICE_LOOKBACK_SESSIONS = 10
 # Stop waiting for the NewConnect file at this Warsaw local time (SLO is 20:30).
 NC_WAIT_UNTIL_LOCAL = time(20, 5)
 NC_POLL_EVERY_S = 300
+# Never wait longer than this for the NewConnect file, whatever the clock says: a run started
+# hours early or late must not sit until the job times out.
+NC_MAX_WAIT_S = 100 * 60
 # Time the nightly run may spend, after publishing, on insider forms of older months.
 FORMS_CATCH_UP_S = 20 * 60
 # Calendar days of insider reports checked for forms every night (how far the listing
@@ -203,6 +206,7 @@ def run_day(
         wait_until = None
         if wait_for_nc:
             wait_until = datetime.combine(day, NC_WAIT_UNTIL_LOCAL, tzinfo=WARSAW).astimezone(UTC)
+            wait_until = min(wait_until, res.started_at + timedelta(seconds=NC_MAX_WAIT_S))
         _wait_for_nc(client, data_dir, day, res, wait_until=wait_until, sleep=sleep, clock=clock)
         if run_transform:
             from undercurrent import study, transform

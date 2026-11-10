@@ -35,8 +35,15 @@ jobs:
       DATE: ${{ inputs.date || 'today' }}
     steps:
       - name: resolve date
+        # GitHub can deliver a schedule hours late. A run that starts before the 17:05 close
+        # belongs to the last weekday whose session has finished, not to the new day.
         run: |
-          if [ "$DATE" = "today" ]; then echo "DATE=$(TZ=Europe/Warsaw date +%F)" >> "$GITHUB_ENV"; fi
+          if [ "$DATE" = "today" ]; then
+            d=$(TZ=Europe/Warsaw date +%F)
+            if [ "$(TZ=Europe/Warsaw date +%H%M)" -lt 1705 ]; then d=$(date -d "$d -1 day" +%F); fi
+            while [ "$(date -d "$d" +%u)" -ge 6 ]; do d=$(date -d "$d -1 day" +%F); done
+            echo "DATE=$d" >> "$GITHUB_ENV"
+          fi
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0

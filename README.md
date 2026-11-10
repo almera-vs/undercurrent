@@ -44,7 +44,8 @@ flowchart LR
    reference prices, events aligned to the trading calendar, and data tests, including the
    "no unexplained > 35 % jump" gate.
 4. **Study** (`study.py`): CARs vs WIG, 95 % bootstrap CIs, Benjamini–Hochberg q-values,
-   expanding-window walk-forward with 0.3 % costs, deflated Sharpe, and a verdict per signal.
+   expanding-window walk-forward after costs (0.3 % GPW, 2 % NewConnect), deflated Sharpe, and a
+   verdict per signal.
    Point-in-time and byte-for-byte reproducible.
 5. **Publish** (`publish.py`, `i18n.py`): Jinja2 site in Polish and English with inline SVG
    charts, plus a Telegram digest via

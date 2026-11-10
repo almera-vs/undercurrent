@@ -496,6 +496,11 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
     if failed and not stuck:
         health_bits.append(("{n} queued for retry", {"n": failed}))
     health_bits.append(("history since {d}", {"d": coverage["first_event"] or "—"}))
+    # the pipeline table shows each day's totals too, not the last rerun's leftovers
+    totals = ("reports_new", "prices_gpw_rows", "prices_nc_rows")
+    for r in runs_by_day:
+        same = [x for x in runs if x["run_date"] == r["run_date"]]
+        r.update({k: sum(x.get(k) or 0 for x in same) for k in totals})
     return SiteContext(
         day=day,
         generated_at=datetime.now(UTC),
@@ -711,12 +716,20 @@ def publish(
     return ctx
 
 
+def expected_run_date(now: datetime) -> date:
+    """Latest weekday whose nightly run should have finished by ``now`` (20:15 Warsaw)."""
+    local = now.astimezone(WARSAW)
+    day = local.date()
+    if local.strftime("%H:%M") < "20:15":
+        day -= timedelta(days=1)
+    while day.weekday() >= 5:
+        day -= timedelta(days=1)
+    return day
+
+
 def is_stale(data_dir: Path, now: datetime | None = None) -> str | None:
-    """Reason string if today's (Warsaw) weekday run hasn't succeeded, else None."""
-    now = now or datetime.now(UTC)
-    today = now.astimezone(WARSAW).date()
-    if today.weekday() >= 5:
-        return None
+    """Reason string if the latest due weekday run hasn't succeeded, else None."""
+    today = expected_run_date(now or datetime.now(UTC))
     runs = lake.read_state(data_dir, "runs")
     if runs is None or runs.height == 0:
         return "no runs recorded"

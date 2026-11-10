@@ -46,7 +46,7 @@
   <div class="tile"><span>{{ _('Avg excess, {h} sessions after entry', h=e.horizon) }}</span><b class="mono {{ (s.mean_car if s else none)|tone }}">{{ (s.mean_car if s else none)|pct }}</b></div>
   <div class="tile"><span>{{ _('Hit rate') }}</span><b class="mono">{{ (((s.hit_rate or 0) * 100)|round|int|string + '%') if s and s.hit_rate is not none else '—' }}</b></div>
   <div class="tile"><span>{{ _('FDR-adjusted q') }}</span><b class="mono">{{ (s.q_value if s else none)|qval }}</b></div>
-  <div class="tile"><span>{{ _('Walk-forward, after 0.3% costs') }}</span><b class="mono {{ (s.oos_mean_net if s else none)|tone }}">{{ (s.oos_mean_net if s else none)|pct }}</b></div>
+  <div class="tile"><span>{{ _('Walk-forward, after costs') }}</span><b class="mono {{ (s.oos_mean_net if s else none)|tone }}">{{ (s.oos_mean_net if s else none)|pct }}</b></div>
   <div class="tile"><span>{{ _('Worst case for a short, in sample') if e.worst_short else _('Worst case in sample') }}</span><b class="mono {{ 'down' if e.worst is not none else '' }}">{{ e.worst|pct }}</b></div>
 </section>
 <section class="panel">

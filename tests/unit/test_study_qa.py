@@ -50,7 +50,7 @@ def test_walk_forward_trains_only_on_exited_trades() -> None:
     cutoff = next(i for i, d in enumerate(cal) if d >= date(year, 1, 1))
     for h in study.HORIZONS:
         train = [e for e in ars if e.event_date.year < year]
-        r, _ = study._trade_returns(train, h, cutoff)
+        r, _, _ = study._trade_returns(train, h, cutoff)
         used = [e for e in train if 0 <= study.exit_index(e, h) < cutoff]
         assert len(r) == len([e for e in used if math.isfinite(study.trade_car(e, h))])
         late = [e for e in train if study.exit_index(e, h) >= cutoff]
@@ -140,3 +140,59 @@ def test_path_band_widens_when_one_stock_repeats() -> None:
     lo_e, hi_e = study.path_band_clustered(mat, by_event, "k")
     lo_s, hi_s = study.path_band_clustered(mat, by_stock, "k")
     assert (hi_s - lo_s)[-1] > 2 * (hi_e - lo_e)[-1]
+
+
+def test_newconnect_trades_pay_the_higher_cost() -> None:
+    """The same gross returns earn less out of sample when the stocks are on NewConnect."""
+    import polars as pl
+
+    ev, rt, bench, cal = synthetic(seed=1, effect=0.03, n_events=600)
+    as_of = study.as_of_for(cal[-1])
+    net = {}
+    for market in ("GPW", "NC"):
+        df, _ = study.compute_signal_stats(
+            study.cut_inputs(ev.with_columns(pl.lit(market).alias("market")), rt, bench, as_of)
+        )
+        row = df.filter(pl.col("signal_key") == "inside_info:large_contract").row(0, named=True)
+        net[market] = row["oos_mean_net"]
+    gap = study.ROUND_TRIP_COST_NC - study.ROUND_TRIP_COST
+    assert net["GPW"] - net["NC"] == pytest.approx(gap, abs=1e-9)
+
+
+def test_no_window_reaches_across_a_hole_in_the_calendar() -> None:
+    """Sessions on either side of a data hole (missing months) are not neighbours."""
+    from datetime import timedelta
+
+    import polars as pl
+
+    ev, rt, bench, cal = synthetic(seed=3, effect=0.0, n_events=300)
+    cut = cal[1000]  # everything from here on happens ten years later
+
+    def shift(col: str) -> pl.Expr:
+        return (
+            pl.when(pl.col(col).dt.date() >= cut if col == "known_at" else pl.col(col) >= cut)
+            .then(pl.col(col) + timedelta(days=3650))
+            .otherwise(pl.col(col))
+        )
+
+    ev2 = ev.with_columns(shift("event_date"), shift("known_at"))
+    rt2 = rt.with_columns(shift("trade_date"), shift("known_at"))
+    bench2 = bench.with_columns(shift("trade_date"), shift("known_at"))
+    inputs = study.cut_inputs(ev2, rt2, bench2, datetime(2060, 1, 1, tzinfo=UTC))
+    cal2 = inputs.benchmark["trade_date"].to_list()
+    seg = study.calendar_segments(cal2)
+    assert seg[999] == 0 and seg[1000] == 1 and seg[-1] == 1
+
+    ars = study.compute_event_ars(inputs)
+    assert ars
+    for e in ars:
+        offs = np.array(list(study._offset_range()))
+        pos = e.day0_idx + offs
+        inside = (pos >= 0) & (pos < len(cal2))
+        other = np.zeros(len(offs), dtype=bool)
+        other[inside] = seg[pos[inside]] != seg[e.day0_idx]
+        assert np.all(np.isnan(e.ar[other]))  # nothing is measured on the far side
+        if e.day0_idx < 1000 <= e.day0_idx + e.entry + 60:
+            assert math.isnan(study.trade_car(e, 60))  # the trade would span the hole
+    # events just after the hole have no estimation history on their side: skipped
+    assert all(not 1000 <= e.day0_idx < 1000 + study.MIN_EST_OBS for e in ars)
