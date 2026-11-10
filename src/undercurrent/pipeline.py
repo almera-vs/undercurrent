@@ -268,37 +268,61 @@ def backfill(
     sleep: Callable[[float], None] = time_mod.sleep,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
 ) -> int:
-    """Backfill every day in ``[start, end]``: reports daily, prices on weekdays."""
+    """Backfill every day in ``[start, end]``: reports daily, prices on weekdays.
+
+    A day that fails (the source is down, a file is malformed) does not stop the range: the
+    remaining days run, the failed days are tried once more at the end, and the exit code is
+    1 only if some still fail. Every day is idempotent, so a re-run fetches what is missing.
+    """
     own_client = client is None
     client = client or PoliteClient()
     failures = 0
-    try:
-        d = start
-        while d <= end:
+
+    def one_day(d: date) -> int:
+        st = ingest.ingest_reports(client, data_dir, d)
+        prices = 0
+        if d.weekday() < 5:
+            try:
+                prices += sum(ingest.ingest_gpw_prices(client, data_dir, d).values())
+            except ingest.NoSessionError:
+                log.info("%s: no GPW session (holiday)", d)
+            try:
+                prices += ingest.ingest_nc_prices(client, data_dir, d)
+            except ingest.NoSessionError:
+                log.info("%s: no NewConnect file", d)
+        log.info(
+            "backfill %s: listed=%d new=%d failed=%d price_rows=%d",
+            d,
+            st.listed,
+            st.written,
+            st.failed + st.blocked,
+            prices,
+        )
+        return st.failed + st.blocked
+
+    def attempt(days: list[date]) -> list[date]:
+        nonlocal failures
+        broken: list[date] = []
+        for d in days:
             _yield_to_nightly(clock, sleep)
-            st = ingest.ingest_reports(client, data_dir, d)
-            failures += st.failed + st.blocked
-            prices = 0
-            if d.weekday() < 5:
-                try:
-                    prices += sum(ingest.ingest_gpw_prices(client, data_dir, d).values())
-                except ingest.NoSessionError:
-                    log.info("%s: no GPW session (holiday)", d)
-                try:
-                    prices += ingest.ingest_nc_prices(client, data_dir, d)
-                except ingest.NoSessionError:
-                    log.info("%s: no NewConnect file", d)
-            log.info(
-                "backfill %s: listed=%d new=%d failed=%d price_rows=%d",
-                d,
-                st.listed,
-                st.written,
-                st.failed + st.blocked,
-                prices,
-            )
-            d += timedelta(days=1)
+            try:
+                failures += one_day(d)
+            except Exception:
+                log.exception("backfill %s failed; continuing with the next day", d)
+                broken.append(d)
+        return broken
+
+    try:
+        days = [start + timedelta(days=i) for i in range((end - start).days + 1)]
+        broken = attempt(days)
+        if broken:
+            log.info("retrying %d failed day(s): %s", len(broken), ", ".join(map(str, broken)))
+            broken = attempt(broken)
     finally:
         if own_client:
             client.close()
     log.info("backfill %s..%s done; %d report failures queued for retry", start, end, failures)
+    if broken:
+        log.error("days still failing: %s", ", ".join(map(str, broken)))
+        return 1
     return 0

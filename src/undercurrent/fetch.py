@@ -28,6 +28,8 @@ log = logging.getLogger(__name__)
 USER_AGENT = "undercurrent/0.1 (+https://github.com/almera-vs/undercurrent)"
 MIN_INTERVAL_S = 1.0
 MAX_JITTER_S = 0.5
+# A dropped connection or timeout is retried after these pauses (seconds) before giving up.
+RETRY_PAUSES_S = (5.0, 30.0, 120.0)
 DEFAULT_CACHE_DIR = Path(".cache/http")
 
 # Markers of bot-protection interstitials seen on the official sites.
@@ -120,6 +122,20 @@ class PoliteClient:
             self._sleep(wait - elapsed)
         self._last_request = time.monotonic()
 
+    def _send(
+        self, method: str, url: str, content: bytes | None, headers: dict[str, str]
+    ) -> httpx.Response:
+        """One request, retried on transport errors (timeouts, resets), never on HTTP status."""
+        for pause in (*RETRY_PAUSES_S, None):
+            try:
+                return self._client.request(method, url, content=content, headers=headers)
+            except httpx.TransportError as exc:
+                if pause is None:
+                    raise
+                log.warning("%s %s: %s; retrying in %.0fs", method, url, type(exc).__name__, pause)
+                self._sleep(pause)
+        raise AssertionError("unreachable")
+
     def _paths(self, key: str) -> tuple[Path, Path]:
         sub = self.cache_dir / key[:2]
         return sub / f"{key}.body", sub / f"{key}.json"
@@ -162,7 +178,7 @@ class PoliteClient:
             pairs = list(data.items()) if isinstance(data, dict) else data
             content = urllib.parse.urlencode(pairs).encode("ascii")
             headers["Content-Type"] = "application/x-www-form-urlencoded"
-        resp = self._client.request(method, url, content=content, headers=headers)
+        resp = self._send(method, url, content, headers)
         now = time.time()
 
         if resp.status_code == 304 and body_path.exists():

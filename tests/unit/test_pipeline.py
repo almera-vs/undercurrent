@@ -3,7 +3,7 @@ from pathlib import Path
 
 import httpx
 
-from undercurrent import lake, pipeline
+from undercurrent import fetch, lake, pipeline
 from undercurrent.fetch import PoliteClient
 
 FIX = Path(__file__).parents[1] / "fixtures"
@@ -122,6 +122,52 @@ def test_run_started_long_before_the_cutoff_does_not_wait_all_day(tmp_path):
     assert rc == 0
     assert clock.slept <= pipeline.NC_MAX_WAIT_S
     assert lake.read_state(tmp_path / "lake", "runs").row(0, named=True)["nc_pending"]
+
+
+def test_backfill_survives_a_dropped_connection(tmp_path):
+    """Transport errors are retried; a day that keeps failing does not stop the others."""
+    inner = _site(nc_available_after=0)
+    state = {"drops": 2, "dead_day": True}
+
+    def handler(req):
+        if state["drops"]:  # the first two requests of the run are dropped, then it recovers
+            state["drops"] -= 1
+            raise httpx.ConnectError("connection reset", request=req)
+        if state["dead_day"] and b"05-11-2026" in req.content + str(req.url).encode():
+            raise httpx.ReadTimeout("timed out", request=req)
+        return inner(req)
+
+    slept: list[float] = []
+    noon = FakeClock(datetime(2026, 11, 6, 11, 0, tzinfo=UTC))  # outside the nightly window
+    client = PoliteClient(
+        tmp_path / "cache",
+        min_interval_s=0,
+        max_jitter_s=0,
+        transport=httpx.MockTransport(handler),
+        sleep=slept.append,
+    )
+    with client:
+        rc = pipeline.backfill(
+            date(2026, 11, 5),
+            DAY,
+            data_dir=tmp_path / "lake",
+            client=client,
+            sleep=slept.append,
+            clock=noon,
+        )
+        assert rc == 1  # the 5th never worked, and says so
+        assert slept[:2] == list(fetch.RETRY_PAUSES_S[:2])  # the two drops were retried
+        assert lake.read_partition(tmp_path / "lake", "bronze", "reports", DAY) is not None
+        state["dead_day"] = False
+        rc = pipeline.backfill(
+            date(2026, 11, 5),
+            DAY,
+            data_dir=tmp_path / "lake",
+            client=client,
+            sleep=slept.append,
+            clock=noon,
+        )
+        assert rc == 0
 
 
 def test_backfill_rerun_writes_nothing_new(tmp_path):
