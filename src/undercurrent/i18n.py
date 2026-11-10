@@ -115,7 +115,8 @@ PL: dict[str, str] = {
     "No statistics yet.": "Brak statystyk.",
     "signals_footnote": (
         "Nadwyżkowa stopa zwrotu względem WIG (składana stopa zwrotu akcji minus WIG) "
-        "na kursach skorygowanych kursami odniesienia publikowanymi przez giełdę (podziały, dywidendy, "
+        "na kursach skorygowanych kursami odniesienia publikowanymi przez giełdę (podziały, "
+        "dywidendy, "
         "prawa poboru). Każde zdarzenie jest umieszczone w chwili, w której Undercurrent mógł "
         "się o nim dowiedzieć (known_at), więc nie ma zaglądania w przyszłość. Wejście to "
         "zamknięcie pierwszej sesji po wieczornym podsumowaniu, które jako pierwsze podało "
@@ -217,7 +218,8 @@ EN_OVERRIDES: dict[str, str] = {
     ),
     "signals_footnote": (
         "Excess return vs WIG (the stock's compounded return minus the index's) on prices "
-        "adjusted with the exchange's own reference prices (splits, dividends, rights issues). Every event is "
+        "adjusted with the exchange's own reference prices (splits, dividends, rights "
+        "issues). Every event is "
         "placed at the moment Undercurrent could have known it (known_at), so there is no "
         "look-ahead. Entry is the close of the first session after the evening digest that "
         "first carried the report; the move before that is not counted. Signal types with "

@@ -46,6 +46,7 @@ group by market order by market
 
 
 def main(path: str) -> None:
+    """Print the spread table for the DuckDB file at ``path``."""
     con = duckdb.connect(path, read_only=True)
     try:
         cols = [d[0] for d in con.execute(QUERY).description]
