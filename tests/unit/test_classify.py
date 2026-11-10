@@ -214,3 +214,37 @@ def test_insider_gift_incentive_and_generic_pdmr() -> None:
         "Powiadomienie o transakcjach dokonanych przez osobę pełniącą obowiązki zarządcze", ""
     )
     assert pdmr.role == "pdmr"
+
+
+def test_title_decides_the_subtype_before_the_body():
+    from undercurrent.classify import inside_info_subtype
+
+    # a contract whose body mentions an "estimated value" is a contract, not a results estimate
+    body = "Zarząd informuje o zawarciu umowy. Szacunkowa wartość umowy wynosi 2,5 mln zł."
+    assert inside_info_subtype("Zawarcie istotnej umowy dystrybucyjnej z Medivet S.A.", body) == (
+        "large_contract"
+    )
+    # company-form dots do not cut the match short
+    title = "Zawarcie przez spółkę zależną OLMEX S.A. umowy o wartości 23,6 mln zł netto"
+    assert inside_info_subtype(title, None) == "large_contract"
+    assert inside_info_subtype("Wstępne wybrane skonsolidowane dane finansowe", None) == (
+        "profit_warning"
+    )
+    assert inside_info_subtype("Informacja o miesięcznych przychodach ze sprzedaży", None) == (
+        "profit_warning"
+    )
+    assert inside_info_subtype("Złożenie pozwu o zapłatę", "W sprawie umowy.") == "litigation"
+    # only the opening of the body is read when the title is silent
+    late = "Zarząd informuje o zdarzeniu. " + "x " * 400 + "Spółka wyemitowała obligacje."
+    assert inside_info_subtype("Informacja bieżąca", late) == "other"
+
+
+def test_holder_basis_needs_holder_wording():
+    basis = "Art. 70 pkt 1 Ustawy o ofercie - nabycie lub zbycie znacznego pakietu akcji"
+    merger = "Zarząd informuje o wpisie połączenia spółek zależnych w rejestrze handlowym."
+    c = classify(basis, "Rejestracja połączenia spółek zależnych Emitenta", merger, "Bieżący")
+    assert (c.signal_type, c.rule) == ("other", "basis:oferta69_70:no_text_support")
+    real = "Spółka otrzymała zawiadomienie o zmianie udziału w ogólnej liczbie głosów."
+    assert classify(basis, "Zawiadomienie akcjonariusza", real, "Bieżący").signal_type == (
+        "holder_threshold"
+    )

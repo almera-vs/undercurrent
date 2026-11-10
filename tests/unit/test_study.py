@@ -86,7 +86,41 @@ def test_entry_session_follows_the_digest():
 
     assert study.entry_offset(at(5, 10), date(2026, 11, 5), cal) == 1  # daytime → next close
     assert study.entry_offset(at(5, 18), date(2026, 11, 6), cal) == 0  # after close, before digest
+    assert study.entry_offset(at(5, 19), date(2026, 11, 6), cal) == 1  # after the cut-off
     assert study.entry_offset(at(5, 21), date(2026, 11, 6), cal) == 1  # after the digest
     assert study.entry_offset(at(7, 12), date(2026, 11, 9), cal) == 1  # Saturday → Monday digest
     assert study.entry_offset(at(11, 12), date(2026, 11, 12), cal) == 1  # holiday → Thu digest
     assert study.entry_offset(at(13, 12), date(2026, 11, 13), cal) == -1  # next session unknown
+
+
+def test_digest_window_matches_digest_day():
+    """Every report is in exactly one digest: the one ``digest_day`` assigns it to."""
+    from datetime import date, timedelta
+
+    cal = [date(2026, 11, d) for d in (5, 6, 9, 10, 12, 13)]  # weekend 7-8, holiday 11
+    w = study.WARSAW
+    t0 = datetime(2026, 11, 5, 18, 31, tzinfo=w)
+    for k in range(0, 8 * 24 * 60 - 60, 7):  # every 7 minutes up to the last cut-off
+        ts = t0 + timedelta(minutes=k)
+        hits = []
+        for d in cal[1:]:
+            start, end = study.digest_window(d, cal)
+            if start < ts <= end:
+                hits.append(d)
+        assert hits == [study.digest_day(ts, cal)], ts
+
+
+def test_digest_window_edges():
+    from datetime import date
+
+    cal = [date(2026, 11, d) for d in (5, 6, 9, 10, 12, 13)]
+    w = study.WARSAW
+    start, end = study.digest_window(date(2026, 11, 9), cal)  # Monday
+    assert start == datetime(2026, 11, 6, 18, 30, tzinfo=w)  # Friday evening is covered
+    assert end == datetime(2026, 11, 9, 18, 30, tzinfo=w)
+    # a day without a session shows the window so far; the next session covers it again
+    tue = datetime(2026, 11, 10, 18, 30, tzinfo=w)
+    assert study.digest_window(date(2026, 11, 11), cal)[0] == tue
+    assert study.digest_window(date(2026, 11, 12), cal)[0] == tue
+    # no earlier session known: fall back to the previous weekday
+    assert study.digest_window(date(2026, 11, 9), [])[0] == start

@@ -2,6 +2,7 @@
 {% block title %}{{ e.ticker }} · {{ e.label_key|label }} · Undercurrent{% endblock %}
 {% block main %}
 {% set s = e.stat %}
+{% set insider = e.signal_type == 'insider_tx' %}
 <p class="crumbs"><a href="../index.html">{{ _('Today') }}</a> / {{ e.ticker }} · {{ e.issuer_name|title }} / {{ e.label_key|label }}, {{ e.pub_date }}</p>
 <p class="tags"><span class="tick-sym">{{ e.ticker }}</span> <span class="chip chip-{{ e.filter }}">{{ e.label_key|label }}</span> <span class="muted" lang="pl">{{ e.legal_basis or '' }} · {{ e.system }} {{ e.report_number }}</span></p>
 <h1 lang="pl">{{ e.title or e.subject }}</h1>
@@ -35,27 +36,27 @@
     <p class="mono small">{{ _('Published {t} (Warsaw)', t=e.published_at_local.replace('T', ' ')) }}<br>{{ _('Known to Undercurrent {t} (known_at)', t=e.known_at.astimezone(tz).strftime('%Y-%m-%d %H:%M:%S')) }}<br><a href="{{ e.source_url }}" rel="noopener">{{ _('Original report ↗') }}</a></p>
   </section>
   <section class="panel">
-    <h2>{{ _('What happened after {n} similar events', n=e.path_n) }}</h2>
+    <h2>{{ _('What happened after {n} similar events', n=e.path_n) if e.path_n else _('What happened after similar events') }}</h2>
     <p class="muted small">{{ _('event_chart_note') }}</p>
-    {{ e.path|chart|safe }}
-    {% if e.path %}<p class="legend small muted"><span class="lg-item"><span class="lg lg-event"></span> {{ _('day 0: first close after publication') }}</span> <span class="lg-item"><span class="lg lg-entry"></span> {{ _('entry: close of the session after the digest (usually day +1)') }}</span></p>{% endif %}
+    {{ e.path|chart(e.entry)|safe }}
+    {% if e.path %}<p class="legend small muted"><span class="lg-item"><span class="lg lg-event"></span> {{ _('day 0: first close after publication') }}</span> {% if e.entry is not none %}<span class="lg-item"><span class="lg lg-entry"></span> {{ _('entry for this report: close of the session after the digest (day {d})', d=('0' if e.entry == 0 else '+%d' % e.entry)) }}</span>{% endif %}</p>{% endif %}
   </section>
 </div>
 <section class="tiles five">
   <div class="tile"><span>{{ _('Avg excess, {h} sessions after entry', h=e.horizon) }}</span><b class="mono {{ (s.mean_car if s else none)|tone }}">{{ (s.mean_car if s else none)|pct }}</b></div>
   <div class="tile"><span>{{ _('Hit rate') }}</span><b class="mono">{{ (((s.hit_rate or 0) * 100)|round|int|string + '%') if s and s.hit_rate is not none else '—' }}</b></div>
   <div class="tile"><span>{{ _('FDR-adjusted q') }}</span><b class="mono">{{ (s.q_value if s else none)|qval }}</b></div>
-  <div class="tile"><span>{{ _('Walk-forward, after 0.3% costs') }}</span><b class="mono">{{ (s.oos_mean_net if s else none)|pct }}</b></div>
-  <div class="tile"><span>{{ _('Worst case in sample') }}</span><b class="mono down">{{ e.worst|pct }}</b></div>
+  <div class="tile"><span>{{ _('Walk-forward, after 0.3% costs') }}</span><b class="mono {{ (s.oos_mean_net if s else none)|tone }}">{{ (s.oos_mean_net if s else none)|pct }}</b></div>
+  <div class="tile"><span>{{ _('Worst case for a short, in sample') if e.worst_short else _('Worst case in sample') }}</span><b class="mono {{ 'down' if e.worst is not none else '' }}">{{ e.worst|pct }}</b></div>
 </section>
 <section class="panel">
-  <h2>{{ _('Closest past events') }}</h2>
+  <h2>{{ _('Most recent past events') }}</h2>
   <div class="scroll"><table>
-    <thead><tr><th>{{ _('Date') }}</th><th>{{ _('Company') }}</th><th>{{ _('Role') }}</th><th class="r">{{ _('Value') }}</th><th class="r">{{ _('{h}-session excess', h=e.horizon) }}</th></tr></thead>
+    <thead><tr><th>{{ _('Date') }}</th><th>{{ _('Company') }}</th>{% if insider %}<th>{{ _('Role') }}</th><th class="r">{{ _('Value') }}</th>{% endif %}<th class="r">{{ _('{h}-session excess', h=e.horizon) }}</th></tr></thead>
     <tbody>
     {% for p in e.past %}
-    <tr><td class="mono">{{ p.event_date }}</td><td class="mono">{{ p.ticker or p.short_name or '—' }}</td><td>{{ p.insider_role|role }}</td><td class="r mono">{{ p.insider_value|short_pln }}</td>{% set c = p['car_%d' % e.horizon] %}<td class="r mono {{ c|tone }}">{{ c|pct }}</td></tr>
-    {% else %}<tr><td colspan="5" class="muted">{{ _('No past events of this type yet.') }}</td></tr>{% endfor %}
+    <tr><td class="mono">{{ p.event_date }}</td><td class="mono">{{ p.ticker or p.short_name or '—' }}</td>{% if insider %}<td>{{ p.insider_role|role }}</td><td class="r mono">{{ p.insider_value|short_pln }}</td>{% endif %}{% set c = p['car_%d' % e.horizon] %}<td class="r mono {{ c|tone }}">{{ c|pct }}</td></tr>
+    {% else %}<tr><td colspan="{{ 5 if insider else 3 }}" class="muted">{{ _('No past events of this type yet.') }}</td></tr>{% endfor %}
     </tbody>
   </table></div>
 </section>

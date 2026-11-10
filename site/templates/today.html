@@ -26,7 +26,7 @@
         <span class="tick-sym">{{ e.ticker }}</span>
         <span class="muted">{{ e.issuer_name|title }}</span>
         <span class="chip chip-{{ e.filter }}">{{ e.label_key|label }}</span>
-        <time class="mono muted">{{ e.pub_time }}</time>
+        <time class="mono muted">{{ e.pub_day ~ ' ' if e.pub_day else '' }}{{ e.pub_time }}</time>
       </header>
       <p class="fact" lang="{{ 'pl' if e.signal_type != 'insider_tx' else lang }}"><a href="event/{{ e.slug }}.html">{{ e|fact }}</a></p>
       <footer>
@@ -42,12 +42,12 @@
       </footer>
     </article>
     {% else %}
-    <p class="card muted">{{ _('No event today has a signal type with enough history for statistics yet.') }}</p>
+    <p class="card muted">{{ _('No event today is of a type that has moved prices significantly in the past.') }}</p>
     {% endfor %}
   </section>
 
   <aside class="panel">
-    <h2 class="eyebrow">{{ _('All reports today') }}</h2>
+    <h2 class="eyebrow">{{ _('Reports in this digest') }}</h2>
     <div class="filters" role="group" aria-label="{{ _('Filter reports by type') }}">
       {% for f, name, n in [('all', 'All', ctx.counts.reports), ('insider', 'Insider', ctx.counts.insider), ('inside', 'Inside info', ctx.counts.inside), ('holdings', 'Holdings', ctx.counts.holder), ('other', 'Other', ctx.counts.other)] %}
       <button type="button" data-filter="{{ f }}" aria-pressed="{{ 'true' if f == 'all' else 'false' }}">{{ _(name) }} <span class="mono">{{ n }}</span></button>
@@ -55,7 +55,7 @@
     </div>
     <ul class="feed">
       {% for r in ctx.feed %}
-      <li data-type="{{ r.filter }}"><time class="mono muted">{{ r.pub_time }}</time>
+      <li data-type="{{ r.filter }}"><time class="mono muted">{{ r.pub_time }}{% if r.pub_day %}<small>{{ r.pub_day }}</small>{% endif %}</time>
         <span><b class="mono">{{ r.ticker }}</b>
         {% if r.filter != 'other' %}<a href="event/{{ r.slug }}.html" lang="{{ 'pl' if r.signal_type != 'insider_tx' else lang }}">{{ r|fact }}</a>{% else %}<a href="{{ r.source_url }}" rel="noopener" lang="pl">{{ r|fact }}</a>{% endif %}</span></li>
       {% else %}

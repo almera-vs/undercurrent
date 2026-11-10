@@ -150,3 +150,33 @@ def test_fact_line_polish_and_english() -> None:
     assert publish._fact_line(row) == "CEO bought 42,000 shares at 18.40 PLN (773k PLN)."
     gift = {**row, "insider_side": "gift", "insider_volume": None}
     assert "Darowizna" in publish._fact_line(gift, "pl")
+
+
+def test_zero_is_never_signed():
+    from undercurrent import i18n
+
+    assert i18n.pct(-0.0004) == "0.0%" and i18n.pct(0.0004, "pl") == "0,0%"
+    assert i18n.pct(-0.0006) == "-0.1%"
+    assert publish._tick_label(0.0, 0.01, "en") == "0%"
+    assert publish._tick_label(-0.06, 0.01, "pl") == "-6%"
+    assert publish._tick_label(0.005, 0.001, "pl") == "+0,5%"
+
+
+def test_untitled_report_is_named_by_kind():
+    r = {"signal_type": "periodic", "title": None, "subject": None, "kind": "Kwartalny"}
+    assert publish._fact_line(r, "pl") == "Raport kwartalny"
+    assert publish._fact_line({**r, "kind": None}, "pl") == "(bez tytułu)"
+    assert publish._fact_line({**r, "kind": None}, "en") == "(no title)"
+
+
+def test_legal_basis_letters_are_repaired():
+    broken = "Art. 19 ust. 3 Rozporzdzenia MAR informacja o osobach penice obowizki zarzdcze"
+    fixed = publish.repair_basis(broken)
+    assert "Rozporządzenia" in fixed and "pełniące obowiązki zarządcze" in fixed
+    assert publish.repair_basis(None) is None
+
+
+def test_chart_marks_this_reports_entry():
+    path = [{"day": d, "mean_car": 0.001 * d, "lo": -0.01, "hi": 0.01} for d in range(-5, 21)]
+    assert 'class="entry"' in publish.car_chart_svg(path, entry=0)
+    assert 'class="entry"' not in publish.car_chart_svg(path, entry=None)

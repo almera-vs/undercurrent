@@ -96,3 +96,47 @@ def test_q_values_below_display_precision() -> None:
     q = env.filters["qval"]
     assert q(0.0004) == "< 0,01" and q(0.034) == "0,03" and q(None) == "—"
     assert publish._env("en").filters["qval"](0.0004) == "< 0.01"
+
+
+def test_holds_up_needs_a_significant_walk_forward() -> None:
+    """A positive but insignificant out-of-sample mean is ``unconfirmed``, not ``holds_up``."""
+    import numpy as np
+
+    rng = np.random.default_rng(0)
+    stocks = [f"S{i % 40}" for i in range(400)]
+    strong = rng.normal(0.02, 0.05, 400)
+    weak = rng.normal(0.001, 0.05, 400)
+    assert study.oos_p_value(strong, stocks) < 0.05
+    assert study.oos_p_value(weak - weak.mean() + 0.001, stocks) > 0.05
+    assert study.oos_p_value(-strong, stocks) > 0.95  # one-sided: losses never confirm
+    assert np.isnan(study.oos_p_value(strong, ["one"] * 400))  # a single stock proves nothing
+
+
+def test_deflated_sharpe_is_deflated_with_one_signal() -> None:
+    """One signal still has several horizons to pick from, so the hurdle is above zero."""
+    import polars as pl
+
+    from tests.study_fixtures import synthetic
+
+    ev, rt, bench, cal = synthetic(seed=1, effect=0.0, n_events=600)
+    ev = ev.filter(pl.col("signal_type") == "inside_info")
+    inputs = study.cut_inputs(ev, rt, bench, study.as_of_for(cal[-1]))
+    ars = study.dedupe_events(study.compute_event_ars(inputs))
+    srs = study.trial_sharpes({"k": ars})
+    assert len(srs) == len(study.HORIZONS)
+    df, _ = study.compute_signal_stats(inputs)
+    assert set(df["verdict"]) <= {"noise", "too_few", "untested", "unconfirmed", "eaten_by_costs"}
+
+
+def test_path_band_widens_when_one_stock_repeats() -> None:
+    """Resampling stocks: the same paths spread over fewer stocks give a wider band."""
+    import numpy as np
+
+    rng = np.random.default_rng(2)
+    base = np.cumsum(rng.normal(0, 0.02, (8, 26)), axis=1)
+    mat = np.repeat(base, 10, axis=0)  # 8 distinct paths, each filed 10 times
+    by_event = [f"E{i}" for i in range(80)]
+    by_stock = [f"S{i // 10}" for i in range(80)]
+    lo_e, hi_e = study.path_band_clustered(mat, by_event, "k")
+    lo_s, hi_s = study.path_band_clustered(mat, by_stock, "k")
+    assert (hi_s - lo_s)[-1] > 2 * (hi_e - lo_e)[-1]

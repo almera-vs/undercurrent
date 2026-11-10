@@ -19,16 +19,17 @@
   <div class="table-head">
     <h2>{{ _('Signal library') }}</h2>
     <nav class="horizons" aria-label="{{ _('Horizon') }}">{{ _('Horizon') }}
-      {% for h in ctx.stats %}<a href="signals-{{ h }}d.html" {% if h == horizon %}aria-current="page"{% endif %}>{{ h }}{{ _('d') }}</a>{% endfor %}
+      {% for h in ctx.stats %}<a href="signals-{{ h }}d.html" {% if h == horizon %}aria-current="page"{% endif %}>{% if lang == 'pl' %}{{ h }} {{ plural(h, 'session') }}{% else %}{{ h }}d{% endif %}</a>{% endfor %}
     </nav>
   </div>
   <div class="scroll">
   <table>
-    <thead><tr><th>{{ _('Signal') }}</th><th>{{ _('Legal basis') }}</th><th class="r">{{ _('Events') }}</th><th class="r">{{ _('Avg excess [0,+{h}]', h=horizon) }}</th><th class="r">{{ _('95% CI') }}</th><th class="r">{{ _('Hit rate') }}</th><th class="r">{{ _('FDR q') }}</th><th class="r">{{ _('Walk-forward after costs') }}</th><th class="r">{{ _('Deflated SR') }}</th><th>{{ _('Verdict') }}</th></tr></thead>
+    <thead><tr><th>{{ _('Signal') }}</th><th>{{ _('Verdict') }}</th><th class="r">{{ _('Events') }}</th><th class="r wide">{{ _('Avg excess [0,+{h}]', h=horizon) }}</th><th class="r">{{ _('95% CI') }}</th><th class="r">{{ _('Hit rate') }}</th><th class="r">{{ _('FDR q') }}</th><th class="r wide">{{ _('Walk-forward after costs') }}</th><th class="r">{{ _('Deflated SR') }}</th></tr></thead>
     <tbody>
     {% for r in rows %}
       <tr>
-        <td>{{ r.signal_key|label }}</td><td class="muted">{{ r.signal_key|basis }}</td>
+        <td class="sig">{{ r.signal_key|label }}<small class="muted">{{ r.signal_key|basis }}</small></td>
+        <td><span class="verdict v-{{ r.verdict }}">{{ r.verdict|verdict }}</span></td>
         <td class="r mono">{{ r.n|num }}</td>
         <td class="r mono {{ r.mean_car|tone }}">{{ r.mean_car|pct }}</td>
         <td class="r mono muted">{{ r.ci_lo|pct }} … {{ r.ci_hi|pct }}</td>
@@ -36,14 +37,14 @@
         <td class="r mono">{{ r.q_value|qval }}</td>
         <td class="r mono">{{ r.oos_mean_net|pct }} <small class="muted">({{ _('{n} trades', n=r.oos_n or 0) }}{{ ', ' + r.oos_last_rule if r.oos_last_rule else '' }})</small></td>
         <td class="r mono">{{ r.deflated_sharpe|decimal }}</td>
-        <td><span class="verdict v-{{ r.verdict }}">{{ r.verdict|verdict }}</span></td>
       </tr>
     {% else %}
-      <tr><td colspan="10" class="muted">{{ _('No statistics yet.') }}</td></tr>
+      <tr><td colspan="9" class="muted">{{ _('No statistics yet.') }}</td></tr>
     {% endfor %}
     </tbody>
   </table>
   </div>
+  <p class="muted small scroll-hint">{{ _('Scroll sideways for all columns.') }}</p>
   <p class="muted small">{{ _('signals_footnote') }}</p>
 </section>
 {% endblock %}

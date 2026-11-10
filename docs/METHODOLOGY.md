@@ -23,13 +23,16 @@ Code: `src/undercurrent/study.py` (event studies), `dbt/models/gold/adjusted_pri
 - **Day 0** is the first GPW session whose close (17:05 Warsaw) is after `known_at`. A report
   published at 16:30 has day 0 = that day; one at 17:30 has day 0 = the next session.
 - **Entry** is the close of the first session after the evening digest that first carries the
-  report. The digest goes out after each session (by 20:30 Warsaw) and covers everything
-  published since the previous one, so:
+  report. Each session's digest covers everything published after the previous session's
+  cut-off and up to its own: **18:30 Warsaw**, just before the earliest scheduled run (18:47
+  in winter, 19:47 in summer). A report published later is in the next session's digest. The
+  site and the study share this one rule (`study.digest_window`, `study.digest_day`), so:
 
   | published | day 0 | digest | entry |
   |---|---|---|---|
   | Tue 10:00 | Tue | Tue evening | Wed close (day +1) |
   | Tue 18:00 | Wed | Tue evening | Wed close (day 0) |
+  | Tue 19:00 | Wed | Wed evening | Thu close (day +1) |
   | Tue 21:00 | Wed | Wed evening | Thu close (day +1) |
   | Sat 12:00 | Mon | Mon evening | Tue close (day +1) |
 
@@ -68,7 +71,8 @@ Code: `src/undercurrent/study.py` (event studies), `dbt/models/gold/adjusted_pri
   day 0, requiring ≥ 120 valid returns (otherwise the event is skipped, not imputed).
 - **Abnormal return:** `AR_t = r_i,t − (a + b · r_WIG,t)`.
 - **Windows:** abnormal returns from the entry close over the next 1, 5, 20 and 60 sessions,
-  (entry, entry+h]. The chart path stays relative to day 0 ([−5,+20]), so the reaction
+  (entry, entry+h]. The chart path stays relative to day 0 ([−5,+20]; its band is a
+  bootstrap that resamples whole stocks, like the confidence intervals), so the reaction
   before entry is visible there. An event counts for a window only if every day of it is
   known; events whose entry would be more than 5 sessions after day 0 are skipped.
 - **One event per (signal, stock, day 0).** Several reports about the same news, or a report
@@ -100,15 +104,20 @@ Code: `src/undercurrent/study.py` (event studies), `dbt/models/gold/adjusted_pri
 - **Caveat:** the short side assumes stock borrow is available, which is unrealistic for most
   GPW/NewConnect small caps. A `short` rule that "holds up" is a statement about information,
   not a tradable strategy.
-- **Deflated Sharpe ratio** of each signal's out-of-sample
-  per-trade returns. The number of trials is every (signal × horizon × direction) considered,
-  and the trial variance is the cross-signal variance of out-of-sample Sharpe ratios.
+- **Out-of-sample significance:** a one-sided test that the mean net return of those trades
+  is above zero, cluster-robust by stock like the in-sample test.
+- **Deflated Sharpe ratio** of each signal's out-of-sample per-trade returns. A trial is every
+  rule the walk-forward could have picked: one per (signal × horizon × direction). The hurdle
+  comes from the number of trials and the variance of the per-trade Sharpe ratios across
+  (signal × horizon) pairs; the short side mirrors the long side, so it adds a trial but not
+  spread. With fewer than two pairs no ratio is reported. It is shown for information and does not enter the verdict.
 
 ## 5. Verdicts
 
 | verdict | rule |
 |---|---|
-| `holds_up` | best q across horizons < 0.05, at least 10 walk-forward trades, mean net return > 0 |
+| `holds_up` | best q across horizons < 0.05, at least 10 walk-forward trades, mean net return > 0 and significantly so (one-sided p < 0.05, clustered by stock) |
+| `unconfirmed` | best q < 0.05, at least 10 walk-forward trades, mean net return > 0 but not significantly |
 | `eaten_by_costs` | best q < 0.05, at least 10 walk-forward trades, not positive after costs |
 | `untested` | best q < 0.05 but fewer than 10 walk-forward trades so far |
 | `noise` | statistics exist, no horizon significant |
@@ -116,7 +125,7 @@ Code: `src/undercurrent/study.py` (event studies), `dbt/models/gold/adjusted_pri
 
 All are shown on the site. Losers are never hidden. Cards, event pages and the digest show
 the numbers of the horizon behind the verdict: the holding period of the latest walk-forward
-rule for `holds_up` / `eaten_by_costs`, the most significant horizon for `untested`, and 20
+rule for `holds_up` / `unconfirmed` / `eaten_by_costs`, the most significant horizon for `untested`, and 20
 sessions otherwise.
 
 ## 6. Point-in-time correctness
@@ -138,6 +147,9 @@ sessions otherwise.
 
 ## 8. Known limitations
 
+- **One cost for both markets.** The 0.3 % round trip is applied to NewConnect as well, where
+  spreads are usually far wider and many stocks do not trade every session. A NewConnect-heavy
+  signal that "holds up" is likely to be overstated.
 - Insider trade details (side, volume, price, value) depend on a portal copy of the
   notification form. Parkiet's copies end on 2026-10-26 and the listing portals reach back
   about three weeks, so reports no portal carries fall back to the report text (see

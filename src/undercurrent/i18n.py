@@ -60,10 +60,12 @@ PL: dict[str, str] = {
     "{n} past cases (too few for statistics)": (
         "wcześniejsze przypadki: {n} (za mało na statystykę)"
     ),
-    "No event today has a signal type with enough history for statistics yet.": (
-        "Żadne dzisiejsze zdarzenie nie ma jeszcze typu z historią wystarczającą do statystyk."
+    "No event today is of a type that has moved prices significantly in the past.": (
+        "Żadne dzisiejsze zdarzenie nie należy do typu, który w przeszłości istotnie "
+        "poruszał kursem."
     ),
-    "All reports today": "Wszystkie dzisiejsze raporty",
+    "Skip to content": "Przejdź do treści",
+    "Reports in this digest": "Raporty w tym podsumowaniu",
     "Filter reports by type": "Filtruj raporty według typu",
     "All": "Wszystkie",
     "Insider": "Insiderzy",
@@ -86,9 +88,10 @@ PL: dict[str, str] = {
     "{n} studied events": "zbadane zdarzenia: {n}",
     "Which signals actually hold up": "Które sygnały naprawdę działają",
     "signals_lede": (
-        "„Działa po kosztach” oznacza q po korekcie FDR poniżej 0,05 i dodatni wynik testu "
-        "walk-forward po kosztach transakcyjnych 0,3% w obie strony. Wszystkie pozostałe wyniki "
-        "też są pokazane, nic nie jest ukrywane."
+        "„Działa po kosztach” oznacza q po korekcie FDR poniżej 0,05 oraz wynik testu "
+        "walk-forward po kosztach transakcyjnych 0,3% w obie strony, który jest dodatni i "
+        "sam istotny statystycznie. Wszystkie pozostałe wyniki też są pokazane, nic nie jest "
+        "ukrywane."
     ),
     "Signal types tested": "Przetestowane typy sygnałów",
     "Hold up after costs": "Działają po kosztach",
@@ -96,9 +99,9 @@ PL: dict[str, str] = {
     "Noise": "Szum",
     "Signal library": "Biblioteka sygnałów",
     "Horizon": "Horyzont",
-    "d": " dni",
     "Signal": "Sygnał",
     "Legal basis": "Podstawa prawna",
+    "Scroll sideways for all columns.": "Przewiń w bok, aby zobaczyć wszystkie kolumny.",
     "Events": "Zdarzenia",
     "Avg excess [0,+{h}]": "Śr. nadwyżka w ciągu {h} sesji od wejścia",
     "95% CI": "95% przedział",
@@ -167,6 +170,7 @@ PL: dict[str, str] = {
     "Known to Undercurrent {t} (known_at)": "Znane Undercurrent od {t} (known_at)",
     "Original report ↗": "Oryginalny raport ↗",
     "What happened after {n} similar events": "Co działo się po podobnych zdarzeniach (n = {n})",
+    "What happened after similar events": "Co działo się po podobnych zdarzeniach",
     "event_chart_note": (
         "Średnia nadwyżkowa stopa zwrotu względem WIG, od 5 sesji przed do 20 sesji po "
         "raporcie, z 95% pasmem bootstrap. Dzień 0 to pierwsze zamknięcie po publikacji; "
@@ -176,7 +180,8 @@ PL: dict[str, str] = {
     "FDR-adjusted q": "q po korekcie FDR",
     "Walk-forward, after 0.3% costs": "Walk-forward, po kosztach 0,3%",
     "Worst case in sample": "Najgorszy przypadek w próbie",
-    "Closest past events": "Najbliższe wcześniejsze zdarzenia",
+    "Worst case for a short, in sample": "Najgorszy przypadek dla krótkiej pozycji w próbie",
+    "Most recent past events": "Ostatnie wcześniejsze zdarzenia",
     "Date": "Data",
     "Company": "Spółka",
     "{h}-session excess": "Nadwyżka w ciągu {h} sesji",
@@ -185,8 +190,8 @@ PL: dict[str, str] = {
     "Not enough past events for a chart yet.": "Za mało wcześniejszych zdarzeń na wykres.",
     "report published": "publikacja raportu",
     "day 0: first close after publication": "dzień 0: pierwsze zamknięcie po publikacji",
-    "entry: close of the session after the digest (usually day +1)": (
-        "wejście: zamknięcie sesji po podsumowaniu (zwykle dzień +1)"
+    "entry for this report: close of the session after the digest (day {d})": (
+        "wejście dla tego raportu: zamknięcie sesji po podsumowaniu (dzień {d})"
     ),
     "day 0": "dzień 0",
     "Average excess return path, day -5 to +20": (
@@ -205,8 +210,9 @@ PL: dict[str, str] = {
 
 EN_OVERRIDES: dict[str, str] = {
     "signals_lede": (
-        "“Holds up” means FDR-adjusted q below 0.05 and a positive result in the walk-forward "
-        "test after 0.3% round-trip costs. Everything else is shown, not hidden."
+        "“Holds up” means FDR-adjusted q below 0.05 and a walk-forward result after 0.3% "
+        "round-trip costs that is positive and itself statistically significant. Everything "
+        "else is shown, not hidden."
     ),
     "signals_footnote": (
         "Excess return vs WIG (market model, days −250…−30) on prices adjusted with the "
@@ -231,7 +237,6 @@ EN_OVERRIDES: dict[str, str] = {
         "95% bootstrap band. Day 0 is the first close after publication; the statistics start "
         "at the close of the session after the digest."
     ),
-    "d": "d",
     "Avg excess [0,+{h}]": "Avg excess, {h} sessions after entry",
 }
 
@@ -242,8 +247,12 @@ PL_PLURALS: dict[str, tuple[str, str, str]] = {
         "zdarzenia warte uwagi dziś",
         "zdarzeń wartych uwagi dziś",
     ),
+    "session": ("sesja", "sesje", "sesji"),
 }
-EN_PLURALS: dict[str, str] = {"event worth a look today": "events worth a look today"}
+EN_PLURALS: dict[str, str] = {
+    "event worth a look today": "events worth a look today",
+    "session": "sessions",
+}
 
 SIGNAL_LABELS: dict[str, dict[str, str]] = {
     "en": {
@@ -298,6 +307,7 @@ BASIS_LABELS: dict[str, dict[str, str]] = {
 VERDICT_LABELS: dict[str, dict[str, str]] = {
     "en": {
         "holds_up": "Holds up",
+        "unconfirmed": "Not confirmed out of sample",
         "eaten_by_costs": "Eaten by costs",
         "untested": "Not yet tested",
         "noise": "Noise",
@@ -305,6 +315,7 @@ VERDICT_LABELS: dict[str, dict[str, str]] = {
     },
     "pl": {
         "holds_up": "Działa po kosztach",
+        "unconfirmed": "Niepotwierdzony poza próbą",
         "eaten_by_costs": "Zjadany przez koszty",
         "untested": "Jeszcze nie przetestowany",
         "noise": "Szum",
@@ -393,10 +404,10 @@ def plural(lang: str, n: int, key: str) -> str:
 
 
 def long_date(d: date, lang: str) -> str:
-    """``poniedziałek, 9 listopada 2026`` / ``Monday, 09 November 2026``."""
+    """``poniedziałek, 9 listopada 2026`` / ``Monday, 9 November 2026``."""
     if lang == "pl":
         return f"{_PL_DAYS[d.weekday()]}, {d.day} {_PL_MONTHS[d.month - 1]} {d.year}"
-    return d.strftime("%A, %d %B %Y")
+    return f"{d:%A}, {d.day} {d:%B %Y}"
 
 
 def _bad(x: float | None) -> bool:
@@ -415,6 +426,8 @@ def pct(x: float | None, lang: str = "en", digits: int = 1, sign: bool = True) -
     if _bad(x):
         return "—"
     assert x is not None
+    if round(x * 100, digits) == 0:  # never "-0.0%" or "+0.0%"
+        return group_digits(f"{0:.{digits}f}%", lang)
     return group_digits(f"{x * 100:{'+' if sign else ''}.{digits}f}%", lang)
 
 

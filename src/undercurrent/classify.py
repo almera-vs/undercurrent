@@ -109,44 +109,59 @@ _TEXT_RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     ),
 )
 
-# Inside-information sub-types (title + body). Order matters.
+# Inside-information sub-types. Order matters within one text. The title is tried first
+# and decides when it matches anything: it names the subject, while the body mentions many
+# things in passing (a contract's "estimated value" is not a results estimate).
 _SUBTYPE_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("buyback", _rx(r"skup\w* akcji wlasnych|nabyci\w* akcji wlasnych|buy-?back")),
     ("dividend_change", _rx(r"dywidend")),
     (
         "profit_warning",
         _rx(
-            r"szacunk\w*|wstepn\w+ (wynik|dane)|odpis\w* aktualizuj|"
-            r"korekt\w* prognoz|prognoz\w* wynik|utrat\w+ wartosci"
+            r"szacunk\w* [^.]{0,60}(wynik|dan\w+|przychod|zysk|strat|ebitda|informacj)|"
+            r"(wynik\w*|dan\w+|przychod\w*|informacj\w+) [^.]{0,40}szacunk|"
+            r"wstepn\w+ [^.]{0,60}(wynik|dan\w+|przychod|informacj)|"
+            r"przychod\w* [^.]{0,30}(kwartal|miesiac|miesiec|miesieczn|polrocz|rok)|"
+            r"miesieczn\w+ przychod|prognoz\w* [^.]{0,30}(wynik|przychod|ebitda|finansow)|"
+            r"odpis\w* aktualizuj|korekt\w* prognoz|utrat\w+ wartosci"
         ),
     ),
     (
         "large_contract",
         _rx(
-            r"(zawarci\w*|podpisani\w*|otrzymani\w*) [^.]{0,40}umow|"
-            r"umow\w* (znaczac|istotn|ramow)|wybor\w* oferty|zamowieni\w+"
+            r"(zawarci\w*|podpisani\w*|otrzymani\w*) [^.]{0,60}(umow|aneks)|"
+            r"umow\w* (znaczac|istotn|ramow)|(znaczac|istotn)\w+ umow|"
+            r"wybor\w* [^.]{0,30}ofert|zamowieni\w+"
         ),
     ),
     (
         "m_and_a",
         _rx(
-            r"przejeci|polaczeni\w* (spolek|z)|nabyci\w* (udzialow|akcji spolki)|"
+            r"przejeci|polaczeni\w* (spolek|z)|(nabyci|zakup)\w* (udzialow|akcji spolki)|"
             r"wezwani\w+ do zapisywania"
         ),
     ),
     ("financing", _rx(r"obligacj|kredyt|emisj\w* akcji|finansowani|pozyczk")),
     ("strategy", _rx(r"strategi|przeglad\w* opcji strategicznych")),
-    ("litigation", _rx(r"pozew|postepowani\w* (sadow|arbitraz)|wyrok")),
+    ("litigation", _rx(r"pozew|pozw(u|em|ie|y|ow)\b|postepowani\w* (sadow|arbitraz)|wyrok")),
     ("rating", _rx(r"rating")),
 )
+# Only the opening of the body is read when the title is silent.
+_SUBTYPE_BODY_CHARS = 600
+# Company-form abbreviations carry dots that would end a "same sentence" match.
+_COMPANY_DOTS = _rx(r"\bs\.a\.|\bsp\. z o\.o\.|\bsp\. k\.|\bs\.k\.a\.")
+
+
+def _subtype_text(text: str | None) -> str:
+    return _COMPANY_DOTS.sub(lambda m: m.group(0).replace(".", ""), normalize(text))
 
 
 def inside_info_subtype(title: str | None, body: str | None) -> str:
     """Keyword sub-type for inside information; ``other`` when nothing matches."""
-    text = normalize(title) + " \n " + normalize((body or "")[:4000])
-    for name, rx in _SUBTYPE_RULES:
-        if rx.search(text):
-            return name
+    for text in (_subtype_text(title), _subtype_text((body or "")[:_SUBTYPE_BODY_CHARS])):
+        for name, rx in _SUBTYPE_RULES:
+            if text and rx.search(text):
+                return name
     return "other"
 
 
@@ -154,6 +169,14 @@ def inside_info_subtype(title: str | None, body: str | None) -> str:
 # wrong basis from the ESPI dropdown (seen: a monthly revenue estimate filed under Art. 19).
 _INSIDER_SUPPORT = _rx(
     r"transakcj|powiadomieni|zawiadomieni|art\.?\s*19|zastaw|nabyci|zbyci|obowiazki zarzadcze"
+)
+
+# Likewise an Art. 69/70 basis needs holder wording: seen a subsidiary merger filed under
+# "Art. 70 pkt 1 - nabycie lub zbycie znacznego pakietu akcji".
+_HOLDER_SUPPORT = _rx(
+    r"art\.?\s*(69|87)\b|liczb\w+ glosow|znaczn\w+ pakiet|stan\w* posiadania|"
+    r"prog\w* \d|udzial\w* w ogolnej|transakcj\w+ na akcjach|"
+    r"(zawiadomieni|powiadomieni)\w+ (o |od |w trybie |akcjonariusz)"
 )
 
 
@@ -171,6 +194,12 @@ def classify(
     for rule, signal, rx in _BASIS_RULES:
         if basis and rx.search(basis):
             if signal == "insider_tx" and (title or body) and not _INSIDER_SUPPORT.search(text):
+                return Classification("other", None, f"{rule}:no_text_support")
+            if (
+                signal == "holder_threshold"
+                and body  # a title alone is too short to judge
+                and not _HOLDER_SUPPORT.search(text)
+            ):
                 return Classification("other", None, f"{rule}:no_text_support")
             sub = inside_info_subtype(title, body) if signal == "inside_info" else None
             return Classification(signal, sub, rule)

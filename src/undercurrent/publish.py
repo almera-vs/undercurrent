@@ -31,8 +31,38 @@ WARSAW = ZoneInfo("Europe/Warsaw")
 SITE_DIR = Path(__file__).resolve().parents[2] / "site"
 DEFAULT_SITE_URL = "https://almera-vs.github.io/undercurrent/"
 HORIZON_DEFAULT = 20
-VERDICT_ORDER = {"holds_up": 0, "eaten_by_costs": 1, "untested": 2, "noise": 3, "too_few": 4}
+VERDICT_ORDER = {
+    "holds_up": 0,
+    "unconfirmed": 1,
+    "eaten_by_costs": 2,
+    "untested": 3,
+    "noise": 4,
+    "too_few": 5,
+}
 VERDICT_LABEL = i18n.VERDICT_LABELS["en"]
+# "Worth a look": the signal type has moved prices significantly in the past.
+WORTH_VERDICTS = ("holds_up", "unconfirmed", "eaten_by_costs", "untested")
+# Some exchange pages carry the legal basis with Polish letters dropped; repair for display.
+_BASIS_REPAIRS = (
+    ("Rozporzdzenia", "Rozporządzenia"),
+    ("penice obowizki zarzdcze", "pełniące obowiązki zarządcze"),
+)
+
+
+def repair_basis(text: str | None) -> str | None:
+    """Restore Polish letters the source page dropped from a legal basis."""
+    if text:
+        for bad, good in _BASIS_REPAIRS:
+            text = text.replace(bad, good)
+    return text
+
+
+def _tick_label(v: float, step: float, lang: str) -> str:
+    """Axis label: whole percent when the grid allows, no sign on zero."""
+    digits = 0 if step >= 0.01 else 1 if step >= 0.001 else 2
+    if round(v * 100, digits) == 0:
+        return "0%"
+    return i18n.pct(v, lang, digits=digits)
 
 
 def label_for(key: str, lang: str = "en") -> str:
@@ -59,9 +89,16 @@ def tone(x: float | None) -> str:
 
 
 def car_chart_svg(
-    path: list[dict[str, Any]], width: int = 900, height: int = 380, lang: str = "en"
+    path: list[dict[str, Any]],
+    width: int = 900,
+    height: int = 380,
+    lang: str = "en",
+    entry: int | None = 1,
 ) -> str:
-    """Average CAR path [-5, +20] with bootstrap band as inline SVG."""
+    """Average CAR path [-5, +20] with bootstrap band as inline SVG.
+
+    ``entry`` is the entry session relative to day 0 (marked with a line); ``None`` hides it.
+    """
     _ = i18n.tr(lang)
     if not path:
         return f'<p class="muted">{_("Not enough past events for a chart yet.")}</p>'
@@ -100,13 +137,14 @@ def car_chart_svg(
             f'<line class="grid" x1="{pad_l}" x2="{width - pad_r}" '
             f'y1="{y(v):.1f}" y2="{y(v):.1f}"/>'
             f'<text class="tick" x="{pad_l - 8}" y="{y(v) + 4:.1f}" text-anchor="end">'
-            f"{pct(v, lang)}</text>"
+            f"{_tick_label(v, step, lang)}</text>"
             for v in ticks
         ),
         f'<line class="zero" x1="{pad_l}" x2="{width - pad_r}" y1="{y(0):.1f}" y2="{y(0):.1f}"/>',
         f'<line class="event" x1="{x(0):.1f}" x2="{x(0):.1f}" y1="{pad_t}" y2="{height - pad_b}"/>',
-        f'<line class="entry" x1="{x(1):.1f}" x2="{x(1):.1f}" y1="{pad_t}" y2="{height - pad_b}"/>'
-        if 1 in days
+        f'<line class="entry" x1="{x(entry):.1f}" x2="{x(entry):.1f}" '
+        f'y1="{pad_t}" y2="{height - pad_b}"/>'
+        if entry is not None and entry in days
         else "",
         f'<polygon class="band band-{end_tone}" points="{band}"/>',
         f'<polyline class="line line-{end_tone}" points="{line}"/>',
@@ -161,7 +199,7 @@ def headline_horizon(key: str, by_key_h: dict[tuple[str, int], dict[str, Any]]) 
     if any_row is None:
         return HORIZON_DEFAULT
     rule = any_row.get("oos_last_rule")
-    if any_row["verdict"] in ("holds_up", "eaten_by_costs") and rule:
+    if any_row["verdict"] in ("holds_up", "unconfirmed", "eaten_by_costs") and rule:
         h = int(rule.split()[-1].rstrip("d"))
         if h in rows:
             return h
@@ -198,14 +236,6 @@ def health_text(bits: list[tuple[str, dict[str, Any]]], lang: str) -> str:
     return text[:1].upper() + text[1:]
 
 
-def _report_days(day: date) -> list[date]:
-    """Calendar days covered by a run on ``day``: since the previous weekday."""
-    prev = day - timedelta(days=1)
-    while prev.weekday() >= 5:
-        prev -= timedelta(days=1)
-    return [prev + timedelta(days=i) for i in range(1, (day - prev).days + 1)]
-
-
 _FACT_SIDE = {
     "en": {
         "buy": "bought",
@@ -221,7 +251,14 @@ _FACT_SIDE = {
 def _fact_line(r: dict[str, Any], lang: str = "en") -> str:
     """One line of fact for a card / digest, built only from parsed fields or the title."""
     if r["signal_type"] != "insider_tx":
-        return r.get("title") or r.get("subject") or "(no title)"
+        title = r.get("title") or r.get("subject")
+        if title:
+            return str(title)
+        # periodic reports often have no title on the exchange page: name the report kind
+        kind = (r.get("kind") or "").strip()
+        if kind:
+            return f"Raport {kind.lower()}"
+        return "(bez tytułu)" if lang == "pl" else "(no title)"
     role = r.get("insider_role") or ""
     side = r.get("insider_side") or ""
     vol = r.get("insider_volume")
@@ -257,7 +294,7 @@ def _fact_line(r: dict[str, Any], lang: str = "en") -> str:
 
 def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_URL) -> SiteContext:
     """Collect all site/digest data for ``day`` from the work dir and the lake."""
-    from undercurrent.study import HORIZONS, signal_key
+    from undercurrent.study import HORIZONS, digest_window, entry_offset, signal_key
     from undercurrent.transform import duckdb_path
 
     con = duckdb.connect(str(duckdb_path(work)))
@@ -270,6 +307,7 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
             "insider_form_url, published_at_local, "
             "known_at, source_url, report_number from reports"
         ).pl()
+        session_days = [r[0] for r in con.sql("select trade_date from sessions").fetchall()]
     finally:
         con.close()
     stats_df = pl.read_parquet(work / "gold" / "signal_stats.parquet")
@@ -280,8 +318,10 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
         pl.col("published_at_local").str.slice(0, 10).str.to_date().alias("pub_date"),
         pl.col("published_at_local").str.slice(11, 5).alias("pub_time"),
     )
-    days = _report_days(day)
-    today = reports.filter(pl.col("pub_date").is_in(days)).sort(
+    # The same window the study assumes: after the previous session's cut-off, up to today's.
+    start, end = digest_window(day, sorted(session_days))
+    known = pl.col("known_at").cast(pl.Datetime("us", "UTC"))
+    today = reports.filter((known > start) & (known <= end)).sort(
         "published_at_local", descending=True
     )
 
@@ -307,8 +347,23 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
         **{v: sum(1 for r in stat20.values() if r["verdict"] == v) for v in VERDICT_ORDER},
     }
 
+    # calendar for entry markers: known sessions plus the coming weekdays
+    cal = sorted(session_days)
+    nxt = cal[-1] if cal else day - timedelta(days=1)
+    while len(cal) < len(session_days) + 10:
+        nxt += timedelta(days=1)
+        if nxt.weekday() < 5:
+            cal.append(nxt)
+
+    def entry_for(known_at: datetime) -> int | None:
+        local = known_at.astimezone(WARSAW).replace(tzinfo=None)
+        day0 = next((s for s in cal if local < datetime(s.year, s.month, s.day, 17, 5)), None)
+        off = entry_offset(known_at, day0, cal) if day0 else -1
+        return off if off >= 0 else None
+
     feed, worth, events = [], [], []
     for r in today.iter_rows(named=True):
+        r["legal_basis"] = repair_basis(r["legal_basis"])
         key = signal_key(r["signal_type"], r["subtype"], r["insider_side"])
         label_key = key if r["signal_type"] not in ("other", "periodic") else r["signal_type"]
         item = {
@@ -318,6 +373,8 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
             "label": label_for(label_key),
             "fact": _fact_line(r),
             "ticker": r["ticker"] or r["short_name"] or "—",
+            # reports from an earlier calendar day (evening, weekend) show their date too
+            "pub_day": "" if r["pub_date"] == day else f"{r['pub_date']:%d.%m}",
             "filter": {
                 "insider_tx": "insider",
                 "inside_info": "inside",
@@ -331,8 +388,9 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
             st = by_key_h.get((key, h))
             item["stat"] = st
             item["horizon"] = h
+            item["entry"] = entry_for(r["known_at"])
             events.append(item)
-            if st is not None and st.get("n"):
+            if st is not None and st["verdict"] in WORTH_VERDICTS:
                 worth.append(item)
 
     def rank(i: dict[str, Any]) -> tuple[Any, ...]:
@@ -350,7 +408,7 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
     for e in events:
         p = paths_df.filter(pl.col("signal_key") == e["signal_key"]).sort("day").to_dicts()
         e["path"] = p
-        e["chart"] = car_chart_svg(p)
+        e["chart"] = car_chart_svg(p, entry=e["entry"])
         e["path_n"] = p[0]["n"] if p else 0
         past = (
             ev_cars.filter(
@@ -358,7 +416,8 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
                 & (pl.col("event_date") < e["pub_date"])
                 & pl.col(f"car_{e['horizon']}").is_not_null()
             )
-            .sort("event_date", descending=True)
+            .sort(["event_date", "report_id"], descending=True)
+            .unique(subset=["isin", "event_date"], keep="first", maintain_order=True)
             .head(6)
             .join(
                 reports.select(
@@ -369,11 +428,17 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
             )
         )
         e["past"] = past.to_dicts()
-        e["worst"] = (
-            ev_cars.filter(pl.col("signal_key") == e["signal_key"])[f"car_{e['horizon']}"].min()
-            if ev_cars.height
-            else None
+        # worst outcome for the rule shown: the biggest fall, or the biggest rise for a short
+        st = e["stat"]
+        e["worst_short"] = bool(
+            st
+            and st["verdict"] in ("holds_up", "unconfirmed", "eaten_by_costs")
+            and (st.get("oos_last_rule") or "").startswith("short")
         )
+        e["worst"] = None
+        if st is not None and st.get("mean_car") is not None and ev_cars.height:
+            col = ev_cars.filter(pl.col("signal_key") == e["signal_key"])[f"car_{e['horizon']}"]
+            e["worst"] = col.max() if e["worst_short"] else col.min()
 
     runs_df = lake.read_state(data_dir, "runs")
     runs = runs_df.sort("started_at", descending=True).to_dicts() if runs_df is not None else []
@@ -386,6 +451,11 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
         r["reruns"] = sum(1 for x in runs if x["run_date"] == r["run_date"]) - 1
         r["within_slo"] = within_slo(r)
     run = next((r for r in runs if r["run_date"] == day), runs[0] if runs else {})
+    if run:
+        # a rerun only adds what earlier runs of the day missed: show the day's totals
+        same = [x for x in runs if x["run_date"] == run["run_date"]]
+        totals = ("reports_new", "prices_gpw_rows", "prices_nc_rows")
+        run = {**run, **{k: sum(x.get(k) or 0 for x in same) for k in totals}}
     failed = 0
     for m in {day.replace(day=1), (day.replace(day=1) - timedelta(days=1)).replace(day=1)}:
         f = lake.read_state(data_dir, f"failed_reports/month={m:%Y-%m}")
@@ -471,7 +541,7 @@ def _env(lang: str = "en") -> Environment:
         "side": lookup(i18n.SIDE_LABELS),
         "venue": lambda k: i18n.VENUE_LABELS[lang].get(k, k) if k else "",
         "fact": lambda r: _fact_line(r, lang),
-        "chart": lambda p: car_chart_svg(p, lang=lang),
+        "chart": lambda p, entry=1: car_chart_svg(p, lang=lang, entry=entry),
         "longdate": lambda d: i18n.long_date(d, lang),
         "health": lambda bits: health_text(bits, lang),
         "decimal": lambda x, d=2: "—" if x is None else i18n.group_digits(f"{x:.{d}f}", lang),
@@ -545,13 +615,14 @@ def digest_message(ctx: SiteContext, max_items: int = 5) -> tuple[str, dict[str,
     d = ctx.day
     lines = [
         f"<b>GPW digest · {d:%a} {d.day} {d:%b}</b>",
-        f"{ctx.counts['reports']} reports · {len(ctx.worth)} with a track record",
+        f"{ctx.counts['reports']} reports · {len(ctx.worth)} worth a look",
         "",
     ]
     for item in ctx.worth[:max_items]:
         st = item["stat"]
         verdict = {
             "holds_up": "✓ holds up",
+            "unconfirmed": "not confirmed out of sample",
             "eaten_by_costs": "eaten by costs",
             "untested": "not yet tested",
             "noise": "probably noise",
@@ -561,7 +632,7 @@ def digest_message(ctx: SiteContext, max_items: int = 5) -> tuple[str, dict[str,
         h = item.get("horizon", HORIZON_DEFAULT)
         lines.append(f"Past: {pct(st['mean_car'])} / {h}d after entry · n={st['n']} · {verdict}")
     if not ctx.worth:
-        lines.append("No event today has enough history for statistics yet.")
+        lines.append("No event today is of a type that has moved prices significantly.")
     lines += ["", f"<i>{e(ctx.health)}</i>", "Not investment advice. Historical statistics only."]
     buttons = [{"text": "Open dashboard", "url": ctx.site_url}]
     if ctx.worth:

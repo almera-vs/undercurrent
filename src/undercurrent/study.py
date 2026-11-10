@@ -10,7 +10,8 @@ Method (details and caveats in ``docs/METHODOLOGY.md``):
   reader can trade is the next session's. Statistics and the walk-forward measure abnormal
   returns from that close: windows (entry, entry+h] for h in 1/5/20/60 sessions. The
   [−5,+20] chart path stays relative to day 0, so the reaction before entry is visible.
-* **Uncertainty:** 95 % percentile bootstrap over events, fixed seed per signal/horizon.
+* **Uncertainty:** cluster-robust t-test and 95 % percentile bootstrap, both treating each
+  stock as one cluster; fixed seed per signal/horizon.
 * **Multiple testing:** BH q-values across every (signal, horizon).
 * **Walk-forward:** expanding yearly windows. Before each year the rule (direction and
   holding period) is chosen from earlier events only; trades enter at the entry close and
@@ -58,9 +59,11 @@ MIN_OOS_TRADES = 10
 SEED = 20261109
 SIGNIFICANCE = 0.05
 WARSAW = ZoneInfo("Europe/Warsaw")
-# The nightly digest is out by this Warsaw time (the freshness SLO). Reports published
-# later reach readers in the next digest.
-DIGEST_LOCAL = time(20, 30)
+# Editorial cut-off of the nightly digest, Warsaw time. It lies before the earliest scheduled
+# run (17:47 UTC = 18:47 in winter, 19:47 in summer), so every run has seen everything up to
+# it. A report published later goes into the next session's digest. The site uses the same
+# cut-off (``digest_window``), so the study and what readers saw cannot drift apart.
+DIGEST_CUTOFF_LOCAL = time(18, 30)
 # Events whose entry would be more than this many sessions after day 0 are not traded.
 MAX_ENTRY_LAG = 5
 
@@ -177,13 +180,37 @@ def _offset_range() -> range:
 def digest_day(known_at: datetime, sessions: list[date]) -> date | None:
     """Session whose evening digest first carries a report known at ``known_at``.
 
-    The nightly run publishes after each session; it covers everything published since the
-    previous run, so weekend and holiday reports land in the next session's digest.
+    Each session's digest covers everything published after the previous session's cut-off
+    and up to its own, so evening, weekend and holiday reports land in the next session's
+    digest.
     """
     local = known_at.astimezone(WARSAW)
-    d = local.date() + (timedelta(days=1) if local.time() > DIGEST_LOCAL else timedelta(0))
+    late = local.time() > DIGEST_CUTOFF_LOCAL
+    d = local.date() + (timedelta(days=1) if late else timedelta(0))
     i = bisect.bisect_left(sessions, d)
     return sessions[i] if i < len(sessions) else None
+
+
+def digest_window(day: date, sessions: list[date]) -> tuple[datetime, datetime]:
+    """Publication window ``(start, end]`` of the digest for ``day``, as UTC timestamps.
+
+    It opens at the cut-off of the last session before ``day`` and closes at the cut-off on
+    ``day``. On a day without a session the same window is shown, and the next session's
+    digest covers it again. ``sessions`` must be sorted; with no earlier session known, the
+    previous weekday is used.
+    """
+    i = bisect.bisect_left(sessions, day)
+    if i > 0:
+        prev = sessions[i - 1]
+    else:
+        prev = day - timedelta(days=1)
+        while prev.weekday() >= 5:
+            prev -= timedelta(days=1)
+
+    def cut(d: date) -> datetime:
+        return datetime.combine(d, DIGEST_CUTOFF_LOCAL, tzinfo=WARSAW).astimezone(UTC)
+
+    return cut(prev), cut(day)
 
 
 def entry_offset(known_at: datetime, event_date: date, sessions: list[date]) -> int:
@@ -291,6 +318,26 @@ def bootstrap_ci_clustered(
     return float(lo), float(hi)
 
 
+def path_band_clustered(
+    mat: FloatArray, groups: list[str], key: str, alpha: float = 0.05
+) -> tuple[FloatArray, FloatArray]:
+    """Percentile bootstrap band of the mean path (events x days), resampling whole stocks."""
+    rng = np.random.default_rng(_seed(key, "path"))
+    names = sorted(set(groups))
+    pos = {n: i for i, n in enumerate(names)}
+    sums = np.zeros((len(names), mat.shape[1]))
+    counts = np.zeros(len(names))
+    for row, g in zip(mat, groups, strict=True):
+        sums[pos[g]] += row
+        counts[pos[g]] += 1
+    boot = np.empty((BOOTSTRAP_DRAWS, mat.shape[1]))
+    for i in range(0, BOOTSTRAP_DRAWS, 100):  # in chunks, to bound memory
+        draws = rng.integers(0, len(names), size=(min(100, BOOTSTRAP_DRAWS - i), len(names)))
+        boot[i : i + len(draws)] = sums[draws].sum(axis=1) / counts[draws].sum(axis=1)[:, None]
+    lo, hi = np.quantile(boot, [alpha / 2, 1 - alpha / 2], axis=0)
+    return lo, hi
+
+
 def cluster_t(values: FloatArray, groups: list[str]) -> tuple[float, float, int]:
     """t-statistic of the mean with cluster-robust (CR1) standard error; (t, p, clusters).
 
@@ -371,21 +418,24 @@ def exit_index(e: EventAR, horizon: int) -> int:
 
 def _trade_returns(
     evs: list[EventAR], horizon: int, known_before: int | None = None
-) -> tuple[FloatArray, list[date]]:
+) -> tuple[FloatArray, list[str]]:
     """Abnormal return from the entry close to ``horizon`` sessions later, per event.
+
+    Returns the returns and the stock (ISIN) of each.
 
     With ``known_before``, only trades whose exit session lies before that calendar
     position count, so a rule is never chosen with returns that were still in the future.
     """
-    vals, dates = [], []
+    vals: list[float] = []
+    isins: list[str] = []
     for e in evs:
         if known_before is not None and not 0 <= exit_index(e, horizon) < known_before:
             continue
         v = trade_car(e, horizon)
         if math.isfinite(v):
             vals.append(v)
-            dates.append(e.event_date)
-    return np.array(vals, dtype=np.float64), dates
+            isins.append(e.isin)
+    return np.array(vals, dtype=np.float64), isins
 
 
 def choose_rule(train: list[EventAR], known_before: int | None = None) -> Rule | None:
@@ -419,8 +469,17 @@ def walk_forward(
     The rule for year Y is chosen from trades that had *exited* before Y began (a December
     event's 60-session trade is still open in January, so it can't inform January's rule).
     """
+    oos, _, rules = walk_forward_trades(evs, calendar)
+    return oos, rules
+
+
+def walk_forward_trades(
+    evs: list[EventAR], calendar: list[date] | None = None
+) -> tuple[FloatArray, list[str], list[Rule]]:
+    """:func:`walk_forward` plus the stock of every out-of-sample trade (for clustering)."""
     years = sorted({e.event_date.year for e in evs})
     oos: list[float] = []
+    stocks: list[str] = []
     rules: list[Rule] = []
     for y in years:
         train = [e for e in evs if e.event_date.year < y]
@@ -429,10 +488,48 @@ def walk_forward(
         rule = choose_rule(train, cutoff)
         if rule is None:
             continue
-        r, _ = _trade_returns(test, rule.horizon)
+        r, isins = _trade_returns(test, rule.horizon)
         oos.extend((rule.direction * r - ROUND_TRIP_COST).tolist())
+        stocks.extend(isins)
         rules.append(rule)
-    return np.array(oos, dtype=np.float64), rules
+    return np.array(oos, dtype=np.float64), stocks, rules
+
+
+def oos_p_value(oos: FloatArray, stocks: list[str]) -> float:
+    """One-sided p-value that the mean out-of-sample net return is above zero.
+
+    Cluster-robust by stock, like the in-sample test. NaN with fewer than two stocks.
+    """
+    if len(oos) < 2:
+        return math.nan
+    t, _, g = cluster_t(oos, stocks)
+    if not math.isfinite(t):
+        return math.nan
+    return float(sps.t.sf(t, df=g - 1))
+
+
+def _sharpe(r: FloatArray) -> float | None:
+    """Per-trade Sharpe ratio, or None when it is undefined."""
+    if len(r) < 3 or np.std(r) == 0:
+        return None
+    return float(np.mean(r) / np.std(r, ddof=1))
+
+
+def trial_sharpes(by_key: dict[str, list[EventAR]]) -> list[float]:
+    """Per-trade Sharpe ratio of every (signal, horizon) the walk-forward could have picked.
+
+    Measured on the long side. The short side of the same pair is its mirror image, not an
+    independent strategy: it counts as a trial (see ``compute_signal_stats``) but would only
+    double the spread, so it is left out of the variance.
+    """
+    out: list[float] = []
+    for key in sorted(by_key):
+        for h in HORIZONS:
+            r, _ = _trade_returns(by_key[key], h)
+            sr = _sharpe(r)
+            if sr is not None:
+                out.append(sr)
+    return out
 
 
 # --------------------------------------------------------------------------- signal_stats
@@ -452,6 +549,7 @@ STATS_SCHEMA: dict[str, Any] = {
     "q_value": pl.Float64,
     "oos_n": pl.Int64,
     "oos_mean_net": pl.Float64,
+    "oos_p_value": pl.Float64,
     "oos_last_rule": pl.String,
     "deflated_sharpe": pl.Float64,
     "verdict": pl.String,
@@ -469,10 +567,10 @@ def compute_signal_stats(inputs: StudyInputs) -> tuple[pl.DataFrame, pl.DataFram
 
     rows: list[dict[str, Any]] = []
     paths: list[dict[str, Any]] = []
-    wf: dict[str, tuple[FloatArray, list[Rule]]] = {}
+    wf: dict[str, tuple[FloatArray, list[str], list[Rule]]] = {}
     for key in sorted(by_key):
         evs = sorted(by_key[key], key=lambda e: (e.event_date, e.report_id))
-        wf[key] = walk_forward(evs, calendar)
+        wf[key] = walk_forward_trades(evs, calendar)
         for h in HORIZONS:
             pairs = [(trade_car(e, h), e.isin) for e in evs]
             pairs = [(v, g) for v, g in pairs if math.isfinite(v)]
@@ -493,15 +591,14 @@ def compute_signal_stats(inputs: StudyInputs) -> tuple[pl.DataFrame, pl.DataFram
                     "p_value": p_val,
                 }
             rows.append(row)
-        # average [-5, +20] CAR path with a bootstrap band
+        # average [-5, +20] CAR path with a bootstrap band (whole stocks resampled)
         lo_d, hi_d = PATH_WINDOW
         mat = np.array([np.cumsum(e.ar[: hi_d - lo_d + 1]) for e in evs])
-        mat = mat[np.all(np.isfinite(mat), axis=1)] if len(mat) else mat
-        if len(mat) >= MIN_EVENTS_FOR_STATS:
-            rng = np.random.default_rng(_seed(key, "path"))
-            draws = rng.integers(0, len(mat), size=(BOOTSTRAP_DRAWS, len(mat)))
-            boot = mat[draws].mean(axis=1)
-            band_lo, band_hi = np.quantile(boot, [0.025, 0.975], axis=0)
+        full = np.all(np.isfinite(mat), axis=1) if len(mat) else np.zeros(0, dtype=bool)
+        mat = mat[full] if len(mat) else mat
+        path_stocks = [e.isin for e, ok in zip(evs, full, strict=True) if ok]
+        if len(mat) >= MIN_EVENTS_FOR_STATS and len(set(path_stocks)) >= MIN_CLUSTERS:
+            band_lo, band_hi = path_band_clustered(mat, path_stocks, key)
             for i, d in enumerate(range(lo_d, hi_d + 1)):
                 paths.append(
                     {
@@ -539,24 +636,24 @@ def compute_signal_stats(inputs: StudyInputs) -> tuple[pl.DataFrame, pl.DataFram
     q = benjamini_hochberg(df["p_value"].fill_null(np.nan).to_numpy().astype(np.float64))
     df = df.with_columns(pl.Series("q_value", q).fill_nan(None))
 
-    # deflated Sharpe: one trial per (key, horizon, direction)
-    srs = []
-    for oos, _ in wf.values():
-        if len(oos) >= 3 and np.std(oos) > 0:
-            srs.append(float(np.mean(oos) / np.std(oos, ddof=1)))
-    sr_var = float(np.var(srs, ddof=1)) if len(srs) > 1 else 0.0
-    n_trials = max(1, len(by_key) * len(HORIZONS) * 2)
+    # deflated Sharpe: one trial per (key, horizon, direction) the walk-forward could pick.
+    # Without at least two trials there is nothing to deflate by, so no ratio is reported.
+    srs = trial_sharpes(by_key)
+    sr_var = float(np.var(srs, ddof=1)) if len(srs) > 1 else math.nan
+    n_trials = 2 * len(srs)  # each pair can be traded long or short
 
     extra = []
     for key in sorted(by_key):
-        oos, rules = wf[key]
+        oos, stocks, rules = wf[key]
         last = rules[-1] if rules else None
-        dsr = deflated_sharpe(oos, n_trials, sr_var)
+        dsr = deflated_sharpe(oos, n_trials, sr_var) if math.isfinite(sr_var) else math.nan
+        oos_p = oos_p_value(oos, stocks)
         extra.append(
             {
                 "signal_key": key,
                 "oos_n": len(oos),
                 "oos_mean_net": float(np.mean(oos)) if len(oos) else None,
+                "oos_p_value": None if math.isnan(oos_p) else oos_p,
                 "oos_last_rule": (
                     f"{'long' if last.direction > 0 else 'short'} {last.horizon}d" if last else None
                 ),
@@ -569,6 +666,7 @@ def compute_signal_stats(inputs: StudyInputs) -> tuple[pl.DataFrame, pl.DataFram
             "signal_key": pl.String,
             "oos_n": pl.Int64,
             "oos_mean_net": pl.Float64,
+            "oos_p_value": pl.Float64,
             "oos_last_rule": pl.String,
             "deflated_sharpe": pl.Float64,
         },
@@ -580,6 +678,8 @@ def compute_signal_stats(inputs: StudyInputs) -> tuple[pl.DataFrame, pl.DataFram
     )
     significant = pl.col("best_q") < SIGNIFICANCE
     tested = pl.col("oos_n").fill_null(0) >= MIN_OOS_TRADES
+    positive = pl.col("oos_mean_net") > 0
+    confirmed = pl.col("oos_p_value").fill_null(1.0) < SIGNIFICANCE
     df = (
         df.join(best, on="signal_key", how="left")
         .with_columns(
@@ -587,8 +687,10 @@ def compute_signal_stats(inputs: StudyInputs) -> tuple[pl.DataFrame, pl.DataFram
             .then(pl.lit("too_few"))
             .when(significant & ~tested)
             .then(pl.lit("untested"))
-            .when(significant & (pl.col("oos_mean_net") > 0))
+            .when(significant & positive & confirmed)
             .then(pl.lit("holds_up"))
+            .when(significant & positive)
+            .then(pl.lit("unconfirmed"))
             .when(significant)
             .then(pl.lit("eaten_by_costs"))
             .otherwise(pl.lit("noise"))
