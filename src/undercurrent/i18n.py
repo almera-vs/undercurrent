@@ -20,6 +20,7 @@ PL: dict[str, str] = {
     "Today": "Dziś",
     "Signals": "Sygnały",
     "Pipeline": "Proces",
+    "Archive": "Archiwum",
     "Undercurrent home": "Undercurrent, strona główna",
     "Fresh": "Aktualne",
     "Degraded": "Niepełne",
@@ -146,6 +147,7 @@ PL: dict[str, str] = {
     "ok": "ok",
     "degraded": "niepełny",
     "failed": "błąd",
+    "running": "nie ukończono",
     # event
     "What the report says": "Co mówi raport",
     "insider_note": (
@@ -204,6 +206,19 @@ PL: dict[str, str] = {
     "NewConnect prices pending": "kursy NewConnect w oczekiwaniu",
     "{n} reports failed 5+ times": "raporty nieudane 5+ razy: {n}",
     "history since {d}": "historia od {d}",
+    # archive
+    "Archive · Undercurrent": "Archiwum · Undercurrent",
+    "Last {n} sessions": "Ostatnie sesje: {n}",
+    "{n} events": "zdarzenia: {n}",
+    "Earlier digests": "Wcześniejsze podsumowania",
+    "archive_lede": (
+        "Zdarzenia z wcześniejszych podsumowań, od najnowszego. Statystyki na stronach "
+        "zdarzeń są dzisiejsze, a nie z dnia publikacji."
+    ),
+    "Find a company": "Znajdź spółkę",
+    "Ticker or name": "Ticker lub nazwa",
+    "No event matches.": "Żadne zdarzenie nie pasuje.",
+    "No earlier digests yet.": "Nie ma jeszcze wcześniejszych podsumowań.",
     # page titles
     "Today · Undercurrent": "Dziś · Undercurrent",
     "Signals · Undercurrent": "Sygnały · Undercurrent",
@@ -211,6 +226,11 @@ PL: dict[str, str] = {
 }
 
 EN_OVERRIDES: dict[str, str] = {
+    "archive_lede": (
+        "Events from earlier digests, newest first. The statistics on the event pages are "
+        "today's, not those of the day the report came out."
+    ),
+    "running": "did not finish",
     "signals_lede": (
         "“Holds up” means FDR-adjusted q below 0.05 and a walk-forward result after "
         "round-trip costs (2.0% on GPW, 5.2% on NewConnect) that is positive and itself "

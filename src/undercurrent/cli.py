@@ -60,6 +60,8 @@ def _build_parser() -> argparse.ArgumentParser:
         help="also scan older months, newest first, for this many minutes",
     )
 
+    sub.add_parser("nightly-date", help="print the trading day a run started now belongs to")
+
     ck = sub.add_parser("check-lake", help="fail if the Parquet lake exceeds a size budget")
     ck.add_argument("--max-mb", type=float, default=900.0)
 
@@ -107,6 +109,14 @@ def cmd_run(args: argparse.Namespace) -> int:
         publish=not args.no_publish,
         wait_for_nc=not args.no_wait_nc,
     )
+
+
+def cmd_nightly_date(args: argparse.Namespace) -> int:
+    """Print the trading day for a nightly run that starts now (late schedules included)."""
+    from undercurrent import pipeline
+
+    print(pipeline.nightly_date(datetime.now(WARSAW)).isoformat())
+    return 0
 
 
 def cmd_backfill(args: argparse.Namespace) -> int:
@@ -218,6 +228,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     handlers = {
         "run": cmd_run,
+        "nightly-date": cmd_nightly_date,
         "backfill": cmd_backfill,
         "probe": cmd_probe,
         "check-lake": cmd_check_lake,

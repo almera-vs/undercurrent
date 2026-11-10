@@ -70,7 +70,7 @@
   <ul class="steps mono">
     <li>✓ {{ _('Ingest {n} new reports', n=ctx.run.reports_new or 0) }}</li>
     <li>{{ '✓' if not ctx.run.reports_failed else '!' }} {{ _('{n} failed, queued for retry', n=ctx.run.reports_failed or 0) }}</li>
-    <li>✓ {{ _('Prices: GPW {g} rows, NC {nc}', g=ctx.run.prices_gpw_rows or 0, nc=_('pending') if ctx.run.nc_pending else _('{n} rows', n=ctx.run.prices_nc_rows or 0)) }}</li>
+    <li>{{ '!' if ctx.run.nc_pending or 'no GPW session' in (ctx.run.notes or '') else '✓' }} {{ _('Prices: GPW {g} rows, NC {nc}', g=ctx.run.prices_gpw_rows or 0, nc=_('pending') if ctx.run.nc_pending else _('{n} rows', n=ctx.run.prices_nc_rows or 0)) }}</li>
     <li>✓ {{ _('dbt build + data tests, 0 unexplained jumps') }}</li>
     <li>✓ {{ _('Event studies rebuilt') }}</li>
   </ul>

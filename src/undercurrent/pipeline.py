@@ -194,6 +194,9 @@ def run_day(
     res = RunResult(run_date=day, started_at=clock())
     own_client = client is None
     client = client or PoliteClient()
+    # Recorded as "running" straight away: if the job is killed (a timeout, a cancelled
+    # workflow) the row stays that way and the pipeline page shows a run that did not finish.
+    _record_run(data_dir, res)
     try:
         days = [day - timedelta(days=i) for i in range(REPORT_LOOKBACK_DAYS - 1, -1, -1)]
         this_month = day.replace(day=1)
@@ -247,6 +250,21 @@ def run_day(
         if own_client:
             client.close()
         log.info("run summary: %s", json.dumps(res.row(), default=str, ensure_ascii=False))
+
+
+def nightly_date(now: datetime) -> date:
+    """Trading day a nightly run started at ``now`` belongs to.
+
+    GitHub can deliver a schedule hours late. A run that starts before the 17:05 close belongs
+    to the last weekday whose session has finished, not to the new day.
+    """
+    local = now.astimezone(WARSAW)
+    day = local.date()
+    if local.time() < time(17, 5):
+        day -= timedelta(days=1)
+    while day.weekday() >= 5:
+        day -= timedelta(days=1)
+    return day
 
 
 def _yield_to_nightly(clock: Callable[[], datetime], sleep: Callable[[float], None]) -> None:

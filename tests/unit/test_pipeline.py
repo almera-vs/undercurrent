@@ -1,3 +1,4 @@
+import contextlib
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
@@ -122,6 +123,33 @@ def test_run_started_long_before_the_cutoff_does_not_wait_all_day(tmp_path):
     assert rc == 0
     assert clock.slept <= pipeline.NC_MAX_WAIT_S
     assert lake.read_state(tmp_path / "lake", "runs").row(0, named=True)["nc_pending"]
+
+
+def test_nightly_date_for_late_schedules():
+    w = pipeline.WARSAW
+
+    def at(d: int, hh: int, mm: int = 0) -> datetime:
+        return datetime(2026, 11, d, hh, mm, tzinfo=w)
+
+    assert pipeline.nightly_date(at(9, 18, 47)) == date(2026, 11, 9)  # on time
+    assert pipeline.nightly_date(at(10, 1, 52)) == date(2026, 11, 9)  # seven hours late
+    assert pipeline.nightly_date(at(7, 1, 0)) == date(2026, 11, 6)  # Friday's run on Saturday
+    assert pipeline.nightly_date(at(9, 3, 0)) == date(2026, 11, 6)  # Monday before the close
+    assert pipeline.nightly_date(at(10, 17, 4)) == date(2026, 11, 9)
+    assert pipeline.nightly_date(at(10, 17, 5)) == date(2026, 11, 10)
+
+
+def test_killed_run_leaves_a_running_row(tmp_path):
+    """The row is written before any work, so a killed job is still on record."""
+    clock = FakeClock(datetime(2026, 11, 6, 17, 50, tzinfo=UTC))
+
+    def dead(req):
+        raise KeyboardInterrupt  # the job is killed mid-request
+
+    with _client(tmp_path, dead) as c, contextlib.suppress(KeyboardInterrupt):
+        pipeline.run_day(DAY, data_dir=tmp_path / "lake", client=c, sleep=clock.sleep, clock=clock)
+    row = lake.read_state(tmp_path / "lake", "runs").row(0, named=True)
+    assert row["run_date"] == DAY
 
 
 def test_backfill_survives_a_dropped_connection(tmp_path):

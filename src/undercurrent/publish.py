@@ -42,6 +42,8 @@ VERDICT_ORDER = {
 VERDICT_LABEL = i18n.VERDICT_LABELS["en"]
 # "Worth a look": the signal type has moved prices significantly in the past.
 WORTH_VERDICTS = ("holds_up", "unconfirmed", "eaten_by_costs", "untested")
+# Sessions kept in the archive (each with its digest's events and their pages).
+ARCHIVE_SESSIONS = 30
 # Some exchange pages carry the legal basis with Polish letters dropped; repair for display.
 _BASIS_REPAIRS = (
     ("Rozporzdzenia", "Rozporządzenia"),
@@ -184,6 +186,8 @@ class SiteContext:
     site_url: str
     health_bits: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
     steps: list[str] = field(default_factory=list)
+    # earlier digests, newest first: {"day": date, "events": [...]}
+    archive: list[dict[str, Any]] = field(default_factory=list)
 
 
 def headline_horizon(key: str, by_key_h: dict[tuple[str, int], dict[str, Any]]) -> int:
@@ -361,8 +365,8 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
         off = entry_offset(known_at, day0, cal) if day0 else -1
         return off if off >= 0 else None
 
-    feed, worth, events = [], [], []
-    for r in today.iter_rows(named=True):
+    def make_item(r: dict[str, Any], digest: date) -> dict[str, Any]:
+        """One report as the templates see it; signal events also get their statistics."""
         r["legal_basis"] = repair_basis(r["legal_basis"])
         key = signal_key(r["signal_type"], r["subtype"], r["insider_side"])
         label_key = key if r["signal_type"] not in ("other", "periodic") else r["signal_type"]
@@ -374,24 +378,49 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
             "fact": _fact_line(r),
             "ticker": r["ticker"] or r["short_name"] or "—",
             # reports from an earlier calendar day (evening, weekend) show their date too
-            "pub_day": "" if r["pub_date"] == day else f"{r['pub_date']:%d.%m}",
+            "pub_day": "" if r["pub_date"] == digest else f"{r['pub_date']:%d.%m}",
             "filter": {
                 "insider_tx": "insider",
                 "inside_info": "inside",
                 "holder_threshold": "holdings",
             }.get(r["signal_type"], "other"),
             "slug": r["report_id"].replace(":", "-"),
+            "is_event": r["signal_type"] in ("insider_tx", "holder_threshold", "inside_info"),
         }
-        feed.append(item)
-        if r["signal_type"] in ("insider_tx", "holder_threshold", "inside_info"):
+        if item["is_event"]:
             h = headline_horizon(key, by_key_h)
-            st = by_key_h.get((key, h))
-            item["stat"] = st
+            item["stat"] = by_key_h.get((key, h))
             item["horizon"] = h
             item["entry"] = entry_for(r["known_at"])
+        return item
+
+    feed, worth, events = [], [], []
+    for r in today.iter_rows(named=True):
+        item = make_item(r, day)
+        feed.append(item)
+        if item["is_event"]:
             events.append(item)
+            st = item["stat"]
             if st is not None and st["verdict"] in WORTH_VERDICTS:
                 worth.append(item)
+
+    # archive: the signal events of each earlier digest, newest first
+    archive: list[dict[str, Any]] = []
+    signal_reports = reports.filter(
+        pl.col("signal_type").is_in(["insider_tx", "holder_threshold", "inside_info"])
+    )
+    # recent sessions only: nothing from the far side of a hole in the lake
+    recent = day - timedelta(days=2 * ARCHIVE_SESSIONS)
+    earlier = [s for s in sorted(session_days) if recent <= s < day][-ARCHIVE_SESSIONS:]
+    for s in reversed(earlier):
+        a_start, a_end = digest_window(s, sorted(session_days))
+        rows = signal_reports.filter((known > a_start) & (known <= a_end)).sort(
+            "published_at_local", descending=True
+        )
+        items = [make_item(r, s) for r in rows.iter_rows(named=True)]
+        if items:
+            archive.append({"day": s, "events": items})
+            events.extend(items)
 
     def rank(i: dict[str, Any]) -> tuple[Any, ...]:
         st = i["stat"]
@@ -516,6 +545,7 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
         health=health_text(health_bits, "en"),
         health_bits=health_bits,
         site_url=site_url,
+        archive=archive,
     )
 
 
@@ -596,6 +626,7 @@ def _render_lang(ctx: SiteContext, out: Path, lang: str) -> list[Path]:
         write(f"signals-{h}d.html", "signals.html", page="signals", horizon=h)
     shutil.copy(base / f"signals-{HORIZON_DEFAULT}d.html", base / "signals.html")
     write("pipeline.html", "pipeline.html", page="pipeline")
+    write("archive.html", "archive.html", page="archive")
     for e in ctx.events:
         write(f"event/{e['slug']}.html", "event.html", depth=1, page="event", e=e)
     return written

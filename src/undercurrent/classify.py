@@ -133,7 +133,8 @@ _SUBTYPE_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
         "m_and_a",
         _rx(
             r"przejeci|polaczeni\w* |plan\w* polaczenia|wezwani\w+|"
-            r"(nabyci|zakup|sprzedaz|objeci)\w* [^.]{0,40}(udzialow|\d+ ?% akcji|akcji (w|spolki)\b)"
+            r"(nabyci|zakup|sprzedaz|objeci)\w* [^.]{0,40}"
+            r"(udzialow|\d+ ?% akcji|akcji (w|spolki)\b)"
         ),
     ),
     (

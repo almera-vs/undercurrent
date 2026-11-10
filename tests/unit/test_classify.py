@@ -257,7 +257,8 @@ def test_subtype_accuracy_on_labelled_titles():
 
     from undercurrent.classify import inside_info_subtype
 
-    path = Path(__file__).parents[1] / "fixtures" / "labelled_titles" / "inside_info_subtypes.jsonl"
+    fixtures = Path(__file__).parents[1] / "fixtures"
+    path = fixtures / "labelled_titles" / "inside_info_subtypes.jsonl"
     rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
     assert len(rows) == 184
     hits = sum(inside_info_subtype(r["title"], None) == r["subtype"] for r in rows)

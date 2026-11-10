@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Archive · Undercurrent') }}{% endblock %}
+{% block main %}
+{% set total = ctx.archive|sum(attribute='events', start=[])|length %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">{{ _('Last {n} sessions', n=ctx.archive|length) }} · {{ _('{n} events', n=total) }}</p>
+    <h1>{{ _('Earlier digests') }}</h1>
+  </div>
+  <p class="lede">{{ _('archive_lede') }}</p>
+</section>
+<section class="panel">
+  <label class="search"><span>{{ _('Find a company') }}</span>
+    <input type="search" id="q" autocomplete="off" placeholder="{{ _('Ticker or name') }}"></label>
+  <p class="muted small" id="none" hidden>{{ _('No event matches.') }}</p>
+  {% for d in ctx.archive %}
+  <section class="day">
+    <h2 class="eyebrow">{{ d.day|longdate }} · <span class="mono">{{ d.events|length }}</span></h2>
+    <ul class="feed wide">
+      {% for r in d.events %}
+      <li data-q="{{ (r.ticker ~ ' ' ~ (r.issuer_name or ''))|lower }}"><time class="mono muted">{{ r.pub_time }}{% if r.pub_day %}<small>{{ r.pub_day }}</small>{% endif %}</time>
+        <span><b class="mono">{{ r.ticker }}</b> <span class="chip chip-{{ r.filter }}">{{ r.label_key|label }}</span>
+        <a href="event/{{ r.slug }}.html" lang="{{ 'pl' if r.signal_type != 'insider_tx' else lang }}">{{ r|fact }}</a></span></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% else %}
+  <p class="muted">{{ _('No earlier digests yet.') }}</p>
+  {% endfor %}
+</section>
+<script>
+(function () {
+  var q = document.getElementById('q');
+  if (!q) return;
+  q.addEventListener('input', function () {
+    var s = q.value.trim().toLowerCase(), any = false;
+    document.querySelectorAll('.day').forEach(function (day) {
+      var shown = 0;
+      day.querySelectorAll('li[data-q]').forEach(function (li) {
+        var hit = !s || li.dataset.q.indexOf(s) !== -1;
+        li.hidden = !hit;
+        if (hit) shown++;
+      });
+      day.hidden = shown === 0;
+      if (shown) any = true;
+    });
+    document.getElementById('none').hidden = any;
+  });
+})();
+</script>
+{% endblock %}

@@ -102,6 +102,13 @@ h2 { font-size: 1.15rem; margin: 0 0 0.6rem; }
 .feed li a { color: var(--text); }
 .feed li time small { display: block; font-size: 0.75rem; }
 .feed li[hidden] { display: none; }
+.feed.wide { max-height: none; overflow: visible; }
+.feed.wide .chip { margin-right: 0.3rem; }
+.day { margin-top: 1.4rem; }
+.day[hidden] { display: none; }
+.search { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+.search span { color: var(--muted); }
+.search input { flex: 1; min-width: 12rem; max-width: 26rem; font: inherit; color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 0.5rem 0.8rem; }
 .steps { list-style: none; display: flex; flex-wrap: wrap; gap: 0.6rem 2rem; padding: 0; margin: 0 0 0.6rem; font-size: 0.92rem; }
 
 .scroll { overflow-x: auto; }
@@ -161,14 +168,20 @@ td.sig small, td.r small { display: block; font-size: 0.8rem; }
   .kv { grid-template-columns: 7.5rem 1fr; }
 }
 @media (max-width: 1250px) {
+  table { font-size: 0.88rem; }
+  th, td { padding-left: 0.45rem; padding-right: 0.45rem; }
+  td.sig { min-width: 9.5rem; }
+  th.wide { min-width: 6.5rem; }
+}
+@media (max-width: 1000px) {
   .scroll-hint { display: block; }
 }
 @media (max-width: 640px) {
   .top { gap: 0.5rem 0.6rem; }
-  .brand { flex: 1; letter-spacing: 0.18em; }
-  .top nav { order: 3; flex: 1; gap: 0; }
-  .top nav a { padding: 0.45rem 0.6rem; }
-  .pill { order: 4; font-size: 0.8rem; padding: 0.3rem 0.6rem; }
+  .brand { flex: 1; letter-spacing: 0.1em; gap: 0.5rem; }
+  .pill { order: 2; font-size: 0.8rem; padding: 0.3rem 0.6rem; }
   .pill-run { display: none; }
-  .lang { order: 2; padding: 0.4rem 0.7rem; }
+  .lang { order: 3; padding: 0.4rem 0.7rem; }
+  .top nav { order: 4; flex-basis: 100%; gap: 0; }
+  .top nav a { padding: 0.45rem 0.6rem; }
 }
