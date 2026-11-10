@@ -89,7 +89,7 @@ PL: dict[str, str] = {
     "Which signals actually hold up": "Które sygnały naprawdę działają",
     "signals_lede": (
         "„Działa po kosztach” oznacza q po korekcie FDR poniżej 0,05 oraz wynik testu "
-        "walk-forward po kosztach transakcyjnych w obie strony (0,3% na GPW, 2% na "
+        "walk-forward po kosztach transakcyjnych w obie strony (2,0% na GPW, 5,2% na "
         "NewConnect), który jest dodatni i sam istotny statystycznie. Wszystkie pozostałe "
         "wyniki też są pokazane, nic nie jest ukrywane."
     ),
@@ -114,8 +114,8 @@ PL: dict[str, str] = {
     "{n} trades": "transakcje: {n}",
     "No statistics yet.": "Brak statystyk.",
     "signals_footnote": (
-        "Nadwyżkowa stopa zwrotu względem WIG (model rynkowy, sesje −250…−30) na kursach "
-        "skorygowanych kursami odniesienia publikowanymi przez giełdę (podziały, dywidendy, "
+        "Nadwyżkowa stopa zwrotu względem WIG (składana stopa zwrotu akcji minus WIG) "
+        "na kursach skorygowanych kursami odniesienia publikowanymi przez giełdę (podziały, dywidendy, "
         "prawa poboru). Każde zdarzenie jest umieszczone w chwili, w której Undercurrent mógł "
         "się o nim dowiedzieć (known_at), więc nie ma zaglądania w przyszłość. Wejście to "
         "zamknięcie pierwszej sesji po wieczornym podsumowaniu, które jako pierwsze podało "
@@ -212,12 +212,12 @@ PL: dict[str, str] = {
 EN_OVERRIDES: dict[str, str] = {
     "signals_lede": (
         "“Holds up” means FDR-adjusted q below 0.05 and a walk-forward result after "
-        "round-trip costs (0.3% on GPW, 2% on NewConnect) that is positive and itself "
+        "round-trip costs (2.0% on GPW, 5.2% on NewConnect) that is positive and itself "
         "statistically significant. Everything else is shown, not hidden."
     ),
     "signals_footnote": (
-        "Excess return vs WIG (market model, days −250…−30) on prices adjusted with the "
-        "exchange's own reference prices (splits, dividends, rights issues). Every event is "
+        "Excess return vs WIG (the stock's compounded return minus the index's) on prices "
+        "adjusted with the exchange's own reference prices (splits, dividends, rights issues). Every event is "
         "placed at the moment Undercurrent could have known it (known_at), so there is no "
         "look-ahead. Entry is the close of the first session after the evening digest that "
         "first carried the report; the move before that is not counted. Signal types with "

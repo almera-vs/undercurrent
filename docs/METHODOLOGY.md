@@ -65,33 +65,47 @@ Code: `src/undercurrent/study.py` (event studies), `dbt/models/gold/adjusted_pri
   week after its publication is skipped.
 - **A daily return exists only between consecutive sessions.** When a stock does not trade
   for a few sessions (common on NewConnect), the move across the gap spans several sessions
-  and is left out rather than booked as one day; the market-model regression and the event
-  windows treat those sessions as missing. The gates still compare the move since the
+  and is left out rather than booked as one day; the event windows treat those
+  sessions as missing. The gates still compare the move since the
   previous close with the exchange's published change.
 
 ## 3. Event study
 
 - **Benchmark:** WIG.
-- **Market model:** `r_i,t = a + b · r_WIG,t + e`, OLS on sessions [−250, −30] relative to
-  day 0, requiring ≥ 120 valid returns (otherwise the event is skipped, not imputed).
-- **Abnormal return:** `AR_t = r_i,t − (a + b · r_WIG,t)`.
-- **Windows:** abnormal returns from the entry close over the next 1, 5, 20 and 60 sessions,
+- **Excess return** over a window is the stock's compounded return minus WIG's compounded
+  return over the same sessions (buy-and-hold, market-adjusted): what holding the stock
+  against the index earned. There is no fitted baseline. An earlier version fitted a market
+  model (`r = a + b · r_WIG`) on sessions [−250, −30]; on real 2015–2016 data the fitted
+  intercept averaged +10 bp a day on GPW and +22 bp on NewConnect, because stocks tend to
+  rise before they have news, and subtracting it produced a spurious drift of −1.6 % over 19
+  sessions for every signal type. Measured against WIG directly the same drift is −0.5 %
+  (GPW) and −0.1 % (NewConnect). Compounding, rather than adding up daily differences,
+  also keeps bid-ask bounce from accumulating.
+- **Which stocks count.** Of the 60 sessions before day 0, at least 40 must have a return and
+  the stock must have traded (volume > 0) on at least half of those; otherwise the event is
+  skipped. A stock that did not trade on the entry session has no close to buy at, so the
+  event is not counted for any holding period.
+- **Windows:** excess returns from the entry close over the next 1, 5, 20 and 60 sessions,
   (entry, entry+h]. The chart path stays relative to day 0 ([−5,+20]; its band is a
-  bootstrap that resamples whole stocks, like the confidence intervals), so the reaction
+  bootstrap that resamples the same clusters as the confidence intervals), so the reaction
   before entry is visible there. An event counts for a window only if every day of it is
   known; events whose entry would be more than 5 sessions after day 0 are skipped.
 - **One event per (signal, stock, day 0).** Several reports about the same news, or a report
   and its correction, count once.
-- **Statistics per (signal key, horizon):** n, mean and median CAR, hit rate (share of
-  CAR > 0), t-statistic and two-sided p-value of the mean, and a 95 % percentile bootstrap CI
-  (2,000 draws). Both treat **each stock as a cluster**: the t-statistic uses a cluster-robust
-  (CR1) standard error with G − 1 degrees of freedom, and the bootstrap resamples whole stocks.
-  Repeated filings on one stock (an insider buying every day for a week) have overlapping
-  windows and are not independent; on a simulated market with bursts of 8 daily filings per
-  stock and no real effect, the plain t-test called 53 % of runs significant at 5 %, the
-  clustered one 7 %. The seed is derived from SHA-256 of `(20261109, signal key, horizon)`, so
-  results are reproducible and independent of row order. Fewer than 10 events or fewer than 5
-  stocks: no statistics are shown.
+- **Statistics per (signal key, horizon):** n, mean and median excess return, hit rate (share
+  above zero), t-statistic and two-sided p-value of the mean, and a 95 % percentile bootstrap
+  CI (2,000 draws). Both are **clustered two ways: by stock and by calendar month of day 0**.
+  The t-statistic uses the two-way cluster-robust standard error of Cameron, Gelbach and
+  Miller (variance by stock plus variance by month minus variance by their intersection),
+  with degrees of freedom from the smaller cluster count; the bootstrap resamples stocks and
+  months independently and multiplies the weights (pigeonhole bootstrap). By stock, because
+  repeated filings on one stock (an insider buying every day for a week) have overlapping
+  windows: on a simulated market with bursts of 8 daily filings per stock and no real
+  effect, the plain t-test called 53 % of runs significant at 5 %, the stock-clustered one
+  7 %. By month, because events in the same weeks share whatever moved small caps then. The
+  seed is derived from SHA-256 of `(20261109, signal key, horizon)`, so results are
+  reproducible and independent of row order. Fewer than 10 events or fewer than 5 stocks: no
+  statistics are shown.
 - **Multiple testing:** Benjamini–Hochberg q-values across every (signal key, horizon) tested
   that night.
 
@@ -103,16 +117,19 @@ Code: `src/undercurrent/study.py` (event studies), `dbt/models/gold/adjusted_pri
   period h ∈ {1, 5, 20, 60}, ranked by the t-statistic of the mean net return. Ranking by raw mean favours the noisiest horizon by
   chance (we saw this happen on synthetic data). If no candidate had a positive past net mean,
   the signal is not traded in Y. At least 30 past events are required.
-- **Trade:** enter at the entry close, exit h sessions later. The return is the abnormal
-  return over (entry, entry+h] (market-hedged), minus round-trip costs: **0.3 % on GPW, 2 % on
-  NewConnect**. The NewConnect figure is an assumption (there is no quote data to measure
-  spreads from), set high on purpose.
+- **Trade:** enter at the entry close, exit h sessions later. The return is the excess
+  return over (entry, entry+h] (the stock held against WIG), minus round-trip costs: **2.0 %
+  on GPW, 5.2 % on NewConnect**. That is one effective bid-ask spread plus 0.2 % commission
+  each way. Spreads are estimated from daily high, low and close with the Abdi–Ranaldo
+  estimator (`scripts/estimate_spreads.py`), over stocks that trade on at least half of the
+  sessions and weighted by where the events are: about 1.6 % on GPW and 4.8 % on NewConnect
+  in the history loaded so far. Most events are in small caps; a blue chip costs far less.
 - The out-of-sample result is the mean net return of all trades made this way.
 - **Caveat:** the short side assumes stock borrow is available, which is unrealistic for most
   GPW/NewConnect small caps. A `short` rule that "holds up" is a statement about information,
   not a tradable strategy.
 - **Out-of-sample significance:** a one-sided test that the mean net return of those trades
-  is above zero, cluster-robust by stock like the in-sample test.
+  is above zero, clustered by stock and month like the in-sample test.
 - **Deflated Sharpe ratio** of each signal's out-of-sample per-trade returns. A trial is every
   rule the walk-forward could have picked: one per (signal × horizon × direction). The hurdle
   comes from the number of trials and the variance of the per-trade Sharpe ratios across
@@ -123,7 +140,7 @@ Code: `src/undercurrent/study.py` (event studies), `dbt/models/gold/adjusted_pri
 
 | verdict | rule |
 |---|---|
-| `holds_up` | best q across horizons < 0.05, at least 10 walk-forward trades, mean net return > 0 and significantly so (one-sided p < 0.05, clustered by stock) |
+| `holds_up` | best q across horizons < 0.05, at least 10 walk-forward trades, mean net return > 0 and significantly so (one-sided p < 0.05, clustered by stock and month) |
 | `unconfirmed` | best q < 0.05, at least 10 walk-forward trades, mean net return > 0 but not significantly |
 | `eaten_by_costs` | best q < 0.05, at least 10 walk-forward trades, not positive after costs |
 | `untested` | best q < 0.05 but fewer than 10 walk-forward trades so far |
@@ -154,10 +171,12 @@ sessions otherwise.
 
 ## 8. Known limitations
 
-- **The NewConnect cost is assumed, not measured.** 2 % per round trip stands in for wide
-  spreads and thin books; many NewConnect stocks do not trade every session, so even that can
-  understate the cost of a real trade. The in-sample averages (mean excess return, q) are
-  before costs on both markets.
+- **Costs are one figure per market**, estimated from daily prices, not from quotes. A liquid
+  stock is charged too much and an illiquid one too little, and the estimate should be re-run
+  when more history is loaded. The in-sample averages (mean excess return, q) are before
+  costs on both markets.
+- **WIG is the only benchmark.** Small caps can drift against it for months; clustering by
+  month widens the intervals for that, it does not remove it.
 - Insider trade details (side, volume, price, value) depend on a portal copy of the
   notification form. Parkiet's copies end on 2026-10-26 and the listing portals reach back
   about three weeks, so reports no portal carries fall back to the report text (see

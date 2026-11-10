@@ -50,7 +50,7 @@ def test_walk_forward_trains_only_on_exited_trades() -> None:
     cutoff = next(i for i, d in enumerate(cal) if d >= date(year, 1, 1))
     for h in study.HORIZONS:
         train = [e for e in ars if e.event_date.year < year]
-        r, _, _ = study._trade_returns(train, h, cutoff)
+        r = study._trade_returns(train, h, cutoff).ret
         used = [e for e in train if 0 <= study.exit_index(e, h) < cutoff]
         assert len(r) == len([e for e in used if math.isfinite(study.trade_car(e, h))])
         late = [e for e in train if study.exit_index(e, h) >= cutoff]
@@ -146,7 +146,7 @@ def test_newconnect_trades_pay_the_higher_cost() -> None:
     """The same gross returns earn less out of sample when the stocks are on NewConnect."""
     import polars as pl
 
-    ev, rt, bench, cal = synthetic(seed=1, effect=0.03, n_events=600)
+    ev, rt, bench, cal = synthetic(seed=1, effect=0.10, n_events=600)
     as_of = study.as_of_for(cal[-1])
     net = {}
     for market in ("GPW", "NC"):
@@ -195,4 +195,4 @@ def test_no_window_reaches_across_a_hole_in_the_calendar() -> None:
         if e.day0_idx < 1000 <= e.day0_idx + e.entry + 60:
             assert math.isnan(study.trade_car(e, 60))  # the trade would span the hole
     # events just after the hole have no estimation history on their side: skipped
-    assert all(not 1000 <= e.day0_idx < 1000 + study.MIN_EST_OBS for e in ars)
+    assert all(not 1000 <= e.day0_idx < 1000 + study.MIN_HISTORY for e in ars)

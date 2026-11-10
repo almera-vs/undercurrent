@@ -3,19 +3,20 @@
 Method (details and caveats in ``docs/METHODOLOGY.md``):
 
 * **Day 0** is the first session whose close (17:05 Warsaw) is after ``known_at``.
-* **Market model** ``r_i = a + b·r_WIG`` estimated by OLS on sessions [−250, −30]
-  (at least ``MIN_EST_OBS`` valid returns). Abnormal return ``AR_t = r_t − (a + b·r_WIG,t)``.
+* **Excess return** is the stock's compounded return minus WIG's over the same sessions
+  (buy-and-hold, market-adjusted). No fitted baseline: a fitted intercept absorbs the run-up
+  that often precedes news and then shows up as a spurious negative drift afterwards.
 * **Entry** is the close of the first session after the evening digest that carries the
   report: a report published at 10:00 is in that evening's digest, so the first close a
   reader can trade is the next session's. Statistics and the walk-forward measure abnormal
   returns from that close: windows (entry, entry+h] for h in 1/5/20/60 sessions. The
   [−5,+20] chart path stays relative to day 0, so the reaction before entry is visible.
-* **Uncertainty:** cluster-robust t-test and 95 % percentile bootstrap, both treating each
-  stock as one cluster; fixed seed per signal/horizon.
+* **Uncertainty:** cluster-robust t-test and 95 % percentile bootstrap, both clustered two
+  ways, by stock and by calendar month; fixed seed per signal/horizon.
 * **Multiple testing:** BH q-values across every (signal, horizon).
 * **Walk-forward:** expanding yearly windows. Before each year the rule (direction and
   holding period) is chosen from earlier events only; trades enter at the entry close and
-  exit h sessions later, net of round-trip costs (0.3 % on GPW, 2 % on NewConnect).
+  exit h sessions later, net of round-trip costs (2.0 % on GPW, 5.2 % on NewConnect).
 * **Point in time:** every input row must have ``known_at <= as_of``; post-event returns
   that weren't known by ``as_of`` make the event ineligible for that horizon.
 
@@ -45,18 +46,25 @@ log = logging.getLogger(__name__)
 
 HORIZONS: tuple[int, ...] = (1, 5, 20, 60)
 PATH_WINDOW = (-5, 20)
-EST_WINDOW = (-250, -30)
-MIN_EST_OBS = 120
+# A stock needs a recent price history, and must actually trade, before its events count:
+# of the LIQ_WINDOW sessions before day 0 at least MIN_HISTORY must have a return, and the
+# stock must have traded (volume > 0) on at least MIN_TRADED_SHARE of those.
+LIQ_WINDOW = 60
+MIN_HISTORY = 40
+MIN_TRADED_SHARE = 0.5
 BOOTSTRAP_DRAWS = 2000
-ROUND_TRIP_COST = 0.003
-# NewConnect: wide spreads and thin books. An assumption, not a measurement (no quote data);
-# set high enough that a rule surviving it is not living off the spread.
-ROUND_TRIP_COST_NC = 0.02
+# Round-trip trading cost: one effective bid-ask spread plus 0.2 % commission each way.
+# Spreads are estimated from daily high/low/close (scripts/estimate_spreads.py), weighted by
+# where the events are: about 1.6 % on GPW and 4.8 % on NewConnect. Most events are in small
+# caps; a blue chip costs far less than this.
+ROUND_TRIP_COST = 0.020
+ROUND_TRIP_COST_NC = 0.052
 COST_BY_MARKET = {"GPW": ROUND_TRIP_COST, "NC": ROUND_TRIP_COST_NC}
 MIN_TRAIN_EVENTS = 30
 MIN_EVENTS_FOR_STATS = 10
-# Standard errors and the bootstrap treat each stock as one cluster: repeated notifications
-# on the same stock (daily insider filings, say) are not independent observations.
+# Standard errors and the bootstrap cluster two ways. By stock: repeated notifications on
+# one stock (daily insider filings, say) are not independent. By calendar month of day 0:
+# events in the same weeks share whatever moved small caps then, and their windows overlap.
 MIN_CLUSTERS = 5
 # The walk-forward result counts only with at least this many out-of-sample trades.
 MIN_OOS_TRADES = 10
@@ -90,7 +98,7 @@ class StudyInputs:
 
     as_of: datetime
     events: pl.DataFrame  # report_id, signal_key, isin, known_at, event_date, market
-    returns: pl.DataFrame  # isin, trade_date, adj_ret, known_at
+    returns: pl.DataFrame  # isin, trade_date, adj_ret, known_at[, volume]
     benchmark: pl.DataFrame  # trade_date, wig_ret, known_at
 
 
@@ -112,7 +120,7 @@ def load_inputs(duckdb_file: Path, as_of: datetime) -> StudyInputs:
             "market from events where isin is not null and event_date is not null"
         ).pl()
         rets = con.sql(
-            "select isin, trade_date, adj_ret, known_at from adjusted_prices "
+            "select isin, trade_date, adj_ret, volume, known_at from adjusted_prices "
             "where adj_ret is not null"
         ).pl()
         bench = con.sql(
@@ -173,16 +181,28 @@ def assert_point_in_time(inputs: StudyInputs) -> None:
 
 @dataclass(frozen=True)
 class EventAR:
-    """Abnormal returns of one event over the path window, NaN where unknown."""
+    """Daily returns of one event around day 0, NaN where unknown.
+
+    Arrays are indexed by relative day: index 0 is ``PATH_WINDOW[0]``, and they run past
+    ``max(HORIZONS)`` so every trade window fits.
+    """
 
     report_id: str
     signal_key: str
     isin: str
     event_date: date
-    ar: FloatArray  # index 0 ↔ relative day PATH_WINDOW[0]; extended past max(HORIZONS)
+    ar: FloatArray  # daily excess return: stock minus WIG
     entry: int = 1  # entry session relative to day 0; -1 if not yet known
     day0_idx: int = -1  # position of day 0 in the session calendar
     cost: float = ROUND_TRIP_COST  # round-trip trading cost on this stock's market
+    ret: FloatArray | None = None  # the stock's daily returns
+    mkt: FloatArray | None = None  # WIG's daily returns
+    tradable: bool = True  # the stock traded on the entry session
+
+    @property
+    def month(self) -> str:
+        """Calendar month of day 0: the time cluster."""
+        return f"{self.event_date:%Y-%m}"
 
 
 def _offset_range() -> range:
@@ -249,24 +269,33 @@ def calendar_segments(cal: list[date]) -> npt.NDArray[np.int64]:
 
 
 def compute_event_ars(inputs: StudyInputs) -> list[EventAR]:
-    """Market-model abnormal returns for every eligible event.
+    """Daily stock and WIG returns around day 0 for every eligible event.
 
-    The estimation window and every abnormal return stay inside the event's own calendar
-    segment: sessions on the far side of a data hole are not its neighbours.
+    Everything stays inside the event's own calendar segment: sessions on the far side of a
+    data hole are not its neighbours. Stocks without a recent history, or that mostly do not
+    trade, are left out (see ``LIQ_WINDOW``).
     """
     cal = inputs.benchmark["trade_date"].to_list()
     idx = {d: i for i, d in enumerate(cal)}
     seg = calendar_segments(cal)
     mkt = inputs.benchmark["wig_ret"].to_numpy().astype(np.float64)
     n_cal = len(cal)
+    has_volume = "volume" in inputs.returns.columns
     by_isin: dict[str, FloatArray] = {}
+    traded_by_isin: dict[str, npt.NDArray[np.bool_]] = {}
     for isin, grp in inputs.returns.group_by("isin", maintain_order=True):
         arr = np.full(n_cal, np.nan)
-        for d, r in zip(grp["trade_date"].to_list(), grp["adj_ret"].to_list(), strict=True):
+        traded = np.zeros(n_cal, dtype=bool)
+        vols = grp["volume"].to_list() if has_volume else [1] * grp.height
+        for d, r, v in zip(
+            grp["trade_date"].to_list(), grp["adj_ret"].to_list(), vols, strict=True
+        ):
             i = idx.get(d)
             if i is not None and r is not None and math.isfinite(r):
                 arr[i] = r
+                traded[i] = bool(v and v > 0)
         by_isin[str(isin[0])] = arr
+        traded_by_isin[str(isin[0])] = traded
 
     offsets = np.array(list(_offset_range()))
     out: list[EventAR] = []
@@ -279,48 +308,73 @@ def compute_event_ars(inputs: StudyInputs) -> list[EventAR]:
         published = row["known_at"].astimezone(WARSAW).date()
         if (row["event_date"] - published).days > MAX_SESSION_GAP_DAYS:
             continue
-        lo, hi = e + EST_WINDOW[0], e + EST_WINDOW[1]
-        if lo < 0:
+        traded = traded_by_isin[row["isin"]]
+        hist = slice(max(0, e - LIQ_WINDOW), e)
+        known = np.isfinite(ri[hist]) & (seg[hist] == seg[e])
+        if known.sum() < MIN_HISTORY or traded[hist][known].mean() < MIN_TRADED_SHARE:
             continue
-        y, x = ri[lo : hi + 1], mkt[lo : hi + 1]
-        ok = np.isfinite(y) & np.isfinite(x) & (seg[lo : hi + 1] == seg[e])
-        if ok.sum() < MIN_EST_OBS:
-            continue
-        b, a = np.polyfit(x[ok], y[ok], 1)
         pos = e + offsets
-        ar = np.full(len(offsets), np.nan)
         valid = (pos >= 0) & (pos < n_cal)
         valid[valid] = seg[pos[valid]] == seg[e]
         p = pos[valid]
-        ar[valid] = ri[p] - (a + b * mkt[p])
+        ret = np.full(len(offsets), np.nan)
+        mk = np.full(len(offsets), np.nan)
+        ret[valid] = ri[p]
+        mk[valid] = mkt[p]
         entry = entry_offset(row["known_at"], row["event_date"], cal)
+        tradable = True
+        if 0 <= entry <= MAX_ENTRY_LAG and e + entry < n_cal:
+            tradable = bool(traded[e + entry])
         out.append(
             EventAR(
                 row["report_id"],
                 row["signal_key"],
                 row["isin"],
                 row["event_date"],
-                ar,
+                ret - mk,
                 entry,
                 e,
                 COST_BY_MARKET.get(row["market"], ROUND_TRIP_COST),
+                ret,
+                mk,
+                tradable,
             )
         )
     return out
 
 
-def _car(ar: FloatArray, start: int, end: int) -> float:
-    """Sum of ARs over relative days [start, end]; NaN if any day is unknown."""
+def _excess(e: EventAR, start: int, end: int) -> float:
+    """Compounded stock return minus compounded WIG return over relative days [start, end].
+
+    NaN if any day is unknown. This is what holding the stock against the index earns; unlike
+    a sum of daily differences it does not accumulate bid-ask bounce.
+    """
     i0, i1 = start - PATH_WINDOW[0], end - PATH_WINDOW[0]
-    seg = ar[i0 : i1 + 1]
-    return float(seg.sum()) if np.all(np.isfinite(seg)) else math.nan
+    if e.ret is None or e.mkt is None:  # only daily excess returns given: add them up
+        seg = e.ar[i0 : i1 + 1]
+        return float(seg.sum()) if np.all(np.isfinite(seg)) else math.nan
+    r, m = e.ret[i0 : i1 + 1], e.mkt[i0 : i1 + 1]
+    if not (np.all(np.isfinite(r)) and np.all(np.isfinite(m))):
+        return math.nan
+    return float(np.prod(1 + r) - np.prod(1 + m))
 
 
 def trade_car(e: EventAR, horizon: int) -> float:
-    """Abnormal return from the entry close to ``horizon`` sessions later; NaN if unknown."""
-    if not 0 <= e.entry <= MAX_ENTRY_LAG:
+    """Excess return from the entry close to ``horizon`` sessions later; NaN if unknown.
+
+    Also NaN when the stock did not trade on the entry session: there was no close to buy at.
+    """
+    if not 0 <= e.entry <= MAX_ENTRY_LAG or not e.tradable:
         return math.nan
-    return _car(e.ar, e.entry + 1, e.entry + horizon)
+    return _excess(e, e.entry + 1, e.entry + horizon)
+
+
+def excess_path(e: EventAR) -> FloatArray:
+    """Cumulative excess return over the chart window, starting at ``PATH_WINDOW[0]``."""
+    n = PATH_WINDOW[1] - PATH_WINDOW[0] + 1
+    if e.ret is None or e.mkt is None:
+        return np.asarray(np.cumsum(e.ar[:n]), dtype=np.float64)
+    return np.asarray(np.cumprod(1 + e.ret[:n]) - np.cumprod(1 + e.mkt[:n]), dtype=np.float64)
 
 
 # --------------------------------------------------------------------------- statistics
@@ -331,64 +385,101 @@ def _seed(*parts: object) -> int:
     return int.from_bytes(h[:8], "big")
 
 
-def bootstrap_ci(values: FloatArray, key: str, alpha: float = 0.05) -> tuple[float, float]:
-    """Percentile bootstrap CI of the mean, resampling events, seeded by ``key``."""
-    rng = np.random.default_rng(_seed(key))
-    n = len(values)
-    draws = rng.integers(0, n, size=(BOOTSTRAP_DRAWS, n))
-    means = values[draws].mean(axis=1)
-    lo, hi = np.quantile(means, [alpha / 2, 1 - alpha / 2])
-    return float(lo), float(hi)
+def _codes(groups: list[str]) -> tuple[npt.NDArray[np.int64], int]:
+    """Integer code of each observation's cluster, and the number of clusters."""
+    pos = {n: i for i, n in enumerate(sorted(set(groups)))}
+    return np.array([pos[g] for g in groups], dtype=np.int64), len(pos)
+
+
+def _boot_weights(
+    rng: np.random.Generator, groups: list[str], groups2: list[str] | None, draws: int
+) -> FloatArray:
+    """Bootstrap weights (draws x observations) for resampling whole clusters.
+
+    One way: each draw resamples the clusters with replacement, and an observation's weight
+    is how often its cluster was drawn. Two ways (pigeonhole bootstrap): both sets of clusters
+    are resampled independently and the weights multiply.
+    """
+    idx, g = _codes(groups)
+    w = rng.multinomial(g, np.full(g, 1.0 / g), size=draws)[:, idx].astype(np.float64)
+    if groups2 is not None:
+        idx2, g2 = _codes(groups2)
+        w *= rng.multinomial(g2, np.full(g2, 1.0 / g2), size=draws)[:, idx2]
+    return w
+
+
+def _boot_means(
+    x: FloatArray, groups: list[str], groups2: list[str] | None, seed: int
+) -> FloatArray:
+    """Bootstrap distribution of the mean of ``x`` (a vector, or events x days)."""
+    rng = np.random.default_rng(seed)
+    out = []
+    for i in range(0, BOOTSTRAP_DRAWS, 200):  # in chunks, to bound memory
+        w = _boot_weights(rng, groups, groups2, min(200, BOOTSTRAP_DRAWS - i))
+        s = w.sum(axis=1)
+        ok = s > 0
+        out.append((w[ok] @ x) / (s[ok] if x.ndim == 1 else s[ok][:, None]))
+    return np.concatenate(out)
 
 
 def bootstrap_ci_clustered(
-    values: FloatArray, groups: list[str], key: str, alpha: float = 0.05
+    values: FloatArray,
+    groups: list[str],
+    key: str,
+    alpha: float = 0.05,
+    groups2: list[str] | None = None,
 ) -> tuple[float, float]:
-    """Percentile bootstrap CI of the pooled mean, resampling whole clusters (stocks)."""
-    rng = np.random.default_rng(_seed(key))
-    names = sorted(set(groups))
-    sums = np.array([values[[g == n for g in groups]].sum() for n in names])
-    counts = np.array([sum(1 for g in groups if g == n) for n in names], dtype=np.float64)
-    draws = rng.integers(0, len(names), size=(BOOTSTRAP_DRAWS, len(names)))
-    means = sums[draws].sum(axis=1) / counts[draws].sum(axis=1)
+    """Percentile bootstrap CI of the mean, resampling whole clusters (one or two ways)."""
+    means = _boot_means(values, groups, groups2, _seed(key))
     lo, hi = np.quantile(means, [alpha / 2, 1 - alpha / 2])
     return float(lo), float(hi)
 
 
 def path_band_clustered(
-    mat: FloatArray, groups: list[str], key: str, alpha: float = 0.05
+    mat: FloatArray,
+    groups: list[str],
+    key: str,
+    alpha: float = 0.05,
+    groups2: list[str] | None = None,
 ) -> tuple[FloatArray, FloatArray]:
-    """Percentile bootstrap band of the mean path (events x days), resampling whole stocks."""
-    rng = np.random.default_rng(_seed(key, "path"))
-    names = sorted(set(groups))
-    pos = {n: i for i, n in enumerate(names)}
-    sums = np.zeros((len(names), mat.shape[1]))
-    counts = np.zeros(len(names))
-    for row, g in zip(mat, groups, strict=True):
-        sums[pos[g]] += row
-        counts[pos[g]] += 1
-    boot = np.empty((BOOTSTRAP_DRAWS, mat.shape[1]))
-    for i in range(0, BOOTSTRAP_DRAWS, 100):  # in chunks, to bound memory
-        draws = rng.integers(0, len(names), size=(min(100, BOOTSTRAP_DRAWS - i), len(names)))
-        boot[i : i + len(draws)] = sums[draws].sum(axis=1) / counts[draws].sum(axis=1)[:, None]
+    """Percentile bootstrap band of the mean path (events x days), resampling clusters."""
+    boot = _boot_means(mat, groups, groups2, _seed(key, "path"))
     lo, hi = np.quantile(boot, [alpha / 2, 1 - alpha / 2], axis=0)
     return lo, hi
 
 
-def cluster_t(values: FloatArray, groups: list[str]) -> tuple[float, float, int]:
+def _cluster_var(dev: FloatArray, groups: list[str]) -> tuple[float, int]:
+    """CR1 variance of a sum of deviations, clustered by ``groups``; and the cluster count."""
+    idx, g = _codes(groups)
+    if g < 2:
+        return math.nan, g
+    score = np.bincount(idx, weights=dev, minlength=g)
+    return g / (g - 1) * float((score**2).sum()), g
+
+
+def cluster_t(
+    values: FloatArray, groups: list[str], groups2: list[str] | None = None
+) -> tuple[float, float, int]:
     """t-statistic of the mean with cluster-robust (CR1) standard error; (t, p, clusters).
 
-    ``se² = G/(G−1) · Σ_g (Σ_{i∈g} (x_i − x̄))² / n²`` with ``G − 1`` degrees of freedom. With
-    one observation per cluster this equals the usual standard error of the mean.
+    One way: ``se² = G/(G−1) · Σ_g (Σ_{i∈g} (x_i − x̄))² / n²`` with ``G − 1`` degrees of
+    freedom; with one observation per cluster this is the usual standard error of the mean.
+    Two ways (Cameron, Gelbach and Miller): the variances by each grouping add and the one by
+    their intersection is subtracted; degrees of freedom come from the smaller cluster count.
     """
     n = len(values)
-    names = sorted(set(groups))
-    g = len(names)
+    dev = values - values.mean()
+    var, g = _cluster_var(dev, groups)
     if g < 2:
         return math.nan, math.nan, g
-    dev = values - values.mean()
-    score = np.array([dev[[x == nm for x in groups]].sum() for nm in names])
-    se = math.sqrt(g / (g - 1) * float((score**2).sum())) / n
+    if groups2 is not None:
+        var2, g2 = _cluster_var(dev, groups2)
+        if g2 >= 2:
+            both = [f"{a}|{b}" for a, b in zip(groups, groups2, strict=True)]
+            two_way = var + var2 - _cluster_var(dev, both)[0]
+            var = two_way if two_way > 0 else max(var, var2)
+            g = min(g, g2)
+    se = math.sqrt(var) / n
     if se == 0:
         return math.nan, math.nan, g
     t = float(values.mean() / se)
@@ -453,18 +544,25 @@ def exit_index(e: EventAR, horizon: int) -> int:
     return e.day0_idx + e.entry + horizon
 
 
-def _trade_returns(
-    evs: list[EventAR], horizon: int, known_before: int | None = None
-) -> tuple[FloatArray, list[str], FloatArray]:
-    """Abnormal return from the entry close to ``horizon`` sessions later, per event.
+@dataclass(frozen=True)
+class Trades:
+    """Gross excess returns of a set of trades, with what is needed to cost and cluster them."""
 
-    Returns the gross returns, the stock (ISIN) of each and its round-trip cost.
+    ret: FloatArray
+    stocks: list[str]
+    months: list[str]
+    cost: FloatArray
+
+
+def _trade_returns(evs: list[EventAR], horizon: int, known_before: int | None = None) -> Trades:
+    """Excess return from the entry close to ``horizon`` sessions later, per event.
 
     With ``known_before``, only trades whose exit session lies before that calendar
     position count, so a rule is never chosen with returns that were still in the future.
     """
     vals: list[float] = []
-    isins: list[str] = []
+    stocks: list[str] = []
+    months: list[str] = []
     costs: list[float] = []
     for e in evs:
         if known_before is not None and not 0 <= exit_index(e, horizon) < known_before:
@@ -472,9 +570,12 @@ def _trade_returns(
         v = trade_car(e, horizon)
         if math.isfinite(v):
             vals.append(v)
-            isins.append(e.isin)
+            stocks.append(e.isin)
+            months.append(e.month)
             costs.append(e.cost)
-    return np.array(vals, dtype=np.float64), isins, np.array(costs, dtype=np.float64)
+    return Trades(
+        np.array(vals, dtype=np.float64), stocks, months, np.array(costs, dtype=np.float64)
+    )
 
 
 def choose_rule(train: list[EventAR], known_before: int | None = None) -> Rule | None:
@@ -486,7 +587,8 @@ def choose_rule(train: list[EventAR], known_before: int | None = None) -> Rule |
     """
     best: tuple[float, Rule] | None = None
     for h in HORIZONS:
-        r, _, cost = _trade_returns(train, h, known_before)
+        tr = _trade_returns(train, h, known_before)
+        r, cost = tr.ret, tr.cost
         if len(r) < MIN_TRAIN_EVENTS:
             continue
         se = float(np.std(r, ddof=1)) / math.sqrt(len(r))
@@ -508,17 +610,18 @@ def walk_forward(
     The rule for year Y is chosen from trades that had *exited* before Y began (a December
     event's 60-session trade is still open in January, so it can't inform January's rule).
     """
-    oos, _, rules = walk_forward_trades(evs, calendar)
+    oos, _, _, rules = walk_forward_trades(evs, calendar)
     return oos, rules
 
 
 def walk_forward_trades(
     evs: list[EventAR], calendar: list[date] | None = None
-) -> tuple[FloatArray, list[str], list[Rule]]:
-    """:func:`walk_forward` plus the stock of every out-of-sample trade (for clustering)."""
+) -> tuple[FloatArray, list[str], list[str], list[Rule]]:
+    """:func:`walk_forward` plus the stock and month of every trade (for clustering)."""
     years = sorted({e.event_date.year for e in evs})
     oos: list[float] = []
     stocks: list[str] = []
+    months: list[str] = []
     rules: list[Rule] = []
     for y in years:
         train = [e for e in evs if e.event_date.year < y]
@@ -527,21 +630,23 @@ def walk_forward_trades(
         rule = choose_rule(train, cutoff)
         if rule is None:
             continue
-        r, isins, cost = _trade_returns(test, rule.horizon)
-        oos.extend((rule.direction * r - cost).tolist())
-        stocks.extend(isins)
+        tr = _trade_returns(test, rule.horizon)
+        oos.extend((rule.direction * tr.ret - tr.cost).tolist())
+        stocks.extend(tr.stocks)
+        months.extend(tr.months)
         rules.append(rule)
-    return np.array(oos, dtype=np.float64), stocks, rules
+    return np.array(oos, dtype=np.float64), stocks, months, rules
 
 
-def oos_p_value(oos: FloatArray, stocks: list[str]) -> float:
+def oos_p_value(oos: FloatArray, stocks: list[str], months: list[str] | None = None) -> float:
     """One-sided p-value that the mean out-of-sample net return is above zero.
 
-    Cluster-robust by stock, like the in-sample test. NaN with fewer than two stocks.
+    Cluster-robust like the in-sample test (by stock, and by month when given). NaN with
+    fewer than two stocks.
     """
     if len(oos) < 2:
         return math.nan
-    t, _, g = cluster_t(oos, stocks)
+    t, _, g = cluster_t(oos, stocks, months)
     if not math.isfinite(t):
         return math.nan
     return float(sps.t.sf(t, df=g - 1))
@@ -564,8 +669,7 @@ def trial_sharpes(by_key: dict[str, list[EventAR]]) -> list[float]:
     out: list[float] = []
     for key in sorted(by_key):
         for h in HORIZONS:
-            r, _, _ = _trade_returns(by_key[key], h)
-            sr = _sharpe(r)
+            sr = _sharpe(_trade_returns(by_key[key], h).ret)
             if sr is not None:
                 out.append(sr)
     return out
@@ -606,20 +710,18 @@ def compute_signal_stats(inputs: StudyInputs) -> tuple[pl.DataFrame, pl.DataFram
 
     rows: list[dict[str, Any]] = []
     paths: list[dict[str, Any]] = []
-    wf: dict[str, tuple[FloatArray, list[str], list[Rule]]] = {}
+    wf: dict[str, tuple[FloatArray, list[str], list[str], list[Rule]]] = {}
     for key in sorted(by_key):
         evs = sorted(by_key[key], key=lambda e: (e.event_date, e.report_id))
         wf[key] = walk_forward_trades(evs, calendar)
         for h in HORIZONS:
-            pairs = [(trade_car(e, h), e.isin) for e in evs]
-            pairs = [(v, g) for v, g in pairs if math.isfinite(v)]
-            cars = np.array([v for v, _ in pairs], dtype=np.float64)
-            groups = [g for _, g in pairs]
+            tr = _trade_returns(evs, h)
+            cars, groups, months = tr.ret, tr.stocks, tr.months
             n = len(cars)
             row: dict[str, Any] = {"as_of": inputs.as_of, "signal_key": key, "horizon": h, "n": n}
             if n >= MIN_EVENTS_FOR_STATS and len(set(groups)) >= MIN_CLUSTERS:
-                t, p_val, _ = cluster_t(cars, groups)
-                lo, hi = bootstrap_ci_clustered(cars, groups, f"{key}|{h}")
+                t, p_val, _ = cluster_t(cars, groups, months)
+                lo, hi = bootstrap_ci_clustered(cars, groups, f"{key}|{h}", groups2=months)
                 row |= {
                     "mean_car": float(np.mean(cars)),
                     "median_car": float(np.median(cars)),
@@ -630,14 +732,17 @@ def compute_signal_stats(inputs: StudyInputs) -> tuple[pl.DataFrame, pl.DataFram
                     "p_value": p_val,
                 }
             rows.append(row)
-        # average [-5, +20] CAR path with a bootstrap band (whole stocks resampled)
+        # average [-5, +20] excess-return path with a bootstrap band (clusters resampled)
         lo_d, hi_d = PATH_WINDOW
-        mat = np.array([np.cumsum(e.ar[: hi_d - lo_d + 1]) for e in evs])
+        mat = np.array([excess_path(e) for e in evs])
         full = np.all(np.isfinite(mat), axis=1) if len(mat) else np.zeros(0, dtype=bool)
         mat = mat[full] if len(mat) else mat
-        path_stocks = [e.isin for e, ok in zip(evs, full, strict=True) if ok]
+        kept = [e for e, ok in zip(evs, full, strict=True) if ok]
+        path_stocks = [e.isin for e in kept]
         if len(mat) >= MIN_EVENTS_FOR_STATS and len(set(path_stocks)) >= MIN_CLUSTERS:
-            band_lo, band_hi = path_band_clustered(mat, path_stocks, key)
+            band_lo, band_hi = path_band_clustered(
+                mat, path_stocks, key, groups2=[e.month for e in kept]
+            )
             for i, d in enumerate(range(lo_d, hi_d + 1)):
                 paths.append(
                     {
@@ -683,10 +788,10 @@ def compute_signal_stats(inputs: StudyInputs) -> tuple[pl.DataFrame, pl.DataFram
 
     extra = []
     for key in sorted(by_key):
-        oos, stocks, rules = wf[key]
+        oos, stocks, oos_months, rules = wf[key]
         last = rules[-1] if rules else None
         dsr = deflated_sharpe(oos, n_trials, sr_var) if math.isfinite(sr_var) else math.nan
-        oos_p = oos_p_value(oos, stocks)
+        oos_p = oos_p_value(oos, stocks, oos_months)
         extra.append(
             {
                 "signal_key": key,
@@ -780,7 +885,7 @@ def event_cars(inputs: StudyInputs) -> pl.DataFrame:
                 "isin": e.isin,
                 "event_date": e.event_date,
                 **{f"car_{h}": trade_car(e, h) for h in HORIZONS},
-                "path": [float(x) for x in np.cumsum(e.ar[: PATH_WINDOW[1] - PATH_WINDOW[0] + 1])],
+                "path": [float(x) for x in excess_path(e)],
             }
         )
     df = pl.DataFrame(

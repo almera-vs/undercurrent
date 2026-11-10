@@ -25,7 +25,7 @@ flowchart LR
   P[GPW quote archive<br/>NC daily stats file] --> B
   B --> C[parse + classify<br/>rule-based, no ML]
   C --> D[dbt-duckdb<br/>silver → gold + data tests]
-  D --> E[event study<br/>market model, bootstrap, BH-FDR,<br/>walk-forward, deflated Sharpe]
+  D --> E[event study<br/>excess return vs WIG, bootstrap, BH-FDR,<br/>walk-forward, deflated Sharpe]
   E --> F[static site<br/>GitHub Pages]
   E --> G[Telegram digest]
   B -. committed to .-> H[(data branch)]
@@ -43,8 +43,8 @@ flowchart LR
 3. **dbt** (`dbt/`): silver reports and prices, adjusted prices from the exchange's own
    reference prices, events aligned to the trading calendar, and data tests, including the
    "no unexplained > 35 % jump" gate.
-4. **Study** (`study.py`): CARs vs WIG, 95 % bootstrap CIs, Benjamini–Hochberg q-values,
-   expanding-window walk-forward after costs (0.3 % GPW, 2 % NewConnect), deflated Sharpe, and a
+4. **Study** (`study.py`): excess returns vs WIG, 95 % bootstrap CIs, Benjamini–Hochberg q-values,
+   expanding-window walk-forward after costs (2.0 % GPW, 5.2 % NewConnect), deflated Sharpe, and a
    verdict per signal.
    Point-in-time and byte-for-byte reproducible.
 5. **Publish** (`publish.py`, `i18n.py`): Jinja2 site in Polish and English with inline SVG
@@ -58,11 +58,12 @@ Details: [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md) · sources and their verif
 
 ## Results
 
-Statistics need history: the market model uses 250 sessions before each event, and the
-walk-forward test needs past years to choose a rule. The 2015 → today backfill is still
-filling the lake, so the site shows empty statistics rather than made-up ones until enough
-history exists. This section will then state plainly whether any rule held up after costs
-out of sample, or that none did.
+Statistics need history: the walk-forward test needs past years to choose a rule from. The
+2015 → today backfill is still filling the lake, so most signal types have little to go on
+yet. On the history loaded so far (2015–2016) no signal type moves prices in a way that is
+statistically distinguishable from noise once repeated filings and calendar clustering are
+accounted for, and none survives trading costs out of sample. This section will be updated
+when the backfill completes.
 
 Limitations that shape the results:
 
