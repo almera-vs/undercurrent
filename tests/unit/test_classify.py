@@ -248,3 +248,17 @@ def test_holder_basis_needs_holder_wording():
     assert classify(basis, "Zawiadomienie akcjonariusza", real, "Bieżący").signal_type == (
         "holder_threshold"
     )
+
+
+def test_subtype_accuracy_on_labelled_titles():
+    """Regression floor on 184 hand-labelled 2015-2016 titles (see the fixture's README)."""
+    import json
+    from pathlib import Path
+
+    from undercurrent.classify import inside_info_subtype
+
+    path = Path(__file__).parents[1] / "fixtures" / "labelled_titles" / "inside_info_subtypes.jsonl"
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    assert len(rows) == 184
+    hits = sum(inside_info_subtype(r["title"], None) == r["subtype"] for r in rows)
+    assert hits / len(rows) >= 0.90

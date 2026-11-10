@@ -114,36 +114,51 @@ _TEXT_RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
 # things in passing (a contract's "estimated value" is not a results estimate).
 _SUBTYPE_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("buyback", _rx(r"skup\w* akcji wlasnych|nabyci\w* akcji wlasnych|buy-?back")),
-    ("dividend_change", _rx(r"dywidend")),
+    ("dividend_change", _rx(r"dywidend|podzial\w* zysku")),
     (
         "profit_warning",
         _rx(
             r"szacunk\w* [^.]{0,60}(wynik|dan\w+|przychod|zysk|strat|ebitda|informacj)|"
             r"(wynik\w*|dan\w+|przychod\w*|informacj\w+) [^.]{0,40}szacunk|"
             r"wstepn\w+ [^.]{0,60}(wynik|dan\w+|przychod|informacj)|"
-            r"przychod\w* [^.]{0,30}(kwartal|miesiac|miesiec|miesieczn|polrocz|rok)|"
+            r"przychod\w* [^.]{0,60}(kwartal|miesiac|miesiec|miesieczn|polrocz|rok|osiagniet)|"
             r"miesieczn\w+ przychod|prognoz\w* [^.]{0,30}(wynik|przychod|ebitda|finansow)|"
-            r"odpis\w* aktualizuj|korekt\w* prognoz|utrat\w+ wartosci"
+            r"wybran\w+ dan\w+ finansow|wplyw\w* na wynik|"
+            r"odpis\w* aktualizuj|aktualizacj\w* wartosci aktywow|korekt\w* prognoz|"
+            r"utrat\w+ wartosci"
+        ),
+    ),
+    # Before contracts: a share purchase agreement or a loan agreement is also "an agreement".
+    (
+        "m_and_a",
+        _rx(
+            r"przejeci|polaczeni\w* |plan\w* polaczenia|wezwani\w+|"
+            r"(nabyci|zakup|sprzedaz|objeci)\w* [^.]{0,40}(udzialow|\d+ ?% akcji|akcji (w|spolki)\b)"
+        ),
+    ),
+    (
+        "financing",
+        _rx(
+            r"obligacj|kredyt|emisj\w* akcji|cen\w* emisyjn|prospekt\w* emisyjn|finansowani|"
+            r"pozyczk|hipotek|leasing"
+        ),
+    ),
+    (
+        "litigation",
+        _rx(
+            r"pozew|pozw(u|em|ie|y|ow)\b|powodztw|apelacj|wyrok|"
+            r"postepowani\w* [^.]{0,30}(sad|arbitraz)|przed sadem"
         ),
     ),
     (
         "large_contract",
         _rx(
-            r"(zawarci\w*|podpisani\w*|otrzymani\w*) [^.]{0,60}(umow|aneks)|"
+            r"(zawarci\w*|podpisani\w*|otrzymani\w*) [^.]{0,60}(umow|aneks|kontrakt)|"
             r"umow\w* (znaczac|istotn|ramow)|(znaczac|istotn)\w+ umow|"
-            r"wybor\w* [^.]{0,30}ofert|zamowieni\w+"
+            r"wybor\w* [^.]{0,30}ofert|zamowie\w+|dostaw\w* [^.]{0,30}na 20\d\d"
         ),
     ),
-    (
-        "m_and_a",
-        _rx(
-            r"przejeci|polaczeni\w* (spolek|z)|(nabyci|zakup)\w* (udzialow|akcji spolki)|"
-            r"wezwani\w+ do zapisywania"
-        ),
-    ),
-    ("financing", _rx(r"obligacj|kredyt|emisj\w* akcji|finansowani|pozyczk")),
     ("strategy", _rx(r"strategi|przeglad\w* opcji strategicznych")),
-    ("litigation", _rx(r"pozew|pozw(u|em|ie|y|ow)\b|postepowani\w* (sadow|arbitraz)|wyrok")),
     ("rating", _rx(r"rating")),
 )
 # Only the opening of the body is read when the title is silent.
