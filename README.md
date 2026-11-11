@@ -42,10 +42,11 @@ flowchart LR
    form is found), issuer → ISIN.
 3. **dbt** (`dbt/`): silver reports and prices, adjusted prices from the exchange's own
    reference prices, events aligned to the trading calendar, and data tests, including the
-   "no unexplained > 35 % jump" gate.
+   "no > 35 % jump without a trade" gate.
 4. **Study** (`study.py`): excess returns vs WIG, 95 % bootstrap CIs, Benjamini–Hochberg q-values,
    expanding-window walk-forward after costs (2.0 % GPW, 5.2 % NewConnect), deflated Sharpe, and a
-   verdict per signal.
+   verdict per signal. Only stocks a reader could buy count: median close of at least
+   0.50 zł and median daily turnover of at least 10,000 zł before the event.
    Point-in-time and byte-for-byte reproducible.
 5. **Publish** (`publish.py`, `i18n.py`): Jinja2 site in Polish and English with inline SVG
    charts, plus a Telegram digest via

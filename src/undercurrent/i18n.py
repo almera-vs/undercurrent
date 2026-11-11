@@ -182,8 +182,10 @@ PL: dict[str, str] = {
     "Avg excess, {h} sessions after entry": "Śr. nadwyżka w ciągu {h} sesji od wejścia",
     "FDR-adjusted q": "q po korekcie FDR",
     "Walk-forward, after costs": "Walk-forward, po kosztach",
-    "Worst case in sample": "Najgorszy przypadek w próbie",
-    "Worst case for a short, in sample": "Najgorszy przypadek dla krótkiej pozycji w próbie",
+    "Bad case (1 in 20), in sample": "Zły scenariusz (1 na 20) w próbie",
+    "Bad case for a short (1 in 20), in sample": (
+        "Zły scenariusz dla krótkiej pozycji (1 na 20) w próbie"
+    ),
     "Most recent past events": "Ostatnie wcześniejsze zdarzenia",
     "Date": "Data",
     "Company": "Spółka",

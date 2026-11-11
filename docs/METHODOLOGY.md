@@ -53,9 +53,18 @@ Code: `src/undercurrent/study.py` (event studies), `dbt/models/gold/adjusted_pri
   Manual overrides live in `seeds/corporate_action_overrides.csv`.
 - Adjusted daily returns therefore equal the exchange's own published change, which makes them
   **total returns** (GPW adjusts the reference for dividends; verified on real dividends).
-- Gates (fail CI and the nightly job): no adjusted daily move > 35 % unless an override exists
-  or the exchange's published change confirms it, and every adjusted return reconciles with the
-  published change to ±0.5 pp.
+- Nothing is derived across a hole in the lake (months not backfilled yet): the first session
+  after it has no factor and no return, because its "previous close" is years old.
+- Gates (fail CI and the nightly job). The adjusted return is built from the published change,
+  so agreeing with it proves only that the model's arithmetic holds
+  (`assert_adjusted_returns_reconcile`, ±0.5 pp). The data gates use what the change does not
+  determine: an adjusted daily move > 35 % must have traded volume
+  (`assert_no_unexplained_jumps`); a large factor undone within a month is a bad print, not a
+  corporate action (`assert_no_reversed_factors`); and NewConnect's published reference price
+  must agree with its published change (`assert_nc_reference_matches_change`).
+- **Quarantine.** A move > 35 % on the very day the exchange adjusted the reference cannot be
+  split into "corporate action" and "market move" from one file. That day gets no return (7
+  days in 2015–2016), so no event window may include it, until an override row settles it.
 - Look-ahead note: back-adjusted *levels* use future factors, so the study uses only daily
   *returns*. A return on day t depends only on information known on day t.
 - **Holes in the lake are not adjacency.** While the backfill is incomplete the calendar has
@@ -85,6 +94,13 @@ Code: `src/undercurrent/study.py` (event studies), `dbt/models/gold/adjusted_pri
   the stock must have traded (volume > 0) on at least half of those; otherwise the event is
   skipped. A stock that did not trade on the entry session has no close to buy at, so the
   event is not counted for any holding period.
+- **Only stocks a reader could buy.** Over the same 60 sessions the median close must be at
+  least 0.50 zł and the median daily turnover at least 10,000 zł (sessions without a trade
+  count as zero). Below 0.50 zł one 0.01 zł tick is a move of 2 % or more: a stock quoted at
+  0.01–0.02 zł "returns" +100 % and −50 % on alternate days without anyone earning anything.
+  Below 10,000 zł a day an ordinary order is the whole market. On 2015–2016 this leaves out
+  about half of all events, most of them on NewConnect, and cuts 60-session outcomes beyond
+  +100 % from 105 to 14. Both figures are measured before day 0 only.
 - **Windows:** excess returns from the entry close over the next 1, 5, 20 and 60 sessions,
   (entry, entry+h]. The chart path stays relative to day 0 ([−5,+20]; its band is a
   bootstrap that resamples the same clusters as the confidence intervals), so the reaction

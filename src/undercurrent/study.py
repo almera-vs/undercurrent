@@ -52,6 +52,13 @@ PATH_WINDOW = (-5, 20)
 LIQ_WINDOW = 60
 MIN_HISTORY = 40
 MIN_TRADED_SHARE = 0.5
+# ...and it must be something a reader could have bought. Over the same window the median
+# close must be at least MIN_PRICE and the median daily turnover at least MIN_TURNOVER
+# (sessions without a trade count as zero). Below 0.50 zł one tick of 0.01 zł is a move of
+# 2 % or more, so "returns" are the price bouncing between two ticks; below 10,000 zł a day
+# an ordinary order is the day's whole market. Both are measured before day 0 only.
+MIN_PRICE = 0.50
+MIN_TURNOVER = 10_000.0
 BOOTSTRAP_DRAWS = 2000
 # Round-trip trading cost: one effective bid-ask spread plus 0.2 % commission each way.
 # Spreads are estimated from daily high/low/close (scripts/estimate_spreads.py), weighted by
@@ -99,7 +106,7 @@ class StudyInputs:
 
     as_of: datetime
     events: pl.DataFrame  # report_id, signal_key, isin, known_at, event_date, market
-    returns: pl.DataFrame  # isin, trade_date, adj_ret, known_at[, volume]
+    returns: pl.DataFrame  # isin, trade_date, adj_ret, known_at[, volume, close, value_pln]
     benchmark: pl.DataFrame  # trade_date, wig_ret, known_at
 
 
@@ -121,8 +128,8 @@ def load_inputs(duckdb_file: Path, as_of: datetime) -> StudyInputs:
             "market from events where isin is not null and event_date is not null"
         ).pl()
         rets = con.sql(
-            "select isin, trade_date, adj_ret, volume, known_at from adjusted_prices "
-            "where adj_ret is not null"
+            "select isin, trade_date, adj_ret, volume, close, value_pln, known_at "
+            "from adjusted_prices where adj_ret is not null"
         ).pl()
         bench = con.sql(
             "select b.trade_date, b.wig_ret, s.known_at from benchmark_returns b "
@@ -273,8 +280,10 @@ def compute_event_ars(inputs: StudyInputs) -> list[EventAR]:
     """Daily stock and WIG returns around day 0 for every eligible event.
 
     Everything stays inside the event's own calendar segment: sessions on the far side of a
-    data hole are not its neighbours. Stocks without a recent history, or that mostly do not
-    trade, are left out (see ``LIQ_WINDOW``).
+    data hole are not its neighbours. Stocks without a recent history, that mostly do not
+    trade, or that are too cheap or too thinly traded to buy are left out (see ``LIQ_WINDOW``
+    and ``MIN_PRICE``). The price and turnover rule applies when ``returns`` carries ``close``
+    and ``value_pln``.
     """
     cal = inputs.benchmark["trade_date"].to_list()
     idx = {d: i for i, d in enumerate(cal)}
@@ -282,21 +291,39 @@ def compute_event_ars(inputs: StudyInputs) -> list[EventAR]:
     mkt = inputs.benchmark["wig_ret"].to_numpy().astype(np.float64)
     n_cal = len(cal)
     has_volume = "volume" in inputs.returns.columns
+    has_liquidity = {"close", "value_pln"} <= set(inputs.returns.columns)
     by_isin: dict[str, FloatArray] = {}
     traded_by_isin: dict[str, npt.NDArray[np.bool_]] = {}
+    close_by_isin: dict[str, FloatArray] = {}
+    turnover_by_isin: dict[str, FloatArray] = {}
     for isin, grp in inputs.returns.group_by("isin", maintain_order=True):
         arr = np.full(n_cal, np.nan)
         traded = np.zeros(n_cal, dtype=bool)
+        close = np.full(n_cal, np.nan)
+        turnover = np.zeros(n_cal)
         vols = grp["volume"].to_list() if has_volume else [1] * grp.height
-        for d, r, v in zip(
-            grp["trade_date"].to_list(), grp["adj_ret"].to_list(), vols, strict=True
+        closes = grp["close"].to_list() if has_liquidity else [None] * grp.height
+        values = grp["value_pln"].to_list() if has_liquidity else [None] * grp.height
+        for d, r, v, c, val in zip(
+            grp["trade_date"].to_list(),
+            grp["adj_ret"].to_list(),
+            vols,
+            closes,
+            values,
+            strict=True,
         ):
             i = idx.get(d)
             if i is not None and r is not None and math.isfinite(r):
                 arr[i] = r
                 traded[i] = bool(v and v > 0)
+                if c is not None:
+                    close[i] = c
+                if val is not None and math.isfinite(val):
+                    turnover[i] = val
         by_isin[str(isin[0])] = arr
         traded_by_isin[str(isin[0])] = traded
+        close_by_isin[str(isin[0])] = close
+        turnover_by_isin[str(isin[0])] = turnover
 
     offsets = np.array(list(_offset_range()))
     out: list[EventAR] = []
@@ -313,6 +340,10 @@ def compute_event_ars(inputs: StudyInputs) -> list[EventAR]:
         hist = slice(max(0, e - LIQ_WINDOW), e)
         known = np.isfinite(ri[hist]) & (seg[hist] == seg[e])
         if known.sum() < MIN_HISTORY or traded[hist][known].mean() < MIN_TRADED_SHARE:
+            continue
+        if has_liquidity and not _buyable(
+            close_by_isin[row["isin"]][hist][known], turnover_by_isin[row["isin"]][hist][known]
+        ):
             continue
         pos = e + offsets
         valid = (pos >= 0) & (pos < n_cal)
@@ -342,6 +373,14 @@ def compute_event_ars(inputs: StudyInputs) -> list[EventAR]:
             )
         )
     return out
+
+
+def _buyable(close: FloatArray, turnover: FloatArray) -> bool:
+    """Whether a stock was priced and traded enough, over the sessions given, to be bought."""
+    prices = close[np.isfinite(close)]
+    if not len(prices) or float(np.median(prices)) < MIN_PRICE:
+        return False
+    return float(np.median(turnover)) >= MIN_TURNOVER
 
 
 def _excess(e: EventAR, start: int, end: int) -> float:

@@ -136,13 +136,29 @@ it costs. Method details (event study, walk-forward, verdicts) are in
   ignored (at most 0.2 % on one day).
 - **Overrides:** `seeds/corporate_action_overrides.csv` replaces the factor for an
   `(isin, ex_date)`; every row needs a comment.
-- **Jump gate.** `assert_no_unexplained_jumps` fails on any adjusted daily move above 35 %
-  that is neither overridden nor confirmed by the exchange's own published change (±0.5 pp).
-  NewConnect has genuine moves of that size almost daily, so listing each by hand would make
-  the override file meaningless. The gate exists to catch missing or garbled prices, a stale
-  previous close, or a wrong factor. `assert_adjusted_returns_reconcile` checks the same
-  agreement on every row. Both run in the nightly `dbt build` and in CI against the real
-  `data` branch.
+- **Jump gate.** The first version passed any move the exchange's published change
+  "confirmed". The adjusted return is built from that change, so the gate could not fail: on
+  2015–2016 all 1,586 moves above 35 % were confirmed. It now asks for evidence the change
+  does not contain. `assert_no_unexplained_jumps`: a move above 35 % needs traded volume.
+  `assert_no_reversed_factors`: a large factor undone within a month is a garbled price.
+  `assert_nc_reference_matches_change`: NewConnect's two published columns must agree.
+  NewConnect has genuine moves above 35 % almost daily, so there is no cap on size and no
+  hand-kept list. `assert_adjusted_returns_reconcile` stays as a check of the model's own
+  arithmetic. All run in the nightly `dbt build` and in CI against the real `data` branch.
+- **Quarantine instead of a guess.** A move above 35 % on an ex-date gets no return until an
+  override row settles the factor. Failing the build would need a hand review of every such
+  day; trusting it would put the least certain returns into the study.
+- **No factor across a hole in the lake.** The first session after missing months compared
+  its reference with a close from years earlier and rescaled all older prices by the result.
+  Returns were unaffected, but adjusted levels were wrong. Such a row now has factor 1.
+- **Tradability filter.** Events count only for stocks with a median close of at least 0.50 zł
+  and a median daily turnover of at least 10,000 zł over the 60 sessions before day 0
+  (`MIN_PRICE`, `MIN_TURNOVER` in `study.py`). Without it the statistics were averages over
+  tick bounce in grosz-priced stocks. The thresholds are a judgment: low enough to keep small
+  caps a private investor does trade, high enough that one tick is not the whole move.
+- **"Bad case" tile is a percentile.** The event page showed the single worst outcome in the
+  sample, which is one stock's story and grows with the sample. It now shows the outcome only
+  1 past event in 20 did worse than (for a short rule, the rise), one event per stock and day.
 
 ## Backfill
 

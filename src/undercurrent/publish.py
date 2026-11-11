@@ -90,6 +90,28 @@ def tone(x: float | None) -> str:
 # --------------------------------------------------------------------------- SVG chart
 
 
+# The "bad case" tile: the outcome that only this share of past events did worse than.
+TAIL_SHARE = 0.05
+MIN_EVENTS_FOR_TAIL = 20
+
+
+def tail_outcome(cars: pl.DataFrame, horizon: int, *, short: bool) -> float | None:
+    """Excess return that only 1 past event in 20 did worse than; for a short, the rise.
+
+    A percentile, not the single worst event: the extreme of a sample is one stock's story
+    and grows with the sample. One event per stock and day; None with too few events.
+    """
+    col = (
+        cars.unique(subset=["isin", "event_date"], keep="first", maintain_order=True)
+        .get_column(f"car_{horizon}")
+        .drop_nulls()
+    )
+    if col.len() < MIN_EVENTS_FOR_TAIL:
+        return None
+    q = col.quantile(1 - TAIL_SHARE if short else TAIL_SHARE, interpolation="linear")
+    return None if q is None else float(q)
+
+
 def car_chart_svg(
     path: list[dict[str, Any]],
     width: int = 900,
@@ -457,17 +479,20 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
             )
         )
         e["past"] = past.to_dicts()
-        # worst outcome for the rule shown: the biggest fall, or the biggest rise for a short
+        # a bad outcome for the rule shown: a fall, or a rise for a short
         st = e["stat"]
-        e["worst_short"] = bool(
+        e["tail_short"] = bool(
             st
             and st["verdict"] in ("holds_up", "unconfirmed", "eaten_by_costs")
             and (st.get("oos_last_rule") or "").startswith("short")
         )
-        e["worst"] = None
-        if st is not None and st.get("mean_car") is not None and ev_cars.height:
-            col = ev_cars.filter(pl.col("signal_key") == e["signal_key"])[f"car_{e['horizon']}"]
-            e["worst"] = col.max() if e["worst_short"] else col.min()
+        e["tail"] = None
+        if st is not None and st.get("mean_car") is not None:
+            e["tail"] = tail_outcome(
+                ev_cars.filter(pl.col("signal_key") == e["signal_key"]),
+                e["horizon"],
+                short=e["tail_short"],
+            )
 
     runs_df = lake.read_state(data_dir, "runs")
     runs = runs_df.sort("started_at", descending=True).to_dicts() if runs_df is not None else []

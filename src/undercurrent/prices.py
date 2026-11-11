@@ -1,3 +1,3 @@
-"""Raw and back-adjusted price series, corporate actions and jump checks."""
+"""Placeholder: prices are adjusted and checked in dbt (``dbt/models/gold``, ``dbt/tests``)."""
 
 from __future__ import annotations

@@ -184,3 +184,22 @@ def test_chart_marks_this_reports_entry():
     path = [{"day": d, "mean_car": 0.001 * d, "lo": -0.01, "hi": 0.01} for d in range(-5, 21)]
     assert 'class="entry"' in publish.car_chart_svg(path, entry=0)
     assert 'class="entry"' not in publish.car_chart_svg(path, entry=None)
+
+
+def test_tail_outcome_is_a_percentile_not_the_extreme():
+    n = 100
+    cars = pl.DataFrame(
+        {
+            "isin": [f"PL{i}" for i in range(n)],
+            "event_date": [date(2026, 1, 5)] * n,
+            "car_20": [i / 100 - 0.5 for i in range(n - 1)] + [7.97],  # one +797 % event
+        }
+    )
+    low = publish.tail_outcome(cars, 20, short=False)
+    high = publish.tail_outcome(cars, 20, short=True)
+    assert low is not None and -0.5 < low < -0.4
+    assert high is not None and 0.4 < high < 0.6  # the outlier does not set the figure
+    # several reports on one stock and day count once
+    dup = pl.concat([cars, cars.head(1).with_columns(pl.lit(-0.99).alias("car_20"))])
+    assert publish.tail_outcome(dup, 20, short=False) == low
+    assert publish.tail_outcome(cars.head(10), 20, short=False) is None

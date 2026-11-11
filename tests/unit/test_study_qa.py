@@ -196,3 +196,32 @@ def test_no_window_reaches_across_a_hole_in_the_calendar() -> None:
             assert math.isnan(study.trade_car(e, 60))  # the trade would span the hole
     # events just after the hole have no estimation history on their side: skipped
     assert all(not 1000 <= e.day0_idx < 1000 + study.MIN_HISTORY for e in ars)
+
+
+def test_untradable_stocks_are_left_out() -> None:
+    """Grosz-priced or barely traded stocks have no events; without price data nothing changes."""
+    import polars as pl
+
+    ev, rt, bench, _ = synthetic(n_events=240)
+    isins = sorted(set(rt["isin"]))
+    penny, thin = isins[0], isins[1]
+    rt = rt.with_columns(
+        pl.lit(1.0).alias("volume"),
+        pl.when(pl.col("isin") == penny).then(0.02).otherwise(12.0).alias("close"),
+        pl.when(pl.col("isin") == thin).then(800.0).otherwise(250_000.0).alias("value_pln"),
+    )
+    with_data = study.compute_event_ars(study.cut_inputs(ev, rt, bench, END))
+    plain = study.compute_event_ars(study.cut_inputs(ev, rt.drop("close", "value_pln"), bench, END))
+    assert {penny, thin} <= {e.isin for e in plain}
+    assert not {penny, thin} & {e.isin for e in with_data}
+    assert len(with_data) == len([e for e in plain if e.isin not in (penny, thin)])
+
+
+def test_buyable_thresholds() -> None:
+    ok_price, ok_turn = np.full(50, 5.0), np.full(50, 50_000.0)
+    assert study._buyable(ok_price, ok_turn)
+    assert not study._buyable(np.full(50, study.MIN_PRICE - 0.01), ok_turn)
+    assert not study._buyable(ok_price, np.full(50, study.MIN_TURNOVER - 1))
+    # mostly idle: the median session has no turnover at all
+    assert not study._buyable(ok_price, np.r_[np.zeros(30), np.full(20, 1e6)])
+    assert not study._buyable(np.full(50, np.nan), ok_turn)
