@@ -65,11 +65,19 @@ it costs. Method details (event study, walk-forward, verdicts) are in
 - **Source text quality:** some ESPI pages lack Polish letters at the byte level
   (`Rozporzdzenia`). Classification matches diacritic-free tokens, so these still classify.
 - **NewConnect price file timing.** `NC_YYYYMMDD.xlsx` appears between 16:47 and 18:50 UTC,
-  often after the 17:47 UTC cron. The nightly job ingests reports and main-market prices
-  first, then polls the file with a conditional GET every 5 minutes until 20:05 Warsaw time
-  (computed from Europe/Warsaw, so DST is handled). If it is still missing, the run publishes
-  with NewConnect prices marked pending; the next run back-fills any missing price day from
-  the last 10 sessions.
+  often after the digest is due. The scheduled run does not wait for it: it publishes with
+  NewConnect prices marked pending (not a degraded run), and the next run back-fills any
+  missing price day from the last 10 sessions. Nothing in tonight's digest depends on
+  tonight's NewConnect closes. A run started by hand can still poll the file every 5 minutes
+  until 20:05 Warsaw time (`wait_nc`).
+- **Schedule.** GitHub delivers this repository's scheduled events 5 to 7 hours late
+  (measured on 2026-11-09 and 2026-11-10, for both workflows), so a single cron at the right
+  time produced a digest near midnight. `daily.yml` therefore asks for an attempt every 30
+  minutes from 09:17 to 21:47 UTC, and `scripts/nightly_gate.sh` lets one through: the first
+  that starts after the 18:30 Warsaw cut-off, or any that finds the previous trading day's
+  digest missing. A digest file on `main` is the marker that a day is done, so a failed run
+  is retried by the next attempt. If the lag disappears the same setup still runs once, at
+  18:47.
 
 ## Classification and insider fields
 

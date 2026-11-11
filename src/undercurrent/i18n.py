@@ -125,9 +125,8 @@ PL: dict[str, str] = {
         "zdarzeniami nie mają statystyk."
     ),
     # pipeline
-    "Unattended runs · GitHub Actions · weekdays 18:47 Warsaw time (19:47 in summer)": (
-        "Przebiegi bez nadzoru · GitHub Actions · dni robocze 18:47 czasu warszawskiego "
-        "(latem 19:47)"
+    "Unattended runs · GitHub Actions · weekdays, soon after the 18:30 Warsaw cut-off": (
+        "Przebiegi bez nadzoru · GitHub Actions · dni robocze, krótko po 18:30 czasu warszawskiego"
     ),
     "Pipeline health": "Stan procesu",
     "Freshness SLO: digest sent by 20:30 Warsaw time on every trading day.": (

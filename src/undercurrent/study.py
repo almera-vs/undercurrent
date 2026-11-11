@@ -71,10 +71,11 @@ MIN_OOS_TRADES = 10
 SEED = 20261109
 SIGNIFICANCE = 0.05
 WARSAW = ZoneInfo("Europe/Warsaw")
-# Editorial cut-off of the nightly digest, Warsaw time. It lies before the earliest scheduled
-# run (17:47 UTC = 18:47 in winter, 19:47 in summer), so every run has seen everything up to
-# it. A report published later goes into the next session's digest. The site uses the same
-# cut-off (``digest_window``), so the study and what readers saw cannot drift apart.
+# Editorial cut-off of the nightly digest, Warsaw time. The nightly run starts after it
+# (scripts/nightly_gate.sh lets no scheduled attempt through earlier), so every run has
+# seen everything up to it. A report published later goes into the next session's digest.
+# The site uses the same cut-off (``digest_window``), so the study and what readers saw
+# cannot drift apart.
 DIGEST_CUTOFF_LOCAL = time(18, 30)
 # Events whose entry would be more than this many sessions after day 0 are not traded.
 MAX_ENTRY_LAG = 5

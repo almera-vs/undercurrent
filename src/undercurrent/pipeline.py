@@ -163,7 +163,10 @@ def _wait_for_nc(
         except ingest.NoSessionError:
             if wait_until is None or clock() + timedelta(seconds=NC_POLL_EVERY_S) > wait_until:
                 res.nc_pending = True
-                res.notes.append(f"NewConnect prices for {day} pending")
+                # Not waiting is the normal nightly case (the digest goes out first and the
+                # next run fills the day in), so it is flagged but not a degraded run.
+                if wait_until is not None:
+                    res.notes.append(f"NewConnect prices for {day} pending")
                 return
             log.info("NewConnect file for %s not out yet; retrying in %ds", day, NC_POLL_EVERY_S)
             sleep(NC_POLL_EVERY_S)

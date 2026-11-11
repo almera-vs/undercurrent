@@ -1,20 +1,24 @@
 name: daily
 
-# Nightly run. Cron is UTC: 17:47 UTC = 18:47 CET (winter) / 19:47 CEST (summer).
-# :47 avoids the top-of-hour scheduling backlog. The NewConnect price file is polled
-# until 20:05 Warsaw time (DST-aware, computed in Python), see docs/DECISIONS.md.
+# Nightly run. The digest covers reports published up to 18:30 Warsaw time and should go
+# out soon after. GitHub delivers this repository's schedules 5-7 hours late (measured), so
+# one cron at the right time arrives near midnight. Instead an attempt is requested every
+# 30 minutes through the day and the gate job (scripts/nightly_gate.sh) lets one through:
+# the first that starts after the cut-off, or any that finds the previous trading day's
+# digest still missing. The others end in seconds. A failed run leaves no digest, so the
+# next attempt retries it.
 on:
   schedule:
-    - cron: "47 17 * * 1-5"
+    - cron: "17,47 9-21 * * 1-5"
   workflow_dispatch:
     inputs:
       date:
         description: "trading day YYYY-MM-DD, or 'today' (Warsaw)"
         default: "today"
       wait_nc:
-        description: "poll for the NewConnect price file"
+        description: "poll for the NewConnect price file (until 20:05 Warsaw time)"
         type: boolean
-        default: true
+        default: false
       send:
         description: "send the Telegram digest"
         type: boolean
@@ -28,11 +32,31 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      go: ${{ steps.gate.outputs.go }}
+      date: ${{ steps.gate.outputs.date }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts
+      - id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED: ${{ inputs.date || 'today' }}
+        run: scripts/nightly_gate.sh "${{ github.event_name }}" "$REQUESTED" | tee -a "$GITHUB_OUTPUT"
+
   run:
+    needs: gate
+    if: needs.gate.outputs.go == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 150
     env:
-      DATE: ${{ inputs.date || 'today' }}
+      DATE: ${{ needs.gate.outputs.date }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -47,13 +71,6 @@ jobs:
           enable-cache: true
       - run: uv python install 3.12
       - run: uv sync --locked --no-dev --group dbt
-      - name: resolve date
-        # GitHub can deliver a schedule hours late: the run then belongs to the last weekday
-        # whose session has finished (pipeline.nightly_date), not to the new day.
-        run: |
-          if [ "$DATE" = "today" ]; then
-            echo "DATE=$(uv run undercurrent nightly-date)" >> "$GITHUB_ENV"
-          fi
       - uses: actions/cache/restore@v6
         with:
           path: .cache/http
@@ -61,7 +78,9 @@ jobs:
           restore-keys: http-
       - name: undercurrent run
         env:
-          WAIT_NC: ${{ github.event_name == 'schedule' || inputs.wait_nc }}
+          # Scheduled runs do not wait for the NewConnect file (it can appear as late as
+          # 19:50 Warsaw time): the digest goes out first, the next run fills the day in.
+          WAIT_NC: ${{ inputs.wait_nc == true }}
           SEND: ${{ github.event_name == 'schedule' || inputs.send }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

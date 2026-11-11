@@ -3,11 +3,11 @@ name: watchdog
 # Freshness SLO guard: send a Telegram alert if the latest nightly run that should have
 # finished (by 20:15 Warsaw time on a weekday) has not succeeded. Which run that is, is
 # worked out from the clock in Python, so a check that GitHub delivers late still checks
-# the right day. Two crons cover both CET and CEST.
+# the right day. GitHub delivers this repository's schedules hours late, so a check is
+# requested every hour and the step only acts between 20:15 and 21:15 Warsaw time.
 on:
   schedule:
-    - cron: "20 18 * * 1-5"  # 20:20 CEST (summer)
-    - cron: "20 19 * * 1-5"  # 20:20 CET (winter)
+    - cron: "20 10-21 * * 1-5"
   workflow_dispatch:
 
 permissions:
@@ -18,16 +18,32 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - id: window
+        env:
+          MANUAL: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          hm=$(TZ=Europe/Warsaw date +%H%M)
+          if [ "$MANUAL" = "true" ] || { [ "$hm" -ge 2015 ] && [ "$hm" -lt 2115 ]; }; then
+            echo "check=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Warsaw time $hm is outside the check window; nothing to do"
+          fi
       - uses: actions/checkout@v7
+        if: steps.window.outputs.check == 'true'
       - uses: actions/checkout@v7
+        if: steps.window.outputs.check == 'true'
         with:
           ref: data
           path: data
           fetch-depth: 1
       - uses: astral-sh/setup-uv@v10.3.3
+        if: steps.window.outputs.check == 'true'
       - run: uv python install 3.12
+        if: steps.window.outputs.check == 'true'
       - run: uv sync --locked --no-dev
+        if: steps.window.outputs.check == 'true'
       - name: alert if stale
+        if: steps.window.outputs.check == 'true'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

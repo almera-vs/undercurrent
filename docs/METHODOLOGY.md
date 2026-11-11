@@ -24,8 +24,8 @@ Code: `src/undercurrent/study.py` (event studies), `dbt/models/gold/adjusted_pri
   published at 16:30 has day 0 = that day; one at 17:30 has day 0 = the next session.
 - **Entry** is the close of the first session after the evening digest that first carries the
   report. Each session's digest covers everything published after the previous session's
-  cut-off and up to its own: **18:30 Warsaw**, just before the earliest scheduled run (18:47
-  in winter, 19:47 in summer). A report published later is in the next session's digest. The
+  cut-off and up to its own: **18:30 Warsaw**. The nightly run starts as soon after that as
+  GitHub delivers an attempt (see DECISIONS, "Schedule"). A report published later is in the next session's digest. The
   site and the study share this one rule (`study.digest_window`, `study.digest_day`), so:
 
   | published | day 0 | digest | entry |

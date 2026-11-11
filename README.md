@@ -76,7 +76,7 @@ Limitations that shape the results:
 
 ## Run it
 
-Everything runs in GitHub Actions: `daily.yml` (weekdays 17:47 UTC), `backfill.yml`
+Everything runs in GitHub Actions: `daily.yml` (weekdays, soon after the 18:30 Warsaw cut-off), `backfill.yml`
 (`start`/`end`, one month per job, sequential), `compact.yml` (monthly), `watchdog.yml`
 (freshness alert), `ci.yml` (lint, types, tests, dbt data tests against the real lake),
 `probe.yml` (source reachability).
