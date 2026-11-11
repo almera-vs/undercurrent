@@ -24,6 +24,7 @@ requests where the server sends validators, on-disk cache in `.cache/http`.
 | 6 | gpw.pl quote archive, indices (HTML) | WIG benchmark | 200 | 200 | ✅ used |
 | 7 | newconnect.pl daily statistics (XLSX/XLS) | NewConnect daily OHLCV | 200 | 200 | ✅ used |
 | 8 | espiebi.pap.pl | alternative ESPI/EBI mirror | **Incapsula challenge** | 200 | ⛔ not used |
+| 10 | xtb.com stock pages | optional link to the company on XTB | 200 | — | ✅ used, links only |
 
 ¹ The NewConnect listing uses the same `ajaxindex.php` handler on the same infrastructure as
 row 1; confirmed from the runner in the same probe run, along with a NewConnect report page.
@@ -224,3 +225,22 @@ portals republish ESPI reports and host their own copies of the attachments. Che
   months rely on Parkiet's sitemaps.
 - **Timestamps:** Parkiet's sitemap renders the Warsaw publication time as if it were UTC
   (`16:27+02:00` for 14:27 Warsaw); its UTC reading is used.
+
+## 10. xtb.com stock pages (links only)
+
+Event pages link to the company's page on XTB when one exists. Nothing is read from XTB
+except whether the page exists and which ISIN it shows. Checked on 2026-11-11:
+
+- **Discovery:** `https://www.xtb.com/pl/sitemap/instruments/cashstocks.xml` is a sitemap
+  index; its files list about 7,500 stock pages as `/pl/akcje/<slug>`. Polish stocks use the
+  company's name (`hydrotor`, `cd-projekt`, `pzu`) or the ticker with `-pl` (`s2b-pl`);
+  foreign ones carry a country suffix (`abt-uk`).
+- **Verification:** an unknown slug answers 301 to the stock list. Each page shows the
+  instrument's ISIN, so a link is kept only when the slug is in the sitemap, the page does
+  not redirect, and it shows the stock's ISIN. A wrong guess is never published.
+- **robots.txt** disallows only `/liquidity`, `/front-api/*` and some query strings; the
+  sitemaps and `/pl/akcje/` pages are allowed.
+- **Load:** the nightly run checks only stocks of events from the last 45 days that are new
+  or were last checked over 30 days ago, at most 40 per night, one request per second.
+  Results are in `state/xtb_links.parquet`; `undercurrent xtb-links` checks a backlog.
+- Undercurrent is not affiliated with XTB; the site says so next to every link.

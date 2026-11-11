@@ -40,6 +40,8 @@ FORMS_CATCH_UP_S = 20 * 60
 # Calendar days of insider reports checked for forms every night (how far the listing
 # portals reach). Reports that already have forms cost no requests.
 FORMS_WINDOW_DAYS = 21
+# The site keeps 30 sessions of digests; their stocks get verified XTB links.
+XTB_LOOKBACK_DAYS = 45
 # Backfill yields to the nightly job inside this UTC window on weekdays.
 NIGHTLY_WINDOW_UTC = (time(17, 30), time(19, 30))
 
@@ -220,6 +222,7 @@ def run_day(
             transform.build(data_dir, work_dir)
             stats_path = study.run_study(transform.duckdb_path(work_dir), work_dir, day)
             snapshot_gold(data_dir, stats_path, day)
+            _refresh_xtb_links(client, data_dir, transform.duckdb_path(work_dir), clock())
         res.status = "ok" if not res.notes else "degraded"
         if publish and run_transform:
             from undercurrent import publish as pub
@@ -253,6 +256,19 @@ def run_day(
         if own_client:
             client.close()
         log.info("run summary: %s", json.dumps(res.row(), default=str, ensure_ascii=False))
+
+
+def _refresh_xtb_links(
+    client: PoliteClient, data_dir: Path, duckdb_file: Path, now: datetime
+) -> None:
+    """Verify XTB links for recent events' stocks. Optional: a failure is only logged."""
+    from undercurrent import xtb
+
+    try:
+        since = now - timedelta(days=XTB_LOOKBACK_DAYS)
+        xtb.refresh(client, data_dir, xtb.recent_companies(duckdb_file, since), now=now)
+    except Exception as exc:  # the links are a convenience; the digest must not wait on them
+        log.warning("xtb links not refreshed: %s: %s", type(exc).__name__, exc)
 
 
 def nightly_date(now: datetime) -> date:

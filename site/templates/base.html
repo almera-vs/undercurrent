@@ -25,7 +25,7 @@
     <a href="{{ root }}pipeline.html" {% if page == 'pipeline' %}aria-current="page"{% endif %}>{{ _('Pipeline') }}</a>
   </nav>
   {% set st = ctx.run.get('status', 'unknown') %}
-  <span class="pill status-{{ st }}"><i></i>{{ _({'ok': 'Fresh', 'degraded': 'Degraded', 'failed': 'Failed'}.get(st, 'Unknown')) }}<span class="pill-run">· {{ _('run') }} {{ ctx.run.finished_at.astimezone(tz).strftime('%H:%M') if ctx.run.get('finished_at') else '—' }}</span></span>
+  <span class="pill status-{{ st }}"><i></i>{{ _({'ok': 'Fresh', 'degraded': 'Degraded', 'failed': 'Failed'}.get(st, 'Unknown')) }}<span class="pill-run">· {{ _('run') }} {{ ctx.run.finished_at.astimezone(tz).strftime('%d.%m %H:%M') if ctx.run.get('finished_at') else '—' }}</span></span>
   <a class="lang" href="{{ other_lang_url }}" hreflang="{{ other_lang }}" lang="{{ other_lang }}">{{ other_lang|upper }}</a>
 </header>
 <main id="main">
@@ -33,6 +33,7 @@
 </main>
 <footer>
   <p>{{ _('Not investment advice. Historical statistics only.') }} {{ _('Data: official GPW / NewConnect ESPI-EBI pages and quote archives.') }}
+  <a href="{{ root }}glossary.html">{{ _('Glossary') }}</a> ·
   {{ _('Source') }}: <a href="https://github.com/almera-vs/undercurrent">github.com/almera-vs/undercurrent</a>.</p>
 </footer>
 </body>

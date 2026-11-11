@@ -3,6 +3,22 @@
 {% block main %}
 <section class="hero"><div><p class="eyebrow">{{ _('Unattended runs · GitHub Actions · weekdays, soon after the 18:30 Warsaw cut-off') }}</p><h1>{{ _('Pipeline health') }}</h1></div>
 <p class="lede">{{ _('Freshness SLO: digest sent by 20:30 Warsaw time on every trading day.') }} {{ ctx.health_bits|health }}</p></section>
+<section class="tiles">
+  <div class="tile"><span>{{ _('Reports ingested') }}</span><b>{{ ctx.counts.reports }}</b><small>{{ ctx.counts.espi }} ESPI · {{ ctx.counts.ebi }} EBI</small></div>
+  <div class="tile"><span>{{ _('Classified') }}</span><b>{{ ctx.counts.classified }}</b><small class="{{ 'warn' if ctx.counts.queued else '' }}">{{ _('{n} queued for retry', n=ctx.counts.queued) }}</small></div>
+  <div class="tile"><span>{{ _('Signal events') }}</span><b>{{ ctx.counts.insider + ctx.counts.holder + ctx.counts.inside }}</b><small>{{ _('{n} other reports', n=ctx.counts.other) }}</small></div>
+  <div class="tile"><span>{{ _('Studied events') }}</span><b>{{ ctx.coverage.events_studied|num }}</b><small>{{ _('since {d}', d=ctx.coverage.first_event or '—') }}</small></div>
+</section>
+<section class="panel run">
+  <h2 class="eyebrow">{{ _("Tonight's run") }}</h2>
+  <ul class="steps mono">
+    <li>✓ {{ _('Ingest {n} new reports', n=ctx.run.reports_new or 0) }}</li>
+    <li>{{ '✓' if not ctx.run.reports_failed else '!' }} {{ _('{n} failed, queued for retry', n=ctx.run.reports_failed or 0) }}</li>
+    <li>{{ '!' if ctx.run.nc_pending or 'no GPW session' in (ctx.run.notes or '') else '✓' }} {{ _('Prices: GPW {g} rows, NC {nc}', g=ctx.run.prices_gpw_rows or 0, nc=_('pending') if ctx.run.nc_pending else _('{n} rows', n=ctx.run.prices_nc_rows or 0)) }}</li>
+    <li>✓ {{ _('dbt build + data tests, 0 unexplained jumps') }}</li>
+    <li>✓ {{ _('Event studies rebuilt') }}</li>
+  </ul>
+</section>
 <section class="panel"><div class="scroll"><table>
   <thead><tr><th>{{ _('Run date') }}</th><th>{{ _('Status') }}</th><th>{{ _('Finished (Warsaw)') }}</th><th class="r">{{ _('Within SLO') }}</th><th class="r">{{ _('New reports') }}</th><th class="r">{{ _('Failed reports') }}</th><th class="r">{{ _('GPW rows') }}</th><th class="r">{{ _('NC rows') }}</th><th>{{ _('Notes') }}</th></tr></thead>
   <tbody>

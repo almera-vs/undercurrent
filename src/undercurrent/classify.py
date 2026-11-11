@@ -151,6 +151,15 @@ _SUBTYPE_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
             r"postepowani\w* [^.]{0,30}(sad|arbitraz)|przed sadem"
         ),
     ),
+    # A plan, an intention, negotiations or a letter of intent is not a contract yet. Placed
+    # after the deal types that are newsworthy at the planning stage (an issue, a takeover).
+    (
+        "intent",
+        _rx(
+            r"planowan|zamiar\w*|intencyjn|negocjac|rozwaz\w*|wstepn\w+ (zainteresowan|ofert)"
+            r"|analiz\w* (mozliwosci|potencjaln)|rozpoczeci\w* (rozmow|przegladu)"
+        ),
+    ),
     (
         "large_contract",
         _rx(
@@ -177,7 +186,7 @@ def inside_info_subtype(title: str | None, body: str | None) -> str:
     for text in (_subtype_text(title), _subtype_text((body or "")[:_SUBTYPE_BODY_CHARS])):
         for name, rx in _SUBTYPE_RULES:
             if text and rx.search(text):
-                return name
+                return "other" if name == "intent" else name
     return "other"
 
 

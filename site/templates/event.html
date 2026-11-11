@@ -2,15 +2,23 @@
 {% block title %}{{ e.ticker }} · {{ e.label_key|label }} · Undercurrent{% endblock %}
 {% block main %}
 {% set s = e.stat %}
+{% set c = e.company %}
 {% set insider = e.signal_type == 'insider_tx' %}
-<p class="crumbs"><a href="../index.html">{{ _('Today') }}</a> · <a href="../archive.html">{{ _('Archive') }}</a> / {{ e.ticker }} · {{ e.issuer_name|title }} / {{ e.label_key|label }}, {{ e.pub_date }}</p>
+<p class="crumbs"><a href="../index.html">{{ _('Today') }}</a> · <a href="../archive.html">{{ _('Archive') }}</a> / {{ e.ticker }} · {{ e.issuer_name|company }} / {{ e.label_key|label }}, {{ e.pub_date }}</p>
 <p class="tags"><span class="tick-sym">{{ e.ticker }}</span> <span class="chip chip-{{ e.filter }}">{{ e.label_key|label }}</span> <span class="muted" lang="pl">{{ e.legal_basis or '' }} · {{ e.system }} {{ e.report_number }}</span></p>
 <h1 lang="pl">{{ e.title or e.subject }}</h1>
+
+<section class="verdict-box v-box-{{ s.verdict if s else 'too_few' }}">
+  <p class="summary">{{ s|summary(e.horizon) }}</p>
+  {% if s %}<p><span class="verdict v-{{ s.verdict }}">{{ s.verdict|verdict }}</span> {{ s.verdict|explain }}</p>{% endif %}
+  {% if c.buyable == false %}<p class="warn-line">{{ _('thin_warning') }}</p>{% endif %}
+</section>
+
 <div class="split even">
   <section class="panel">
     <h2>{{ _('What the report says') }}</h2>
+    {% if insider %}
     <dl class="kv">
-      {% if e.signal_type == 'insider_tx' %}
       <dt>{{ _('Person') }}</dt><dd>{{ e.insider_person or '—' }}</dd>
       <dt>{{ _('Role') }}</dt><dd>{{ e.insider_role|role }}</dd>
       <dt>{{ _('Transaction') }}</dt><dd>{{ e.insider_side|side }}{{ ', ' + (e.insider_venue|venue) if e.insider_venue else '' }}</dd>
@@ -18,14 +26,8 @@
       <dt>{{ _('Avg price') }}</dt><dd class="mono">{{ e.insider_avg_price|num }}{{ ' PLN' if e.insider_avg_price else '' }}</dd>
       <dt>{{ _('Value') }}</dt><dd class="mono">{{ e.insider_value|num }}{{ ' PLN' if e.insider_value else '' }}</dd>
       <dt>{{ _('Trade date') }}</dt><dd class="mono">{{ e.insider_trade_date or '—' }}</dd>
-      <dt>{{ _('Size vs free float') }}</dt><dd class="mono">— <small class="muted">{{ _('(no free-float data)') }}</small></dd>
-      {% else %}
-      <dt>{{ _('Issuer') }}</dt><dd>{{ e.issuer_name }}</dd>
-      <dt>{{ _('Legal basis') }}</dt><dd lang="pl">{{ e.legal_basis or '—' }}</dd>
-      <dt>{{ _('Signal') }}</dt><dd>{{ e.label_key|label }}</dd>
-      {% endif %}
+      {% if e.insider_value and c.median_turnover %}<dt>{{ _('Size vs a usual day') }}</dt><dd class="mono">{{ ((e.insider_value / c.median_turnover)|round(1))|decimal(1) }}× <small class="muted">{{ _('of median daily turnover') }}</small></dd>{% endif %}
     </dl>
-    {% if e.signal_type == 'insider_tx' %}
     {% if e.insider_source and e.insider_source.startswith('form:') %}
     {% set portal = {'parkiet': 'parkiet.com', 'bankier': 'bankier.pl', 'biznesradar': 'biznesradar.pl'}.get(e.insider_source[5:], e.insider_source[5:]) %}
     <p class="muted small">{{ _('form_note', portal='<a href="%s" rel="noopener">%s</a>'|format(e.insider_form_url|e, portal)|safe)|safe }}</p>
@@ -33,29 +35,68 @@
     <p class="muted small">{{ _('insider_note') }}</p>
     {% endif %}
     {% endif %}
-    <p class="mono small">{{ _('Published {t} (Warsaw)', t=e.published_at_local.replace('T', ' ')) }}<br>{{ _('Known to Undercurrent {t} (known_at)', t=e.known_at.astimezone(tz).strftime('%Y-%m-%d %H:%M:%S')) }}<br><a href="{{ e.source_url }}" rel="noopener">{{ _('Original report ↗') }}</a></p>
+    {% if e.lead %}
+    <blockquote class="lead" lang="pl">{{ e.lead }}</blockquote>
+    {% if e.full_text|length > e.lead|length %}
+    <details class="full"><summary>{{ _('Full text of the report') }}</summary><p lang="pl">{{ e.full_text }}</p></details>
+    {% endif %}
+    {% elif not insider %}
+    <p class="muted">{{ _('The report has no text on the exchange page; its content is in the attachments.') }}</p>
+    {% endif %}
+    {% if e.amounts %}
+    <p class="amounts"><span class="muted">{{ _('Amounts named in the report') }}:</span> {% for a in e.amounts %}<b class="mono">{{ a }}</b>{{ ' · ' if not loop.last }}{% endfor %}</p>
+    {% endif %}
+    <p class="mono small meta">{{ _('Published {t} (Warsaw)', t=e.published_at_local.replace('T', ' ')) }}<br>{{ _('In the digest of {d}', d=e.known_at.astimezone(tz).strftime('%Y-%m-%d')) }}<br><a href="{{ e.source_url }}" rel="noopener">{{ _('Original report ↗') }}</a></p>
   </section>
-  <section class="panel">
-    <h2>{{ _('What happened after {n} similar events', n=e.path_n) if e.path_n else _('What happened after similar events') }}</h2>
-    <p class="muted small">{{ _('event_chart_note') }}</p>
-    {{ e.path|chart(e.entry)|safe }}
-    {% if e.path %}<p class="legend small muted"><span class="lg-item"><span class="lg lg-event"></span> {{ _('day 0: first close after publication') }}</span> {% if e.entry is not none %}<span class="lg-item"><span class="lg lg-entry"></span> {{ _('entry for this report: close of the session after the digest (day {d})', d=('0' if e.entry == 0 else '+%d' % e.entry)) }}</span>{% endif %}</p>{% endif %}
+
+  <section class="panel company">
+    <h2>{{ _('The company') }}: {{ e.issuer_name|company }}</h2>
+    {% if c.last_close is not none %}
+    <dl class="kv">
+      <dt>{{ _('Last close') }}</dt><dd class="mono">{{ c.last_close|num }} PLN <small class="muted">{{ c.last_date }}</small></dd>
+      {% if c.day0_ret is not none %}<dt>{{ _('Reaction on day 0') }}</dt><dd class="mono"><b class="{{ c.day0_ret|tone }}">{{ c.day0_ret|pct }}</b> <small class="muted">{{ _('WIG {w}', w=c.day0_wig|pct) }}</small></dd>{% endif %}
+      <dt>{{ _('Since entry') }}</dt><dd class="mono">{% if c.since_entry is not none %}<b class="{{ c.since_entry|tone }}">{{ c.since_entry|pct }}</b> <small class="muted">{{ _('vs WIG, {n} of {h} sessions', n=c.since_sessions, h=e.horizon) }}</small>{% else %}<span class="muted">{{ _('not yet: entry is the close after the digest') }}</span>{% endif %}</dd>
+      <dt>{{ _('Liquidity') }}</dt><dd>{% if c.buyable is none %}<span class="muted">—</span>{% else %}<span class="mono">{{ c.median_turnover|short_pln }} PLN</span> <small class="muted">{{ _('median daily turnover') }}</small>{% if c.buyable %} <span class="badge badge-ok">{{ _('Tradable') }}</span>{% else %} <span class="badge badge-thin">{{ _('Too thin to trade') }}</span>{% endif %}{% endif %}</dd>
+    </dl>
+    {% if c.spark[lang] %}<figure class="spark-fig">{{ c.spark[lang]|safe }}<figcaption class="muted small">{{ _('Share price, last 90 sessions (adjusted); the line marks day 0 of this report.') }}</figcaption></figure>{% endif %}
+    {% else %}
+    <p class="muted">{{ _('No price data for this company yet.') }}</p>
+    {% endif %}
+    {% if e.xtb_url %}<p><a class="ext" href="{{ e.xtb_url }}" rel="noopener nofollow">{{ _('{t} on XTB ↗', t=e.ticker) }}</a><br><small class="muted">{{ _('xtb_note') }}</small></p>{% endif %}
+    {% if e.history %}
+    <h3>{{ _('Other reports of this company') }}</h3>
+    <ul class="feed wide compact">
+      {% for r in e.history %}
+      <li><time class="mono muted">{{ r.pub_date|dm }}</time><span>{% if r.has_page %}<a href="{{ r.slug }}.html" lang="pl">{{ r|fact }}</a>{% else %}<a href="{{ r.source_url }}" rel="noopener" lang="pl">{{ r|fact }}</a>{% endif %}</span></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
   </section>
 </div>
-<section class="tiles five">
-  <div class="tile"><span>{{ _('Avg excess, {h} sessions after entry', h=e.horizon) }}</span><b class="mono {{ (s.mean_car if s else none)|tone }}">{{ (s.mean_car if s else none)|pct }}</b></div>
-  <div class="tile"><span>{{ _('Hit rate') }}</span><b class="mono">{{ (((s.hit_rate or 0) * 100)|round|int|string + '%') if s and s.hit_rate is not none else '—' }}</b></div>
-  <div class="tile"><span>{{ _('FDR-adjusted q') }}</span><b class="mono">{{ (s.q_value if s else none)|qval }}</b></div>
-  <div class="tile"><span>{{ _('Walk-forward, after costs') }}</span><b class="mono {{ (s.oos_mean_net if s else none)|tone }}">{{ (s.oos_mean_net if s else none)|pct }}</b></div>
-  <div class="tile"><span>{{ _('Bad case for a short (1 in 20), in sample') if e.tail_short else _('Bad case (1 in 20), in sample') }}</span><b class="mono {{ 'down' if e.tail is not none else '' }}">{{ e.tail|pct }}</b></div>
+
+<section class="panel">
+  <h2>{{ _('What happened after {n} similar events', n=e.path_n|num) if e.path_n else _('What happened after similar events') }}</h2>
+  <p class="muted small">{{ _('event_chart_note', h=e.horizon) }}</p>
+  {{ e.path|chart(e.entry, e.horizon)|safe }}
 </section>
+
+<section class="tiles five">
+  <div class="tile"><span>{{ _('Avg vs WIG, {p} after entry', p=e.horizon|period) }}</span><b class="mono {{ (s.mean_car if s else none)|tone }}">{{ (s.mean_car if s else none)|pct }}</b></div>
+  {% if s and s.hit_rate is not none %}
+  <div class="tile"><span>{{ _('Better than WIG') }}</span><b class="mono">{{ ((s.hit_rate * 100)|round|int) }}%</b><small>{{ _('of {n} past cases', n=s.n|num) }}</small></div>
+  {% else %}<div class="tile"><span>{{ _('Better than WIG') }}</span><b class="mono">—</b></div>{% endif %}
+  <div class="tile"><span>{{ _('Traded on new data, after costs') }} <a class="q" href="../glossary.html#walk-forward" title="{{ _('wf_title') }}" aria-label="{{ _('What is this?') }}">?</a></span><b class="mono {{ (s.oos_mean_net if s else none)|tone }}">{{ (s.oos_mean_net if s else none)|pct }}</b><small>{{ _('per trade') }}</small></div>
+  <div class="tile"><span>{{ _('Chance it is luck') }} <a class="q" href="../glossary.html#q" title="{{ _('q_title') }}" aria-label="{{ _('What is this?') }}">?</a></span><b class="mono">{{ (s.q_value if s else none)|qval }}</b><small>{{ _('FDR-adjusted q') }}</small></div>
+  <div class="tile"><span>{{ _('Bad case for a short (1 in 20), in sample') if e.tail_short else _('Bad case (1 in 20), in sample') }} <a class="q" href="../glossary.html#bad-case" title="{{ _('tail_title') }}" aria-label="{{ _('What is this?') }}">?</a></span><b class="mono {{ e.tail|tone }}">{{ e.tail|pct }}</b></div>
+</section>
+
 <section class="panel">
   <h2>{{ _('Most recent past events') }}</h2>
   <div class="scroll"><table>
-    <thead><tr><th>{{ _('Date') }}</th><th>{{ _('Company') }}</th>{% if insider %}<th>{{ _('Role') }}</th><th class="r">{{ _('Value') }}</th>{% endif %}<th class="r">{{ _('{h}-session excess', h=e.horizon) }}</th></tr></thead>
+    <thead><tr><th>{{ _('Date') }}</th><th>{{ _('Company') }}</th>{% if insider %}<th>{{ _('Role') }}</th><th class="r">{{ _('Value') }}</th>{% endif %}<th class="r">{{ _('vs WIG over {h} sessions', h=e.horizon) }}</th></tr></thead>
     <tbody>
     {% for p in e.past %}
-    <tr><td class="mono">{{ p.event_date }}</td><td class="mono">{{ p.ticker or p.short_name or '—' }}</td>{% if insider %}<td>{{ p.insider_role|role }}</td><td class="r mono">{{ p.insider_value|short_pln }}</td>{% endif %}{% set c = p['car_%d' % e.horizon] %}<td class="r mono {{ c|tone }}">{{ c|pct }}</td></tr>
+    <tr><td class="mono">{{ p.event_date }}</td><td class="mono">{{ p.ticker or p.short_name or '—' }}</td>{% if insider %}<td>{{ p.insider_role|role }}</td><td class="r mono">{{ p.insider_value|short_pln }}</td>{% endif %}{% set cv = p['car_%d' % e.horizon] %}<td class="r mono {{ cv|tone }}">{{ cv|pct }}</td></tr>
     {% else %}<tr><td colspan="{{ 5 if insider else 3 }}" class="muted">{{ _('No past events of this type yet.') }}</td></tr>{% endfor %}
     </tbody>
   </table></div>

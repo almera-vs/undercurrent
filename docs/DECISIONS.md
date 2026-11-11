@@ -88,6 +88,11 @@ it costs. Method details (event study, walk-forward, verdicts) are in
     only Art. 69/69a and Art. 70 pkt 1 are.
   - An Art. 19 basis with no insider wording in the text is classified `other`
     (`basis:mar19:no_text_support`); issuers occasionally file unrelated reports under it.
+  - A title announcing a plan, an intention, negotiations or a letter of intent is not a
+    contract: it is `other`, unless an earlier rule (financing, M&A, buyback…) already
+    matched, since those are news at the planning stage. Without this, "Planowana sprzedaż
+    nieruchomości" became a "large contract" through the body's mention of a preliminary
+    agreement. The hand-labelled titles agree (172 → 173 of 184).
 - **Insider fields: the notification form first, the report text second.** For every
   insider report the nightly run looks for a portal copy (`portals.py`): Parkiet through its
   monthly sitemaps, Bankier and BiznesRadar through their report listings. A page matches
@@ -206,8 +211,28 @@ it costs. Method details (event study, walk-forward, verdicts) are in
 - **Static site** on GitHub Pages: Today, Signals (one page per horizon, 1/5/20/60 days),
   event pages with an inline-SVG excess-return chart and bootstrap band, and a Pipeline page.
   Polish at the root, English under `/en/`; report titles are always shown as published.
-- **Facts come only from parsed fields or the report title.** When insider details are
-  missing, the page says so rather than guessing.
+- **Facts come only from parsed fields, the report title or the report's own text.** When
+  insider details are missing, the page says so rather than guessing. The event page quotes
+  the opening sentences of the report body and lists the money amounts it names, with the
+  full text one click away; nothing is summarised or rewritten.
+- **Today is grouped, not repeated.** Every event of one signal type shares the same history,
+  so the statistics appear once per type, with the companies listed under it. Sections follow
+  the verdict ("earned after costs", "moved the price, costs ate the gain", ...), and the
+  headline counts "events of kinds that have moved prices" rather than "worth a look": when
+  no kind earned after costs, the page says so in its first sentence.
+- **Plain words first, statistics second.** Cards and event pages lead with a sentence
+  ("after reports like this the stock did 4.7 pp worse than WIG over 60 sessions; worse in
+  64% of 3,590 cases") and a one-line meaning of the verdict. q and the walk-forward stay on
+  the event page, with a tooltip and a glossary entry; the Today page does not show them.
+- **The stock itself.** Each event page shows the last close, the day-0 reaction against
+  WIG, the result since entry, liquidity measured with the study's own rule (a "too thin to
+  trade" warning when the statistics do not apply), a 90-session price line and the
+  company's other reports. Market value is not shown: the lake has no share counts.
+- **Archive track record.** Archived events show their result against WIG since entry, and
+  the archive sums it up per verdict. Windows are mostly still open, so the page calls it an
+  early read.
+- **Pipeline counts belong on the Pipeline page.** Reports ingested, classified and retried
+  moved there; the Today tiles count signal events and the types that earned after costs.
 - **Telegram digest:** header, counts, up to five items, two buttons, a health line and the
   disclaimer. A failed job or a weekday without GPW session data sends an alert instead.
 - **Keepalive:** GitHub disables schedules in repos without recent commits. The nightly run

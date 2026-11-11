@@ -263,3 +263,27 @@ def test_subtype_accuracy_on_labelled_titles():
     assert len(rows) == 184
     hits = sum(inside_info_subtype(r["title"], None) == r["subtype"] for r in rows)
     assert hits / len(rows) >= 0.90
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Planowana sprzedaż nieruchomości",
+        "Podpisanie listu intencyjnego z potencjalnym najemcą",
+        "Rozpoczęcie negocjacji w sprawie podpisania umowy ramowej",
+        "Zamiar zawarcia umowy z kluczowym klientem",
+    ],
+)
+def test_a_plan_is_not_a_contract(title: str) -> None:
+    """Plans, negotiations and letters of intent are not signed contracts (labelled ``other``)."""
+    from undercurrent.classify import inside_info_subtype
+
+    body = "Zarząd informuje o zawarciu umowy przedwstępnej."  # the body must not decide
+    assert inside_info_subtype(title, body) == "other"
+
+
+def test_planned_deals_of_other_kinds_keep_their_kind() -> None:
+    from undercurrent.classify import inside_info_subtype
+
+    assert inside_info_subtype("Zamiar emisji obligacji serii C", None) == "financing"
+    assert inside_info_subtype("Planowany zakup 40% akcji spółki X", None) == "m_and_a"

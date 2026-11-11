@@ -9,6 +9,20 @@
   </div>
   <p class="lede">{{ _('archive_lede') }}</p>
 </section>
+{% if ctx.record %}
+<section class="panel">
+  <h2>{{ _('How these events have done since entry') }}</h2>
+  <p class="muted small">{{ _('record_note') }}</p>
+  <div class="scroll"><table>
+    <thead><tr><th>{{ _('Kind of signal') }}</th><th class="r">{{ _('Events') }}</th><th class="r">{{ _('Avg vs WIG so far') }}</th><th class="r">{{ _('Better than WIG') }}</th></tr></thead>
+    <tbody>
+    {% for r in ctx.record %}
+    <tr><td><span class="verdict v-{{ r.verdict }}">{{ r.verdict|verdict }}</span></td><td class="r mono">{{ r.n }}</td><td class="r mono {{ r.mean|tone }}">{{ r.mean|pct }}</td><td class="r mono">{{ (r.better * 100)|round|int }}%</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endif %}
 <section class="panel">
   <label class="search"><span>{{ _('Find a company') }}</span>
     <input type="search" id="q" autocomplete="off" placeholder="{{ _('Ticker or name') }}"></label>
@@ -18,9 +32,11 @@
     <h2 class="eyebrow">{{ d.day|longdate }} · <span class="mono">{{ d.events|length }}</span></h2>
     <ul class="feed wide">
       {% for r in d.events %}
+      {% set c = r.company %}
       <li data-q="{{ (r.ticker ~ ' ' ~ (r.issuer_name or ''))|lower }}"><time class="mono muted">{{ r.pub_time }}{% if r.pub_day %}<small>{{ r.pub_day }}</small>{% endif %}</time>
-        <span><b class="mono">{{ r.ticker }}</b> <span class="chip chip-{{ r.filter }}">{{ r.label_key|label }}</span>
-        <a href="event/{{ r.slug }}.html" lang="{{ 'pl' if r.signal_type != 'insider_tx' else lang }}">{{ r|fact }}</a></span></li>
+        <span class="arch-row"><span><b class="mono">{{ r.ticker }}</b> <span class="chip chip-{{ r.filter }}">{{ r.label_key|label }}</span>
+        <a href="event/{{ r.slug }}.html" lang="{{ 'pl' if r.signal_type != 'insider_tx' else lang }}">{{ r|fact }}</a></span>
+        {% if c and c.since_entry is not none %}<span class="since mono {{ c.since_entry|tone }}" title="{{ _('vs WIG since entry, {n} sessions', n=c.since_sessions) }}">{{ c.since_entry|pct }} <small class="muted">{{ c.since_sessions }} {{ _('ses.') }}</small></span>{% endif %}</span></li>
       {% endfor %}
     </ul>
   </section>

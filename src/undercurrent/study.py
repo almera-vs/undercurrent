@@ -341,7 +341,7 @@ def compute_event_ars(inputs: StudyInputs) -> list[EventAR]:
         known = np.isfinite(ri[hist]) & (seg[hist] == seg[e])
         if known.sum() < MIN_HISTORY or traded[hist][known].mean() < MIN_TRADED_SHARE:
             continue
-        if has_liquidity and not _buyable(
+        if has_liquidity and not buyable(
             close_by_isin[row["isin"]][hist][known], turnover_by_isin[row["isin"]][hist][known]
         ):
             continue
@@ -375,7 +375,7 @@ def compute_event_ars(inputs: StudyInputs) -> list[EventAR]:
     return out
 
 
-def _buyable(close: FloatArray, turnover: FloatArray) -> bool:
+def buyable(close: FloatArray, turnover: FloatArray) -> bool:
     """Whether a stock was priced and traded enough, over the sessions given, to be bought."""
     prices = close[np.isfinite(close)]
     if not len(prices) or float(np.median(prices)) < MIN_PRICE:

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Glossary · Undercurrent') }}{% endblock %}
+{% block main %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">{{ _('How to read Undercurrent') }}</p>
+    <h1>{{ _('Glossary') }}</h1>
+  </div>
+  <p class="lede">{{ _('glossary_lede') }}</p>
+</section>
+<section class="panel glossary">
+  <dl>
+    {% for id, term, text in [
+      ('excess', 'Better or worse than WIG', 'g_excess'),
+      ('session', 'Session', 'g_session'),
+      ('day0', 'Day 0 and entry', 'g_day0'),
+      ('costs', 'Trading costs', 'g_costs'),
+      ('walk-forward', 'Traded on new data (walk-forward)', 'g_wf'),
+      ('q', 'Chance it is luck (FDR q)', 'g_q'),
+      ('verdicts', 'Verdicts', 'g_verdicts'),
+      ('bad-case', 'Bad case (1 in 20)', 'g_tail'),
+      ('liquidity', 'Too thin to trade', 'g_liquidity'),
+      ('adjusted', 'Adjusted prices', 'g_adjusted'),
+      ('xtb', 'Links to XTB', 'g_xtb'),
+    ] %}
+    <dt id="{{ id }}">{{ _(term) }}</dt>
+    <dd>{{ _(text) }}</dd>
+    {% endfor %}
+  </dl>
+</section>
+{% endblock %}

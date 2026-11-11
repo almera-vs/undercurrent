@@ -48,9 +48,10 @@ flowchart LR
    verdict per signal. Only stocks a reader could buy count: median close of at least
    0.50 zł and median daily turnover of at least 10,000 zł before the event.
    Point-in-time and byte-for-byte reproducible.
-5. **Publish** (`publish.py`, `i18n.py`): Jinja2 site in Polish and English with inline SVG
-   charts, plus a Telegram digest via
-   the Bot API.
+5. **Publish** (`publish.py`, `pages.py`, `i18n.py`): Jinja2 site in Polish and English with
+   inline SVG charts, plain-language summaries, the report's own text, the stock's price and
+   liquidity, a glossary, and a Telegram digest via the Bot API. Event pages link to the
+   company on XTB only when XTB's page shows the same ISIN (`xtb.py`).
 6. **Commit**: new partitions to the `data` branch, digest archive to `main`.
 
 Details: [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md) · sources and their verification:
