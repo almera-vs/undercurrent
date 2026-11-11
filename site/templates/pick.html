@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Stock of the week · Undercurrent') }}{% endblock %}
+{% block main %}
+{% set k = ctx.pick %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">{{ ctx.day|longdate }} · {{ _('Stock of the week') }}</p>
+    <h1>{% if k and k.ready and k.pick %}{{ k.pick.ticker }} <span class="muted h1-sub">{{ k.pick.name|company }}</span>{% else %}{{ _('Stock of the week') }}{% endif %}</h1>
+  </div>
+  <p class="lede">{{ _('pick_lede') }} <a href="glossary.html#ic">{{ _('How to read this page') }}</a></p>
+</section>
+
+{% if not k %}
+<p class="card muted">{{ _('pick_not_ready') }}</p>
+{% else %}
+{% set s = k.summary %}
+<section class="verdict-box v-box-{{ 'holds_up' if s.verdict == 'beats_wig' else ('eaten_by_costs' if s.verdict == 'no_edge' else 'too_few') }}">
+  <p><span class="verdict v-{{ 'holds_up' if s.verdict == 'beats_wig' else ('eaten_by_costs' if s.verdict == 'no_edge' else 'untested') }}">{{ _('The model so far') }}: {{ s.verdict|pickverdict }}</span></p>
+  <p class="summary">{{ s.verdict|pickexplain }}</p>
+  {% if k.ready and k.pick %}
+  <p class="muted">{% if k.is_live %}{{ _('Held since {d}', d=k.held_since) }}{% else %}{{ _('Not yet in the live record: the first live pick is made on the first session of a week.') }}{% endif %}</p>
+  {% endif %}
+</section>
+
+{% if not k.ready %}
+<p class="card muted">{{ _('pick_not_ready') }}</p>
+{% else %}
+{% set p = k.pick %}
+{% set r = p.row %}
+<section class="tiles">
+  <div class="tile"><span>{{ _('Expected vs WIG, 20 sessions') }}</span><b class="mono {{ (r.expected if r else none)|tone }}">{{ (r.expected if r else none)|pct }}</b><small>{{ _('the model’s estimate, not a promise') }}</small></div>
+  <div class="tile"><span>{{ _('Last close') }}</span><b class="mono">{{ p.last_close|num }}</b><small>{{ p.last_date }}</small></div>
+  <div class="tile"><span>{{ _('Bad case for 20 sessions (1 in 20)') }} <a class="q" href="glossary.html#bad-case" aria-label="{{ _('What is this?') }}">?</a></span><b class="mono {{ p.bad_case|tone }}">{{ p.bad_case|pct }}</b><small>{{ _('vs WIG') }}</small></div>
+  <div class="tile"><span>{{ _('Liquidity') }}</span><b class="mono">{{ 'turnover'|featval(r['f_turnover'] if r else none) }}</b><small>{{ _('median daily turnover') }}</small></div>
+</section>
+
+<div class="split even">
+  <section class="panel">
+    <h2>{{ _('Why this stock') }}</h2>
+    <p class="muted small">{{ _('why_note') }}</p>
+    <ul class="why">
+      {% for w in p.why or [] %}
+      <li class="{{ 'up' if w.contribution > 0 else 'down' }}"><span class="why-mark" aria-hidden="true">{{ '▲' if w.contribution > 0 else '▼' }}</span>
+        <span><b>{{ w.feature|feature }}</b>: {% if w.feature != 'illiquidity' %}<span class="mono">{{ w.feature|featval(w.value) }}</span>{% endif %}
+        {% if w.above is not none %}<small class="muted">{{ _('higher than {p}% of liquid stocks', p=w.above) }}</small>{% endif %}
+        <small class="{{ 'up' if w.contribution > 0 else 'down' }}"> · {{ _('raises the score') if w.contribution > 0 else _('lowers the score') }}</small></span></li>
+      {% endfor %}
+    </ul>
+    {% if p.xtb_url %}<p><a class="ext" href="{{ p.xtb_url }}" rel="noopener nofollow">{{ _('{t} on XTB ↗', t=p.ticker) }}</a><br><small class="muted">{{ _('xtb_note') }}</small></p>{% endif %}
+  </section>
+  <section class="panel">
+    <h2>{{ _('The stock') }}</h2>
+    {{ (p.chart or {}).get(lang, '')|safe }}
+    <div class="scroll"><table>
+      <thead><tr><th>{{ _('Return') }}</th>{% for lbl in ['1 month', '3 months', '6 months', '12 months'] %}<th class="r">{{ _(lbl) }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        <tr><td>{{ _('vs WIG') }}</td>{% for key in ['1m', '3m', '6m', '12m'] %}{% set v = (p.returns or {}).get(key) %}<td class="r mono {{ (v[0] if v else none)|tone }}">{{ (v[0] if v else none)|pct }}</td>{% endfor %}</tr>
+        <tr><td>{{ p.ticker }}</td>{% for key in ['1m', '3m', '6m', '12m'] %}{% set v = (p.returns or {}).get(key) %}<td class="r mono">{{ (v[1] if v else none)|pct }}</td>{% endfor %}</tr>
+      </tbody>
+    </table></div>
+  </section>
+</div>
+
+<section class="panel">
+  <h2>{{ _('Its reports, last 90 days') }}</h2>
+  <ul class="feed wide">
+    {% for e in p.reports %}
+    <li><time class="mono muted">{{ e.pub_date|dm }}</time>
+      <span>{% if e.is_event %}<span class="chip chip-{{ {'insider_tx': 'insider', 'inside_info': 'inside', 'holder_threshold': 'holdings'}[e.signal_type] }}">{{ e.label_key|label }}</span> {% endif %}
+      {% if e.has_page %}<a href="event/{{ e.slug }}.html" lang="pl">{{ e|fact }}</a>{% else %}<a href="{{ e.source_url }}" rel="noopener" lang="pl">{{ e|fact }}</a>{% endif %}
+      {% if e.is_event %}<small class="muted block">{{ e.stat|summary(e.horizon) }}</small>{% endif %}</span></li>
+    {% else %}
+    <li class="muted">{{ _('No reports in the last 90 days.') }}</li>
+    {% endfor %}
+  </ul>
+</section>
+
+<section class="panel">
+  <h2>{{ _('Runners-up') }}</h2>
+  <div class="scroll"><table>
+    <thead><tr><th class="r">{{ _('Rank') }}</th><th>{{ _('Company') }}</th><th class="r">{{ _('Expected vs WIG') }}</th><th class="r wide">{{ 'mom_12_1'|feature }}</th><th class="r">{{ 'vol_60'|feature }}</th></tr></thead>
+    <tbody>
+    {% for t in k.top %}
+    <tr{% if t.isin == p.isin %} class="hl"{% endif %}><td class="r mono">{{ t.rank }}</td><td><b class="mono">{{ t.ticker }}</b> <small class="muted">{{ t.name|company }}</small></td><td class="r mono {{ t.expected|tone }}">{{ t.expected|pct }}</td><td class="r mono">{{ 'mom_12_1'|featval(t.f_mom_12_1) }}</td><td class="r mono">{{ 'vol_60'|featval(t.f_vol_60) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endif %}
+
+<section class="panel">
+  <h2>{{ _('Live record') }}</h2>
+  <p class="muted small">{{ _('live_note') }} <a href="glossary.html#live">?</a></p>
+  <div class="scroll"><table>
+    <thead><tr><th>{{ _('Week') }}</th><th>{{ _('Company') }}</th><th>{{ _('Switch') }}</th><th class="r">{{ _('Result vs WIG, after costs') }}</th></tr></thead>
+    <tbody>
+    {% for l in k.live %}
+    <tr><td class="mono">{{ l.week }}</td><td class="mono">{{ l.ticker }}</td><td>{{ '✓' if l.switched else '' }}</td><td class="r mono {{ l.net|tone }}">{{ l.net|pct }}</td></tr>
+    {% else %}
+    <tr><td colspan="4" class="muted">{{ _('No live picks yet.') }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+
+<section class="panel">
+  <h2>{{ _('The full model') }}</h2>
+  {% if k.backtest_chart %}
+  <h3>{{ _('Out-of-sample result against WIG') }}</h3>
+  {{ k.backtest_chart[lang]|safe }}
+  <p class="muted small">{{ _('backtest_note', weeks=s.oos_weeks, start=s.oos_start, end=s.oos_end, mean=s.mean_net|pct2, p=s.p_value|qval, switches=s.switches, ic=s.ic_mean|decimal(2), t=s.ic_t|decimal(1), mom=s.momentum_total_net|pct) }}</p>
+  {% endif %}
+  {% if s.train_start %}<p class="muted small">{{ _('model_note', start=s.train_start, end=s.train_end, n=s.train_weeks, p=s.penalty|num) }} <a href="glossary.html#ridge">?</a></p>{% endif %}
+  <div class="scroll"><table>
+    <thead><tr><th>{{ _('Feature') }}</th><th class="r">{{ _('Weight') }} <small class="muted">×100</small></th><th class="r wide">{{ _('Out-of-sample rank IC') }}</th></tr></thead>
+    <tbody>
+    {% for m in k.model|sort(attribute='weight', reverse=true) %}
+    <tr><td>{{ m.feature|feature }}</td><td class="r mono {{ m.weight|tone }}">{{ (m.weight * 100)|decimal(2) }}</td><td class="r mono {{ m.oos_ic|tone }}">{{ m.oos_ic|decimal(3) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <h3>{{ _('Limitations') }}</h3>
+  <p class="muted">{{ _('pick_limits') }}</p>
+</section>
+{% endif %}
+{% endblock %}

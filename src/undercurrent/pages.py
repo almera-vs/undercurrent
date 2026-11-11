@@ -283,3 +283,107 @@ def sparkline_svg(
         parts.append(f'<line class="entry" x1="{x(j):.1f}" x2="{x(j):.1f}" y1="0" y2="{h}"/>')
     parts.append("</svg>")
     return "".join(parts)
+
+
+def lines_svg(
+    series: list[tuple[str, str, list[float]]],
+    dates: list[date],
+    lang: str,
+    label: str,
+    pct_axis: bool = True,
+) -> str:
+    """Several lines over the same dates, e.g. a stock vs WIG, or a backtest vs baselines.
+
+    ``series`` is a list of (css class, legend text, values); values are cumulative returns
+    (0.05 = +5 %). The legend is drawn under the chart with the last value of each line.
+    """
+    pts = [(cls, name, [v for v in vals]) for cls, name, vals in series if vals]
+    if not pts or len(dates) < 2:
+        return ""
+    w, h, pad_l, pad_r, pad_t, pad_b = 900, 300, 80, 20, 16, 40
+    allv = [v for _, _, vals in pts for v in vals if math.isfinite(v)] + [0.0]
+    lo, hi = min(allv), max(allv)
+    span = (hi - lo) or 0.01
+    lo, hi = lo - span * 0.06, hi + span * 0.06
+    n = len(dates)
+
+    def x(j: int) -> float:
+        return pad_l + j / (n - 1) * (w - pad_l - pad_r)
+
+    def y(v: float) -> float:
+        return pad_t + (hi - v) / (hi - lo) * (h - pad_t - pad_b)
+
+    step = 10 ** math.floor(math.log10(span / 3)) if span > 0 else 0.01
+    if span / step > 8:
+        step *= 2.5 if span / step < 20 else 5
+    ticks = []
+    t = math.floor(lo / step) * step
+    while t <= hi:
+        if t >= lo:
+            ticks.append(t)
+        t += step
+    parts = [f'<svg class="chart lines" viewBox="0 0 {w} {h}" role="img" aria-label="{label}">']
+    for v in ticks:
+        tick = i18n.pct(v, lang, digits=0) if pct_axis else f"{v:.2f}"
+        parts.append(
+            f'<line class="grid" x1="{pad_l}" x2="{w - pad_r}" y1="{y(v):.1f}" y2="{y(v):.1f}"/>'
+            f'<text class="tick" x="{pad_l - 8}" y="{y(v) + 5:.1f}" text-anchor="end">{tick}</text>'
+        )
+    parts.append(
+        f'<line class="zero" x1="{pad_l}" x2="{w - pad_r}" y1="{y(0):.1f}" y2="{y(0):.1f}"/>'
+    )
+    for cls, _, vals in pts:
+        line = " ".join(f"{x(j):.1f},{y(v):.1f}" for j, v in enumerate(vals) if math.isfinite(v))
+        parts.append(f'<polyline class="line {cls}" points="{line}"/>')
+    for j in sorted({0, n // 2, n - 1}):
+        parts.append(
+            f'<text class="tick" x="{x(j):.1f}" y="{h - 12}" text-anchor="middle">'
+            f"{dates[j]:%Y-%m}</text>"
+        )
+    parts.append("</svg>")
+    legend = "".join(
+        f'<span class="lg-item"><span class="sw {cls}"></span>{name} '
+        f'<b class="mono">{i18n.pct(vals[-1], lang)}</b></span>'
+        for cls, name, vals in pts
+        if vals and math.isfinite(vals[-1])
+    )
+    return "".join(parts) + f'<p class="legend small">{legend}</p>'
+
+
+# How each pick feature reads on the page: (kind of value, which direction is "good").
+# kinds: logret (log excess return → %), vol (daily → annualised %), pct, num, count, pln
+FEATURE_KINDS: dict[str, str] = {
+    "mom_12_1": "logret",
+    "mom_6_1": "logret",
+    "rev_1m": "logret",
+    "off_high": "logret",
+    "vol_60": "vol",
+    "beta": "num",
+    "resid_vol": "vol",
+    "drawdown": "logdd",
+    "turnover": "pln",
+    "no_trade": "pct",
+    "illiquidity": "num",
+    "insider_net": "num",
+    "corp_actions": "count",
+}
+
+
+def feature_value(feature: str, v: float | None, lang: str) -> str:
+    """A raw feature value in the units a reader knows."""
+    if v is None or not math.isfinite(v):
+        return "—"
+    kind = FEATURE_KINDS.get(feature, "count")
+    if kind == "logret":
+        return i18n.pct(math.expm1(v), lang)
+    if kind == "logdd":  # size of the fall, shown without a sign: "a 21.4% fall"
+        return i18n.pct(1 - math.exp(-v), lang, sign=False)
+    if kind == "vol":
+        return i18n.pct(v * math.sqrt(252), lang, sign=False)
+    if kind == "pct":
+        return i18n.pct(v, lang, sign=False)
+    if kind == "pln":
+        return i18n.short_pln(math.expm1(v), lang) + (" zł" if lang == "pl" else " PLN")
+    if kind == "num":
+        return i18n.group_digits(f"{v:.2f}", lang)
+    return i18n.num(v, lang)

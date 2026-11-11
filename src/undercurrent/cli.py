@@ -86,6 +86,9 @@ def _build_parser() -> argparse.ArgumentParser:
         help="leave the current and previous N-1 months as daily partitions",
     )
 
+    pk = sub.add_parser("pick", help="compute the stock of the week (needs a built work dir)")
+    pk.add_argument("--date", type=_parse_date, default=_parse_date("today"))
+
     xl = sub.add_parser("xtb-links", help="verify links to company pages on xtb.com")
     xl.add_argument("--days", type=int, default=45, help="stocks with events in this many days")
     xl.add_argument("--max", type=int, default=400, help="at most this many stocks per run")
@@ -207,6 +210,14 @@ def cmd_check_lake(args: argparse.Namespace) -> int:
     return 0 if mb <= args.max_mb else 1
 
 
+def cmd_pick(args: argparse.Namespace) -> int:
+    """Stock of the week from the work dir's gold tables; appends the live record."""
+    from undercurrent import pick, transform
+
+    pick.run_pick(transform.duckdb_path(args.work_dir), args.work_dir, args.data_dir, args.date)
+    return 0
+
+
 def cmd_xtb_links(args: argparse.Namespace) -> int:
     """Verify XTB links for the stocks of recent events (needs a built work dir)."""
     from datetime import UTC, datetime, timedelta
@@ -258,6 +269,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "compact": cmd_compact,
         "forms": cmd_forms,
         "xtb-links": cmd_xtb_links,
+        "pick": cmd_pick,
     }
     return handlers[args.command](args)
 

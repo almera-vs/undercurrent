@@ -123,7 +123,7 @@ td.sig { min-width: 13rem; }
 td.sig small, td.r small { display: block; font-size: 0.8rem; }
 .scroll-hint { display: none; margin: 0.6rem 0 0; }
 .table-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
-.horizons { color: var(--muted); display: flex; gap: 0.4rem; align-items: center; }
+.horizons { color: var(--muted); display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
 .horizons a { border: 1px solid var(--line); border-radius: 8px; padding: 0.3rem 0.7rem; color: var(--muted); }
 .horizons a[aria-current="page"] { color: var(--text); background: var(--panel-2); }
 
@@ -183,8 +183,8 @@ td.sig small, td.r small { display: block; font-size: 0.8rem; }
   .pill { order: 2; font-size: 0.8rem; padding: 0.3rem 0.6rem; }
   .pill-run { display: none; }
   .lang { order: 3; padding: 0.4rem 0.7rem; }
-  .top nav { order: 4; flex-basis: 100%; gap: 0; }
-  .top nav a { padding: 0.45rem 0.6rem; }
+  .top nav { order: 4; flex-basis: 100%; gap: 0; flex-wrap: wrap; }
+  .top nav a { padding: 0.45rem 0.5rem; }
 }
 
 /* Today: sections by verdict, one card per signal type */
@@ -250,3 +250,27 @@ details.full p { color: var(--muted); white-space: pre-line; }
   .group-events time { grid-column: 2; }
   .arch-row { flex-direction: column; gap: 0.2rem; }
 }
+
+/* Stock of the week */
+.h1-sub { font-size: 0.5em; font-weight: 500; }
+.pick-card { display: flex; flex-direction: column; gap: 0.4rem; color: var(--text); border-left: 4px solid var(--up); }
+.pick-card:hover { text-decoration: none; border-color: var(--up); }
+.pick-card .eyebrow { margin: 0; }
+.pick-line { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+.why { list-style: none; padding: 0; margin: 0.6rem 0; }
+.why li { display: grid; grid-template-columns: 1.4rem 1fr; gap: 0.4rem; padding: 0.45rem 0; border-bottom: 1px solid var(--line); }
+.why li:last-child { border-bottom: 0; }
+.why-mark { font-size: 0.8rem; padding-top: 0.2rem; }
+.why .up .why-mark, .why li.up .why-mark { color: var(--up); }
+.why li.down .why-mark { color: var(--down); }
+.block { display: block; margin-top: 0.2rem; }
+tr.hl td { background: var(--panel-2); }
+.panel h3 { font-size: 1rem; margin: 1.2rem 0 0.4rem; }
+.chart.lines .line { fill: none; stroke-width: 2.2; }
+.chart.lines .l-pick { stroke: var(--up); }
+.chart.lines .l-top { stroke: var(--good); stroke-dasharray: 6 4; }
+.chart.lines .l-all { stroke: var(--muted); }
+.sw { display: inline-block; width: 18px; height: 0; border-top: 3px solid var(--muted); vertical-align: middle; }
+.sw.l-pick { border-color: var(--up); }
+.sw.l-top { border-color: var(--good); border-top-style: dashed; }
+.sw.l-all { border-color: var(--muted); }

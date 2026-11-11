@@ -21,6 +21,7 @@ from zoneinfo import ZoneInfo
 
 import duckdb
 import httpx
+import numpy as np
 import polars as pl
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -230,6 +231,8 @@ class SiteContext:
     tiers: list[dict[str, Any]] = field(default_factory=list)
     # how the archive's events have done since entry, per verdict
     record: list[dict[str, Any]] = field(default_factory=list)
+    # stock of the week (pick.py): None until the pick has been computed
+    pick: dict[str, Any] | None = None
 
 
 def headline_horizon(key: str, by_key_h: dict[tuple[str, int], dict[str, Any]]) -> int:
@@ -531,6 +534,7 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
     _add_company_context(work, data_dir, day, reports, events, sorted(session_days))
     tiers = _tiers(worth)
     record = _track_record([i for d in archive for i in d["events"]])
+    pick_ctx = _pick_context(work, data_dir, day, reports, by_key_h, events)
 
     runs_df = lake.read_state(data_dir, "runs")
     runs = runs_df.sort("started_at", descending=True).to_dicts() if runs_df is not None else []
@@ -616,7 +620,205 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
         archive=archive,
         tiers=tiers,
         record=record,
+        pick=pick_ctx,
     )
+
+
+PICK_REPORT_DAYS = 90  # the pick page lists the company's reports of this many days
+
+
+def _series(work: Path, isin: str, day: date, sessions: int) -> dict[str, Any]:
+    """The stock's and WIG's daily returns over its last ``sessions`` sessions up to ``day``."""
+    from undercurrent.transform import duckdb_path
+
+    con = duckdb.connect(str(duckdb_path(work)))
+    try:
+        rows = con.execute(
+            "select b.trade_date, a.adj_ret, b.wig_ret from benchmark_returns b "
+            "left join adjusted_prices a on a.trade_date = b.trade_date and a.isin = ? "
+            "where b.trade_date <= ? and b.wig_ret is not null order by b.trade_date",
+            [isin, day],
+        ).fetchall()
+        last = con.execute(
+            "select close, trade_date from adjusted_prices where isin = ? and trade_date <= ? "
+            "order by trade_date desc limit 1",
+            [isin, day],
+        ).fetchone()
+    finally:
+        con.close()
+    dates = [r[0] for r in rows]
+    stock = [0.0 if r[1] is None else float(r[1]) for r in rows]
+    wig = [float(r[2]) for r in rows]
+    return {
+        "dates": dates[-sessions:],
+        "all_stock": stock,
+        "all_wig": wig,
+        "stock": stock[-sessions:],
+        "wig": wig[-sessions:],
+        "last_close": None if last is None else float(last[0]),
+        "last_date": None if last is None else last[1],
+    }
+
+
+def _cum(rets: list[float]) -> list[float]:
+    out, acc = [], 1.0
+    for r in rets:
+        acc *= 1 + (r if math.isfinite(r) else 0.0)
+        out.append(acc - 1)
+    return out
+
+
+def _pick_context(
+    work: Path,
+    data_dir: Path,
+    day: date,
+    reports: pl.DataFrame,
+    by_key_h: dict[tuple[str, int], dict[str, Any]],
+    events: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Everything the stock-of-the-week page shows, from ``gold/pick_*.parquet``."""
+    from undercurrent.pick_features import FEATURES, HORIZON
+
+    gold = work / "gold"
+    if not (gold / "pick_summary.parquet").exists():
+        return None
+    summary = pl.read_parquet(gold / "pick_summary.parquet").row(0, named=True)
+    scores = pl.read_parquet(gold / "pick_scores.parquet")
+    model = pl.read_parquet(gold / "pick_model.parquet").to_dicts()
+    bt = pl.read_parquet(gold / "pick_backtest.parquet")
+    live = pl.read_parquet(gold / "pick_live.parquet")
+    names = {
+        r["isin"]: r["issuer_name"]
+        for r in reports.filter(pl.col("isin").is_not_null())
+        .sort("published_at_local")
+        .select("isin", "issuer_name")
+        .iter_rows(named=True)
+    }
+    ctx: dict[str, Any] = {"summary": summary, "model": model, "ready": scores.height > 0}
+    for m in model:
+        m["kind"] = pages.FEATURE_KINDS.get(m["feature"], "count")
+    ctx["live"] = live.sort("week", descending=True).to_dicts()
+    live_total = live["net"].drop_nans().drop_nulls()
+    ctx["live_total"] = float((1 + live_total).product() - 1) if live_total.len() else None
+    if bt.height:
+        dates = bt["day"].to_list()
+        ctx["backtest_chart"] = {
+            lang: pages.lines_svg(
+                [
+                    ("l-pick", i18n.tr(lang)("The pick, after costs"), _cum(bt["net"].to_list())),
+                    (
+                        "l-top",
+                        i18n.tr(lang)("Top 10 scores, before costs"),
+                        _cum(bt["top10"].to_list()),
+                    ),
+                    ("l-all", i18n.tr(lang)("All liquid stocks"), _cum(bt["basket"].to_list())),
+                ],
+                dates,
+                lang,
+                i18n.tr(lang)("Out-of-sample result against WIG"),
+            )
+            for lang in i18n.LANGS
+        }
+    if not ctx["ready"]:
+        return ctx
+    top = scores.head(10).to_dicts()
+    for r in top:
+        r["name"] = names.get(r["isin"], r["ticker"])
+    ctx["top"] = top
+    current = live.sort("week").row(-1, named=True) if live.height else None
+    isin = current["isin"] if current else top[0]["isin"]
+    ctx["is_live"] = current is not None
+    ctx["held_since"] = None
+    if current is not None:
+        since = current["week"]
+        for r in live.sort("week", descending=True).iter_rows(named=True):
+            if r["isin"] != isin:
+                break
+            since = r["week"]
+        ctx["held_since"] = since
+    row = scores.filter(pl.col("isin") == isin)
+    pick_row = row.row(0, named=True) if row.height else None
+    ctx["pick"] = {
+        "isin": isin,
+        "ticker": pick_row["ticker"] if pick_row else (current or {}).get("ticker"),
+        "name": names.get(isin, isin),
+        "row": pick_row,
+        "xtb_url": xtb.read_links(data_dir).get(isin),
+    }
+    if pick_row is not None:
+        contrib = sorted(
+            ((f, pick_row[f"c_{f}"], pick_row[f"f_{f}"]) for f in FEATURES),
+            key=lambda t: -abs(t[1]),
+        )
+        weights = {m["feature"]: m["weight"] for m in model}
+        from scipy.stats import norm
+
+        ctx["pick"]["why"] = [
+            {
+                "feature": f,
+                "contribution": c,
+                "value": v,
+                # share of liquid stocks with a lower value (the feature is a rank-normal score)
+                "above": round(float(norm.cdf(c / weights[f])) * 100) if weights.get(f) else None,
+            }
+            for f, c, v in contrib[:6]
+            if c
+        ]
+    s = _series(work, isin, day, 252)
+    ctx["pick"]["last_close"], ctx["pick"]["last_date"] = s["last_close"], s["last_date"]
+    if s["dates"]:
+        ctx["pick"]["chart"] = {
+            lang: pages.lines_svg(
+                [
+                    ("l-pick", ctx["pick"]["ticker"] or isin, _cum(s["stock"])),
+                    ("l-all", "WIG", _cum(s["wig"])),
+                ],
+                s["dates"],
+                lang,
+                i18n.tr(lang)("Share price against WIG, last year"),
+            )
+            for lang in i18n.LANGS
+        }
+        rets = {}
+        for label, n in (("1m", 21), ("3m", 63), ("6m", 126), ("12m", 252)):
+            st, wg = s["all_stock"][-n:], s["all_wig"][-n:]
+            if len(st) == n:
+                rets[label] = (_cum(st)[-1] - _cum(wg)[-1], _cum(st)[-1])
+        ctx["pick"]["returns"] = rets
+        st, wg = s["all_stock"], s["all_wig"]
+        windows = [
+            _cum(st[k : k + HORIZON])[-1] - _cum(wg[k : k + HORIZON])[-1]
+            for k in range(0, max(0, len(st) - HORIZON), 5)
+        ]
+        ctx["pick"]["bad_case"] = (
+            float(np.quantile(windows, TAIL_SHARE)) if len(windows) >= MIN_EVENTS_FOR_TAIL else None
+        )
+    with_pages = {e["report_id"] for e in events}
+    since = day - timedelta(days=PICK_REPORT_DAYS)
+    recent = reports.filter((pl.col("isin") == isin) & (pl.col("pub_date") >= since)).sort(
+        "known_at", descending=True
+    )
+    from undercurrent.study import signal_key
+
+    items = []
+    for r in recent.iter_rows(named=True):
+        is_event = r["signal_type"] in ("insider_tx", "holder_threshold", "inside_info")
+        key = signal_key(r["signal_type"], r["subtype"], r["insider_side"])
+        h = headline_horizon(key, by_key_h)
+        items.append(
+            {
+                **r,
+                "signal_key": key,
+                "label_key": key if is_event else r["signal_type"],
+                "is_event": is_event,
+                "stat": by_key_h.get((key, h)) if is_event else None,
+                "horizon": h,
+                "slug": r["report_id"].replace(":", "-"),
+                "has_page": r["report_id"] in with_pages,
+            }
+        )
+    ctx["pick"]["reports"] = items
+    return ctx
 
 
 def _tiers(worth: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -808,13 +1010,22 @@ def _env(lang: str = "en") -> Environment:
         ),
         "summary": lambda stat, h: pages.plain_summary(stat, h, lang),
         "company": pages.company_name,
+        "featval": lambda f, v: pages.feature_value(f, v, lang),
+        "feature": lambda f: i18n.FEATURE_LABELS[lang].get(f, f),
+        "pickverdict": lambda v: i18n.PICK_VERDICTS[lang].get(v or "", v or ""),
+        "pickexplain": lambda v: i18n.PICK_EXPLAIN[lang].get(v or "", ""),
         "period": lambda h: pages.horizon_words(h, lang),
         "explain": lambda v: i18n.VERDICT_EXPLAIN[lang].get(v or "", ""),
         "tier": lambda v: i18n.TIER_TITLES[lang].get(v or "", ""),
         "dm": lambda d: f"{d:%d.%m}" if d else "",
         "longdate": lambda d: i18n.long_date(d, lang),
         "health": lambda bits: health_text(bits, lang),
-        "decimal": lambda x, d=2: "—" if x is None else i18n.group_digits(f"{x:.{d}f}", lang),
+        "decimal": lambda x, d=2: (
+            "—"
+            if x is None or (isinstance(x, float) and math.isnan(x))
+            else i18n.group_digits(f"{x:.{d}f}", lang)
+        ),
+        "pct2": lambda x: i18n.pct(x, lang, digits=2),
         "qval": lambda q: (
             "—"
             if q is None or (isinstance(q, float) and math.isnan(q))
@@ -863,6 +1074,7 @@ def _render_lang(ctx: SiteContext, out: Path, lang: str) -> list[Path]:
     write("pipeline.html", "pipeline.html", page="pipeline")
     write("archive.html", "archive.html", page="archive")
     write("glossary.html", "glossary.html", page="glossary")
+    write("pick.html", "pick.html", page="pick")
     for e in ctx.events:
         write(f"event/{e['slug']}.html", "event.html", depth=1, page="event", e=e)
     return written
@@ -905,6 +1117,13 @@ def digest_message(ctx: SiteContext, max_items: int = 5) -> tuple[str, dict[str,
         lines.append(f"Past: {pct(st['mean_car'])} / {h}d after entry · n={st['n']} · {verdict}")
     if not ctx.worth:
         lines.append("No event today is of a type that has moved prices significantly.")
+    pk = ctx.pick
+    if pk and pk.get("ready") and pk.get("pick"):
+        verdict = i18n.PICK_VERDICTS["en"].get(pk["summary"]["verdict"], "")
+        lines += [
+            "",
+            f"Stock of the week: <b>{e(pk['pick']['ticker'] or '')}</b> · model: {verdict}",
+        ]
     lines += ["", f"<i>{e(ctx.health)}</i>", "Not investment advice. Historical statistics only."]
     buttons = [{"text": "Open dashboard", "url": ctx.site_url}]
     if ctx.worth:

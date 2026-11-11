@@ -204,3 +204,59 @@ sessions otherwise.
 - Survivorship: the price universe is built from archive files, which include delisted
   companies for the days they traded, so there is no survivorship filter. Events of companies
   with < 120 sessions of history are skipped.
+
+## 9. Stock of the week
+
+Code: `src/undercurrent/pick_features.py` (features), `src/undercurrent/pick.py` (model).
+
+- **Question.** Of the liquid main-market (WIG) stocks, which one has the highest expected
+  result against WIG over the next 20 sessions? Only prices, turnover and current reports are
+  available: no financial statements, share counts or market values, so no valuation.
+- **Universe on a date.** Main market only, a year (260 sessions) of continuous history with
+  returns on at least 200 of the last 252, and the study's buyability rule with a higher
+  turnover floor: median close ≥ 0.50 zł and median daily turnover ≥ 100,000 zł over the
+  last 60 sessions. On 2016–2018 that is 90–115 stocks a week.
+- **Features** (all from sessions up to and including the rebalance close):
+  - trend: 12-1 and 6-1 month momentum against WIG, the last month against WIG, distance
+    from the 52-week high;
+  - risk: 60-session volatility, 250-session beta and residual volatility, 250-session
+    drawdown;
+  - liquidity: median turnover, share of sessions without a trade, Amihud illiquidity;
+  - news: signal events of the last 60 sessions by kind, insider net buying of the last 20
+    sessions in days of turnover, corporate actions.
+
+  Each is turned into a rank-normal score across the universe on that date, so units and
+  outliers do not matter.
+- **Target.** The compounded stock-minus-WIG return over the next 20 sessions, winsorized at
+  the 1st/99th percentile per date and rank-normalized.
+- **Model.** Ridge regression on the pooled weekly cross-sections. A stock's score is the sum
+  of feature × weight, which the page shows term by term. A least-squares fit of the
+  (winsorized) 20-session excess on the score turns scores into expected returns. The penalty
+  (1, 10, 100 or 1,000) is chosen on the last year of the training history, by mean rank IC.
+- **Walk-forward.** Expanding yearly re-fits. The model for year Y sees only weeks whose
+  20-session target ended before Y began (the purge), and needs at least 40 such weeks.
+- **The pick.** On the first session of each week the top expected excess is chosen. The
+  current pick is kept unless the new leader beats it by more than the round-trip cost (2.0 %),
+  and every switch, the first purchase included, pays that cost. The holding result runs from
+  the rebalance close to the next one.
+- **Baselines.** The same rule on 12-1 momentum alone, the equal-weighted universe, and, as a
+  diagnostic, the model's ten best scores equally weighted before costs.
+- **Verdict.** On the out-of-sample weeks:
+  - "beats WIG after costs" needs a positive mean weekly net excess with a one-sided p below
+    0.05, clustered by calendar month;
+  - "positive, not confirmed" if the mean is positive but not significant;
+  - "no edge" otherwise;
+  - "too little history" under 26 weeks.
+
+  The rank IC (with a moving-block bootstrap t), the deflated Sharpe ratio (trials: the four
+  penalties and the momentum baseline), the drawdown and the switches are reported alongside.
+- **Live record.** On the first session of each week the nightly run appends the pick to
+  `state/picks.parquet` and never rewrites it. The page shows its results while each pick was
+  held, net of switch costs, separately from the backtest.
+- **First result (2016-05 → 2018-12 history, out of sample 2018, 49–50 weeks).** The ranking
+  works: mean weekly rank IC 0.17 (t ≈ 4.4), led by low volatility and drawdown, closeness to
+  the 52-week high and liquidity. The model's top 10 returned +4.4 % against WIG before costs,
+  while the whole universe returned −14.2 %. A single weekly pick did not beat WIG: −3 % to
+  −6 % after costs, p ≈ 0.6, so the verdict is "no edge". 12-1 momentum alone under the same
+  rule lost 88 % after costs. One test year is a small sample; the result will be re-run as
+  the backfill adds years.

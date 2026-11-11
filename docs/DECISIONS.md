@@ -253,6 +253,32 @@ it costs. Method details (event study, walk-forward, verdicts) are in
   records each run and the Pipeline page shows whether it met the SLO; `watchdog.yml` sends
   an alert if no successful run exists by 20:15.
 
+## Stock of the week
+
+- **A forward-looking pick, judged like the event studies.** The event pages say what
+  happened after a kind of report. The pick page names one liquid WIG stock for the coming
+  weeks and shows all of it: the score's parts, the stock's year against WIG, its reports, the
+  runners-up, every weight, the out-of-sample curve against two baselines, and the live record.
+  Its first line is the verdict on the model's own out-of-sample record. When that is "no
+  edge", the stock is called the model's top score, not the best stock.
+- **Ridge on ranks, not a black box.** With 20-odd correlated features and a few hundred
+  weeks, a linear model on cross-sectional ranks is hard to overfit and explains itself: a
+  score is a sum of feature × weight. Ranks make the fit indifferent to units and outliers.
+- **Weekly, with a switching rule.** The user wanted a weekly pick; the target is 20 sessions
+  because shorter horizons cannot pay a 2 % round trip. The pick is kept unless the new leader
+  beats it by more than that cost. Without the rule, the momentum baseline swaps almost every
+  week and loses most of its capital to costs.
+- **The ranking and the pick are reported separately.** One stock is noisy; the rank IC and
+  the top-10 basket show whether the ordering works even when a single pick does not.
+- **A live record that is never rewritten.** `state/picks.parquet` gets one row on the first
+  session of each week; a rerun of that day leaves it alone. The backtest can be re-run and
+  can flatter; the live record cannot.
+- **No AI for now.** The model reads the kind of each current report, not its text. Reading
+  the text with a language model (in Actions) was considered and set aside by the user. A
+  model trained on later data may also remember how older stories ended, so any such
+  feature would have to prove itself on the live record.
+- **The pick never blocks the digest.** It runs after the study; a failure is logged.
+
 ## Known limitations
 
 - Insider trade details (side, volume, price) are missing for reports that no portal

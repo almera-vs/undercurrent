@@ -147,18 +147,24 @@ def refresh(
     return len(due)
 
 
-def recent_companies(duckdb_file: Path, since: datetime) -> list[Company]:
-    """Stocks with a signal event known since ``since`` (what the site links to)."""
+def recent_companies(
+    duckdb_file: Path, since: datetime, also: list[str] | None = None
+) -> list[Company]:
+    """Stocks the site links to: recent signal events, plus the ISINs in ``also``.
+
+    ``also`` carries the stock of the week and its runners-up.
+    """
     import duckdb
 
     con = duckdb.connect(str(duckdb_file))
     try:
         rows = con.execute(
             "select isin, any_value(short_name), any_value(issuer_name), any_value(ticker), "
-            "any_value(market) from reports where isin is not null and known_at >= ? "
-            "and signal_type in ('insider_tx', 'holder_threshold', 'inside_info') "
+            "any_value(market) from reports where isin is not null and (list_contains(?, isin) "
+            "or (known_at >= ? and signal_type in "
+            "('insider_tx', 'holder_threshold', 'inside_info'))) "
             "group by isin order by isin",
-            [since],
+            [also or [], since],
         ).fetchall()
     finally:
         con.close()

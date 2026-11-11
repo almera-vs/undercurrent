@@ -21,6 +21,16 @@
   <a class="tile tile-link" href="signals.html"><span>{{ _('Types that earned after costs') }}</span><b class="{{ 'v-holds_up-text' if ctx.summary.holds_up else '' }}">{{ ctx.summary.holds_up }} <small class="of">/ {{ ctx.summary.tested }}</small></b><small>{{ _('tested on new data, after trading costs') }}</small></a>
 </section>
 
+{% set k = ctx.pick %}
+{% if k and k.ready and k.pick %}
+<a class="card pick-card" href="pick.html">
+  <span class="eyebrow">{{ _('Stock of the week: {t}', t='') }}</span>
+  <span class="pick-line"><span class="tick-sym">{{ k.pick.ticker }}</span> <span class="muted">{{ k.pick.name|company }}</span>
+  <span class="verdict v-{{ 'holds_up' if k.summary.verdict == 'beats_wig' else ('eaten_by_costs' if k.summary.verdict == 'no_edge' else 'untested') }}">{{ _('the model: {v}', v=k.summary.verdict|pickverdict) }}</span></span>
+  <span class="small">{{ _('See the full analysis') }} →</span>
+</a>
+{% endif %}
+
 <div class="split">
   <section>
     {% for t in ctx.tiers %}

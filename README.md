@@ -47,6 +47,10 @@ flowchart LR
    expanding-window walk-forward after costs (2.0 % GPW, 5.2 % NewConnect), deflated Sharpe, and a
    verdict per signal. Only stocks a reader could buy count: median close of at least
    0.50 zł and median daily turnover of at least 10,000 zł before the event.
+   **Stock of the week** (`pick.py`, `pick_features.py`): ridge regression on the ranks of
+   trend, risk, liquidity and news-flow features picks the liquid WIG stock with the highest
+   expected 20-session result against WIG. It is tested walk-forward after costs against
+   momentum and the whole universe, and keeps a live record that is never rewritten.
    Point-in-time and byte-for-byte reproducible.
 5. **Publish** (`publish.py`, `pages.py`, `i18n.py`): Jinja2 site in Polish and English with
    inline SVG charts, plain-language summaries, the report's own text, the stock's price and

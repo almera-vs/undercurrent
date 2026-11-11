@@ -410,6 +410,113 @@ PL: dict[str, str] = {
         "Link do strony spółki w XTB pojawia się tylko wtedy, gdy strona XTB podaje ten sam "
         "kod ISIN co raport. Undercurrent nie jest powiązany z XTB i nie poleca żadnego brokera."
     ),
+    # stock of the week
+    "Pick": "Wybór",
+    "Stock of the week · Undercurrent": "Spółka tygodnia · Undercurrent",
+    "Stock of the week": "Spółka tygodnia",
+    "the model’s estimate, not a promise": "szacunek modelu, nie obietnica",
+    "pick_lede": (
+        "Spośród płynnych spółek z WIG model wybiera tę o najwyższym oczekiwanym wyniku "
+        "wobec WIG w ciągu 20 sesji. Wybór zmienia się raz w tygodniu, tylko gdy nowy lider "
+        "jest lepszy o więcej niż koszt zamiany. Poniżej wszystko, na czym opiera się wybór, "
+        "i jak model wypadał na danych, których nie widział."
+    ),
+    "The model so far": "Model do tej pory",
+    "Held since {d}": "Trzymana od {d}",
+    "Not yet in the live record: the first live pick is made on the first session of a week.": (
+        "Jeszcze poza zapisem na żywo: pierwszy wybór na żywo zapada na pierwszej sesji tygodnia."
+    ),
+    "Expected vs WIG, 20 sessions": "Oczekiwany wynik wobec WIG, 20 sesji",
+    "Why this stock": "Dlaczego ta spółka",
+    "why_note": (
+        "Największe składniki oceny: każda cecha jest porównana z pozostałymi płynnymi "
+        "spółkami, a jej waga pochodzi z modelu."
+    ),
+    "raises the score": "podnosi ocenę",
+    "higher than {p}% of liquid stocks": "wyżej niż {p}% płynnych spółek",
+    "lowers the score": "obniża ocenę",
+    "The stock": "Spółka",
+    "Share price against WIG, last year": "Kurs akcji wobec WIG, ostatni rok",
+    "Return": "Wynik",
+    "vs WIG": "wobec WIG",
+    "1 month": "1 miesiąc",
+    "3 months": "3 miesiące",
+    "6 months": "6 miesięcy",
+    "12 months": "12 miesięcy",
+    "Bad case for 20 sessions (1 in 20)": "Zły scenariusz na 20 sesji (1 na 20)",
+    "Its reports, last 90 days": "Jej raporty z ostatnich 90 dni",
+    "No reports in the last 90 days.": "Brak raportów w ostatnich 90 dniach.",
+    "Runners-up": "Kolejne w rankingu",
+    "Rank": "Miejsce",
+    "Expected vs WIG": "Oczekiwany wynik wobec WIG",
+    "The full model": "Cały model",
+    "model_note": (
+        "Regresja grzbietowa (ridge) rang cech na rangę wyniku wobec WIG w kolejnych 20 "
+        "sesjach. Trenowana na tygodniach od {start} do {end} ({n}), kara {p}. Kolumna "
+        "„trafność poza próbą” to średnia korelacja rang cechy z późniejszym wynikiem w "
+        "tygodniach testu."
+    ),
+    "Feature": "Cecha",
+    "Weight": "Waga",
+    "Out-of-sample rank IC": "Trafność poza próbą (IC)",
+    "Out-of-sample result against WIG": "Wynik poza próbą wobec WIG",
+    "The pick, after costs": "Wybór modelu, po kosztach",
+    "Top 10 scores, before costs": "10 najwyżej ocenionych, przed kosztami",
+    "All liquid stocks": "Wszystkie płynne spółki",
+    "backtest_note": (
+        "Każdy rok liczony modelem trenowanym tylko na wcześniejszych latach. Tygodnie "
+        "testu: {weeks} ({start} – {end}). Wybór modelu: średnio {mean} tygodniowo po "
+        "kosztach (p = {p}), liczba zamian: {switches}. Trafność rankingu (IC): {ic} (t = {t}). "
+        "Sam trend 12-miesięczny tą samą regułą: {mom} łącznie."
+    ),
+    "Live record": "Zapis na żywo",
+    "live_note": (
+        "Wybory zapisane w chwili ich dokonania, nigdy nie poprawiane. Tylko ten wynik "
+        "naprawdę się liczy."
+    ),
+    "Week": "Tydzień",
+    "Switch": "Zamiana",
+    "Result vs WIG, after costs": "Wynik wobec WIG, po kosztach",
+    "No live picks yet.": "Jeszcze nie ma wyborów na żywo.",
+    "Limitations": "Ograniczenia",
+    "pick_limits": (
+        "Brak danych finansowych spółek (zyski, wartość rynkowa, wskaźniki): model widzi tylko "
+        "kursy, obroty i raporty bieżące. Historia w bazie ma luki, a model uczy się tylko "
+        "na ciągłych okresach. Koszt każdej zamiany to 2% (cały obrót: kupno i sprzedaż). "
+        "Jedna spółka to dużo szumu: ranking jako całość jest bardziej wiarygodny niż "
+        "pojedynczy wybór."
+    ),
+    "pick_not_ready": (
+        "Za mało ciągłej historii notowań do dziś, by ocenić spółki. Wybór pojawi się, gdy "
+        "baza będzie miała rok ciągłych notowań kończących się dzisiejszą sesją."
+    ),
+    "Stock of the week: {t}": "Spółka tygodnia: {t}",
+    "the model: {v}": "model: {v}",
+    "See the full analysis": "Zobacz pełną analizę",
+    # glossary additions
+    "Rank IC": "Trafność rankingu (IC)",
+    "g_ic": (
+        "Korelacja rang: czy spółki ocenione wyżej rzeczywiście wypadały potem lepiej niż "
+        "ocenione niżej. 0 to brak związku, 1 to idealny ranking. Na giełdzie 0,05 już coś "
+        "znaczy, a 0,10 to dużo."
+    ),
+    "Ridge regression": "Regresja grzbietowa (ridge)",
+    "g_ridge": (
+        "Model liniowy z karą za duże wagi: przy wielu podobnych cechach nie pozwala żadnej "
+        "zdominować wyniku. Ocena spółki to suma cech razy wagi, więc da się ją rozłożyć na "
+        "części."
+    ),
+    "Switching rule": "Reguła zamiany",
+    "g_hysteresis": (
+        "Wybór zmienia się tylko, gdy nowy lider ma oczekiwany wynik lepszy o więcej niż koszt "
+        "zamiany (2%). Bez tego model wymieniałby spółkę co tydzień i koszty zjadłyby wynik."
+    ),
+    "Live record vs backtest": "Zapis na żywo a test historyczny",
+    "g_live": (
+        "Test historyczny liczy, jak model wybierałby w przeszłości, na danych, których nie "
+        "widział. Zapis na żywo to wybory zapisane w chwili ich dokonania. Test może być "
+        "zbyt optymistyczny, zapis na żywo nie."
+    ),
     # pipeline
     "Signal events": "Zdarzenia-sygnały",
     "{n} other reports": "inne raporty: {n}",
@@ -558,6 +665,61 @@ EN_OVERRIDES: dict[str, str] = {
         "as the report. Undercurrent is not affiliated with XTB and recommends no broker."
     ),
     "Avg excess [0,+{h}]": "Avg excess, {h} sessions after entry",
+    "pick_lede": (
+        "Among liquid WIG stocks, the model picks the one with the highest expected result "
+        "against WIG over the next 20 sessions. The pick changes once a week, and only when "
+        "the new leader is better by more than the cost of switching. Below is everything the "
+        "pick rests on, and how the model did on data it had not seen."
+    ),
+    "why_note": (
+        "The largest parts of the score: each feature is compared with the other liquid "
+        "stocks, and its weight comes from the model."
+    ),
+    "model_note": (
+        "Ridge regression of the features' ranks on the rank of the result against WIG over "
+        "the next 20 sessions. Trained on weeks from {start} to {end} ({n}), penalty {p}. "
+        "“Out-of-sample rank IC” is the feature's average rank correlation with the "
+        "later result in the test weeks."
+    ),
+    "backtest_note": (
+        "Each year scored by a model trained only on earlier years. Test weeks: {weeks} "
+        "({start} – {end}). The pick: {mean} a week on average after costs (p = {p}), "
+        "switches: {switches}. Ranking accuracy (IC): {ic} (t = {t}). The 12-month trend alone, "
+        "same rule: {mom} in total."
+    ),
+    "live_note": (
+        "Picks recorded when they were made, never corrected. Only this result really counts."
+    ),
+    "pick_limits": (
+        "No company financials (earnings, market value, ratios): the model sees only prices, "
+        "turnover and current reports. The lake's history has holes, and the model learns "
+        "only from continuous stretches. Every switch costs 2% (a full round trip). One stock "
+        "is a lot of noise: the ranking as a whole is more reliable than a single pick."
+    ),
+    "pick_not_ready": (
+        "Not enough continuous price history up to today to score stocks. The pick appears "
+        "once the lake has a year of continuous sessions ending today."
+    ),
+    "g_ic": (
+        "Rank correlation: whether stocks scored higher really did better afterwards than "
+        "those scored lower. 0 is no link, 1 a perfect ranking. On a stock market 0.05 already "
+        "means something, and 0.10 is a lot."
+    ),
+    "g_ridge": (
+        "A linear model with a penalty on large weights: with many similar features it lets "
+        "none of them dominate. A stock's score is the sum of features times weights, so it "
+        "can be taken apart."
+    ),
+    "g_hysteresis": (
+        "The pick changes only when the new leader's expected result is better by more than "
+        "the cost of switching (2%). Without it the model would swap every week and costs "
+        "would eat the result."
+    ),
+    "g_live": (
+        "The backtest computes how the model would have picked in the past, on data it had "
+        "not seen. The live record is the picks as they were made. A backtest can flatter; "
+        "the live record cannot."
+    ),
 }
 
 # Polish plural forms: (1, 2–4, 5+), keyed by the English singular.
@@ -685,6 +847,110 @@ VERDICT_EXPLAIN: dict[str, dict[str, str]] = {
         ),
         "noise": "Ruchu kursu po takich raportach nie da się odróżnić od przypadku.",
         "too_few": "Za mało wcześniejszych zdarzeń, by cokolwiek powiedzieć.",
+    },
+}
+# Stock of the week: feature names, verdicts and what they mean.
+FEATURE_LABELS: dict[str, dict[str, str]] = {
+    "en": {
+        "mom_12_1": "12-month trend vs WIG (last month left out)",
+        "mom_6_1": "6-month trend vs WIG (last month left out)",
+        "rev_1m": "Last month vs WIG",
+        "off_high": "Distance from the 52-week high",
+        "vol_60": "Volatility (3 months, annualised)",
+        "beta": "Beta to WIG (1 year)",
+        "resid_vol": "Own volatility beyond WIG's (annualised)",
+        "drawdown": "Deepest fall in the last year",
+        "turnover": "Median daily turnover",
+        "no_trade": "Sessions without a trade",
+        "illiquidity": "Price impact of trading (Amihud)",
+        "news_insider_buy": "Insider purchases reported (3 months)",
+        "news_insider_sell": "Insider sales reported (3 months)",
+        "news_holder": "Holder thresholds crossed (3 months)",
+        "news_profit_warning": "Results estimates / warnings (3 months)",
+        "news_contract": "Large contracts (3 months)",
+        "news_financing": "Financing reports (3 months)",
+        "news_buyback": "Buybacks and dividends (3 months)",
+        "news_m_and_a": "M&A and tender offers (3 months)",
+        "news_other": "Other price-sensitive reports (3 months)",
+        "insider_net": "Insider net buying, last month (days of turnover)",
+        "corp_actions": "Corporate actions (3 months)",
+    },
+    "pl": {
+        "mom_12_1": "Trend 12 miesięcy wobec WIG (bez ostatniego miesiąca)",
+        "mom_6_1": "Trend 6 miesięcy wobec WIG (bez ostatniego miesiąca)",
+        "rev_1m": "Ostatni miesiąc wobec WIG",
+        "off_high": "Odległość od rocznego maksimum",
+        "vol_60": "Zmienność (3 miesiące, w skali roku)",
+        "beta": "Beta wobec WIG (rok)",
+        "resid_vol": "Własna zmienność ponad WIG (w skali roku)",
+        "drawdown": "Największy spadek w ostatnim roku",
+        "turnover": "Mediana dziennego obrotu",
+        "no_trade": "Sesje bez transakcji",
+        "illiquidity": "Wpływ handlu na cenę (Amihud)",
+        "news_insider_buy": "Zgłoszone zakupy insiderów (3 miesiące)",
+        "news_insider_sell": "Zgłoszone sprzedaże insiderów (3 miesiące)",
+        "news_holder": "Przekroczone progi akcjonariatu (3 miesiące)",
+        "news_profit_warning": "Szacunki wyników / ostrzeżenia (3 miesiące)",
+        "news_contract": "Znaczące umowy (3 miesiące)",
+        "news_financing": "Raporty o finansowaniu (3 miesiące)",
+        "news_buyback": "Skupy akcji i dywidendy (3 miesiące)",
+        "news_m_and_a": "Fuzje, przejęcia, wezwania (3 miesiące)",
+        "news_other": "Inne informacje poufne (3 miesiące)",
+        "insider_net": "Saldo zakupów insiderów, ostatni miesiąc (w dniach obrotu)",
+        "corp_actions": "Operacje na akcjach (3 miesiące)",
+    },
+}
+PICK_VERDICTS: dict[str, dict[str, str]] = {
+    "en": {
+        "beats_wig": "beats WIG after costs",
+        "unconfirmed": "positive, not confirmed",
+        "no_edge": "no edge shown",
+        "too_short": "too little history to judge",
+    },
+    "pl": {
+        "beats_wig": "pokonuje WIG po kosztach",
+        "unconfirmed": "dodatni, bez potwierdzenia",
+        "no_edge": "bez wykazanej przewagi",
+        "too_short": "za krótka historia, by ocenić",
+    },
+}
+PICK_EXPLAIN: dict[str, dict[str, str]] = {
+    "en": {
+        "beats_wig": (
+            "Picked week by week on data it had not seen, the model's stock beat WIG after "
+            "trading costs, by more than chance explains."
+        ),
+        "unconfirmed": (
+            "Picked week by week on data it had not seen, the model's stock beat WIG after "
+            "costs, but not by enough to tell it from luck."
+        ),
+        "no_edge": (
+            "Picked week by week on data it had not seen, the model's stock did not beat WIG "
+            "after costs. This stock is the model's top score, not a proven winner."
+        ),
+        "too_short": (
+            "The model has not yet been tested on enough weeks it had not seen to say "
+            "anything about its picks."
+        ),
+    },
+    "pl": {
+        "beats_wig": (
+            "Wybierana co tydzień na danych, których model nie widział, spółka modelu "
+            "pokonywała WIG po kosztach transakcji, bardziej niż tłumaczy to przypadek."
+        ),
+        "unconfirmed": (
+            "Wybierana co tydzień na danych, których model nie widział, spółka modelu "
+            "pokonywała WIG po kosztach, ale za słabo, by odróżnić to od przypadku."
+        ),
+        "no_edge": (
+            "Wybierana co tydzień na danych, których model nie widział, spółka modelu nie "
+            "pokonywała WIG po kosztach. To najwyżej oceniona spółka, a nie sprawdzony "
+            "zwycięzca."
+        ),
+        "too_short": (
+            "Model nie był jeszcze sprawdzony na dość wielu tygodniach, których nie widział, "
+            "by cokolwiek powiedzieć o jego wyborach."
+        ),
     },
 }
 # Section titles on the Today page, one per verdict.

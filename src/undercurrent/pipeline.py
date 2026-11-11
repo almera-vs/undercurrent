@@ -244,6 +244,7 @@ def run_day(
             transform.build(data_dir, work_dir)
             stats_path = study.run_study(transform.duckdb_path(work_dir), work_dir, day)
             snapshot_gold(data_dir, stats_path, day)
+            _run_pick(work_dir, data_dir, transform.duckdb_path(work_dir), day)
             _refresh_xtb_links(client, data_dir, transform.duckdb_path(work_dir), clock())
         res.status = "ok" if not res.problems else "degraded"
         if publish and run_transform:
@@ -286,6 +287,16 @@ def run_day(
         log.info("run summary: %s", json.dumps(res.row(), default=str, ensure_ascii=False))
 
 
+def _run_pick(work_dir: Path, data_dir: Path, duckdb_file: Path, day: date) -> None:
+    """Stock of the week (``pick.py``). Optional: a failure is only logged."""
+    from undercurrent import pick
+
+    try:
+        pick.run_pick(duckdb_file, work_dir, data_dir, day)
+    except Exception as exc:  # the digest must not wait on the pick
+        log.warning("stock of the week not computed: %s: %s", type(exc).__name__, exc)
+
+
 def _refresh_xtb_links(
     client: PoliteClient, data_dir: Path, duckdb_file: Path, now: datetime
 ) -> None:
@@ -294,7 +305,9 @@ def _refresh_xtb_links(
 
     try:
         since = now - timedelta(days=XTB_LOOKBACK_DAYS)
-        xtb.refresh(client, data_dir, xtb.recent_companies(duckdb_file, since), now=now)
+        top = duckdb_file.parent / "gold" / "pick_scores.parquet"
+        also = pl.read_parquet(top).head(10)["isin"].to_list() if top.exists() else []
+        xtb.refresh(client, data_dir, xtb.recent_companies(duckdb_file, since, also), now=now)
     except Exception as exc:  # the links are a convenience; the digest must not wait on them
         log.warning("xtb links not refreshed: %s: %s", type(exc).__name__, exc)
 

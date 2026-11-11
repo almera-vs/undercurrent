@@ -375,12 +375,12 @@ def compute_event_ars(inputs: StudyInputs) -> list[EventAR]:
     return out
 
 
-def buyable(close: FloatArray, turnover: FloatArray) -> bool:
+def buyable(close: FloatArray, turnover: FloatArray, min_turnover: float = MIN_TURNOVER) -> bool:
     """Whether a stock was priced and traded enough, over the sessions given, to be bought."""
     prices = close[np.isfinite(close)]
     if not len(prices) or float(np.median(prices)) < MIN_PRICE:
         return False
-    return float(np.median(turnover)) >= MIN_TURNOVER
+    return float(np.median(turnover)) >= min_turnover
 
 
 def _excess(e: EventAR, start: int, end: int) -> float:
