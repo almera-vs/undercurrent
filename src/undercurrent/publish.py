@@ -256,12 +256,16 @@ def headline_horizon(key: str, by_key_h: dict[tuple[str, int], dict[str, Any]]) 
     return HORIZON_DEFAULT
 
 
-def within_slo(run: dict[str, Any]) -> bool:
-    """Digest delivered by 20:30 Warsaw on the run date.
+def within_slo(run: dict[str, Any]) -> bool | None:
+    """Digest delivered by 20:30 Warsaw on the run date; None on an exchange holiday.
 
-    A failed run, or one that found no GPW session (it sends an alert, not a digest), does
-    not count, whatever time it finished.
+    A failed run, or one that found no GPW session data on a session day (it sends an alert,
+    not a digest), does not count, whatever time it finished. A holiday has no digest due.
     """
+    from undercurrent.pipeline import CLOSED_NOTE
+
+    if CLOSED_NOTE in (run.get("notes") or ""):
+        return None
     fin = run.get("finished_at")
     if fin is None or run.get("status") == "failed":
         return False
@@ -276,7 +280,7 @@ def health_text(bits: list[tuple[str, dict[str, Any]]], lang: str) -> str:
     _ = i18n.tr(lang)
     out = []
     for tmpl, kw in bits:
-        kw = {k: (_(v) if isinstance(v, str) and k == "s" else v) for k, v in kw.items()}
+        kw = {k: (_(v) if isinstance(v, str) and k in ("s", "h") else v) for k, v in kw.items()}
         out.append(_(tmpl, **kw))
     text = " · ".join(out)
     return text[:1].upper() + text[1:]
@@ -577,6 +581,11 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
     }
     status = run.get("status", "unknown")
     health_bits: list[tuple[str, dict[str, Any]]] = [("Run {s}", {"s": status})]
+    from undercurrent.pipeline import CLOSED_NOTE
+
+    for note in (run.get("notes") or "").split("; "):
+        if note.startswith(CLOSED_NOTE):
+            health_bits.append(("exchange closed ({h})", {"h": note[len(CLOSED_NOTE) :]}))
     if run.get("nc_pending"):
         health_bits.append(("NewConnect prices pending", {}))
     if stuck:
@@ -960,14 +969,20 @@ def publish(
     digest_dir: Path = Path("digests"),
     send: bool = True,
     site_url: str | None = None,
+    digest: bool = True,
 ) -> SiteContext:
-    """Render the site and (optionally) send the digest."""
+    """Render the site and (optionally) archive and send the digest.
+
+    ``digest=False`` (an exchange holiday) renders the site only: the day's reports go into
+    the next session's digest, so no digest file is written for this day.
+    """
     ctx = gather(work, data_dir, day, site_url or os.environ.get("SITE_URL", DEFAULT_SITE_URL))
     files = render_site(ctx, out)
     log.info("site: %d pages in %s", len(files), out)
-    arch = digest_dir / f"{day:%Y}" / f"{day:%m}" / f"{day:%d}.md"
-    arch.parent.mkdir(parents=True, exist_ok=True)
-    arch.write_text(digest_markdown(ctx), encoding="utf-8")
+    if digest:
+        arch = digest_dir / f"{day:%Y}" / f"{day:%m}" / f"{day:%d}.md"
+        arch.parent.mkdir(parents=True, exist_ok=True)
+        arch.write_text(digest_markdown(ctx), encoding="utf-8")
     if send:
         text, markup = digest_message(ctx)
         send_telegram(text, markup)
@@ -975,14 +990,17 @@ def publish(
 
 
 def expected_run_date(now: datetime) -> date:
-    """Latest weekday whose nightly run should have finished by ``now`` (20:15 Warsaw)."""
+    """Latest session day whose nightly run should have finished by ``now`` (20:15 Warsaw).
+
+    Weekends and exchange holidays have no run due.
+    """
+    from undercurrent import gpw_calendar
+
     local = now.astimezone(WARSAW)
     day = local.date()
     if local.strftime("%H:%M") < "20:15":
         day -= timedelta(days=1)
-    while day.weekday() >= 5:
-        day -= timedelta(days=1)
-    return day
+    return gpw_calendar.last_session(day)
 
 
 def is_stale(data_dir: Path, now: datetime | None = None) -> str | None:

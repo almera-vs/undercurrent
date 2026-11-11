@@ -27,7 +27,7 @@
   <tr><td class="mono">{{ r.run_date }}</td>
   <td><span class="verdict v-{{ 'holds_up' if r.status == 'ok' else ('eaten_by_costs' if r.status == 'degraded' else 'noise') }}">{{ _(r.status) }}</span></td>
   <td class="mono">{{ fin.strftime('%Y-%m-%d %H:%M') if fin else '—' }}</td>
-  <td class="r">{{ '✓' if r.within_slo else '✗' }}</td>
+  <td class="r">{{ '—' if r.within_slo is none else ('✓' if r.within_slo else '✗') }}</td>
   <td class="r mono">{{ r.reports_new }}</td><td class="r mono">{{ r.reports_failed }}</td><td class="r mono">{{ r.prices_gpw_rows }}</td><td class="r mono">{{ r.prices_nc_rows }}</td><td class="muted small" lang="en">{{ r.notes or '' }}{% if r.reruns %} <span class="pill-mini">{{ _('{n} earlier run(s) replaced', n=r.reruns) }}</span>{% endif %}</td></tr>
   {% else %}
   <tr><td colspan="9" class="muted">{{ _('No runs recorded yet.') }}</td></tr>

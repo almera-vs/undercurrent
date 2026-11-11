@@ -43,7 +43,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          sparse-checkout: scripts
+          # the gate script and the exchange calendar it asks (standard library only)
+          sparse-checkout: |
+            /scripts/
+            /src/undercurrent/gpw_calendar.py
+          sparse-checkout-cone-mode: false
       - id: gate
         env:
           GH_TOKEN: ${{ github.token }}

@@ -251,3 +251,31 @@ def test_backfill_yields_inside_nightly_window(tmp_path):
             DAY, DAY, data_dir=tmp_path / "lake", client=c, sleep=clock.sleep, clock=clock
         )
     assert clock.slept == 90 * 60
+
+
+def test_a_holiday_run_is_closed_not_degraded(tmp_path):
+    """11 November: no prices, no NewConnect wait, no alert, no digest file; status ok."""
+    holiday = date(2026, 11, 11)
+    clock = FakeClock(datetime(2026, 11, 11, 17, 40, tzinfo=UTC))
+    asked: list[str] = []
+    site = _site(nc_available_after=None)
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        asked.append(str(req.url))
+        return site(req)
+
+    with _client(tmp_path, handler) as c:
+        rc = pipeline.run_day(
+            holiday,
+            data_dir=tmp_path / "lake",
+            client=c,
+            sleep=clock.sleep,
+            clock=clock,
+            run_transform=False,
+            forms_catch_up_s=0,
+        )
+    assert rc == 0 and clock.slept == 0
+    row = lake.read_state(tmp_path / "lake", "runs").row(0, named=True)
+    assert row["status"] == "ok" and not row["nc_pending"]
+    assert row["notes"] == "GPW closed: Independence Day"
+    assert not any("11-11-2026" in u or "NC_20261111" in u for u in asked)  # no prices asked

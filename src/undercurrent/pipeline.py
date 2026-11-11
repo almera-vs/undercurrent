@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo
 
 import polars as pl
 
-from undercurrent import ingest, lake
+from undercurrent import gpw_calendar, ingest, lake
 from undercurrent.fetch import PoliteClient
 
 log = logging.getLogger(__name__)
@@ -31,6 +31,8 @@ REPORT_LOOKBACK_DAYS = 4
 PRICE_LOOKBACK_SESSIONS = 10
 # Stop waiting for the NewConnect file at this Warsaw local time (SLO is 20:30).
 NC_WAIT_UNTIL_LOCAL = time(20, 5)
+# Run note on an exchange holiday, followed by its name (gpw_calendar). Not a problem.
+CLOSED_NOTE = "GPW closed: "
 NC_POLL_EVERY_S = 300
 # Never wait longer than this for the NewConnect file, whatever the clock says: a run started
 # hours early or late must not sit until the job times out.
@@ -75,6 +77,11 @@ class RunResult:
     prices_nc_rows: int = 0
     nc_pending: bool = False
     notes: list[str] = field(default_factory=list)
+
+    @property
+    def problems(self) -> list[str]:
+        """Notes that make the run degraded (an exchange holiday is not one)."""
+        return [n for n in self.notes if not n.startswith(CLOSED_NOTE)]
 
     def row(self) -> dict[str, Any]:
         """Row for the runs table."""
@@ -135,8 +142,14 @@ def _catch_up_forms(client: PoliteClient, root: Path, budget_s: float) -> None:
         log.exception("insider forms catch-up failed; continuing without")
 
 
+def _recent_sessions(day: date, n: int) -> list[date]:
+    """The ``n`` GPW session days up to and including ``day``, oldest first."""
+    weekdays = ingest.recent_weekdays(day, n + 15)
+    return [d for d in weekdays if gpw_calendar.is_session(d)][-n:]
+
+
 def _fill_price_gaps(client: PoliteClient, root: Path, day: date, res: RunResult) -> None:
-    for d in ingest.recent_weekdays(day, PRICE_LOOKBACK_SESSIONS):
+    for d in _recent_sessions(day, PRICE_LOOKBACK_SESSIONS):
         try:
             res.prices_gpw_rows += sum(ingest.ingest_gpw_prices(client, root, d).values())
         except ingest.NoSessionError:
@@ -202,6 +215,12 @@ def run_day(
     # Recorded as "running" straight away: if the job is killed (a timeout, a cancelled
     # workflow) the row stays that way and the pipeline page shows a run that did not finish.
     _record_run(data_dir, res)
+    # An exchange holiday: reports are still collected (they go into the next session's
+    # digest), but there are no prices to wait for and no digest to send.
+    closed = gpw_calendar.closed_reason(day)
+    if closed:
+        res.notes.append(f"{CLOSED_NOTE}{closed}")
+        log.info("%s: GPW closed (%s)", day, closed)
     try:
         days = [day - timedelta(days=i) for i in range(REPORT_LOOKBACK_DAYS - 1, -1, -1)]
         this_month = day.replace(day=1)
@@ -215,7 +234,10 @@ def run_day(
         if wait_for_nc:
             wait_until = datetime.combine(day, NC_WAIT_UNTIL_LOCAL, tzinfo=WARSAW).astimezone(UTC)
             wait_until = min(wait_until, res.started_at + timedelta(seconds=NC_MAX_WAIT_S))
-        _wait_for_nc(client, data_dir, day, res, wait_until=wait_until, sleep=sleep, clock=clock)
+        if not closed:
+            _wait_for_nc(
+                client, data_dir, day, res, wait_until=wait_until, sleep=sleep, clock=clock
+            )
         if run_transform:
             from undercurrent import study, transform
 
@@ -223,7 +245,7 @@ def run_day(
             stats_path = study.run_study(transform.duckdb_path(work_dir), work_dir, day)
             snapshot_gold(data_dir, stats_path, day)
             _refresh_xtb_links(client, data_dir, transform.duckdb_path(work_dir), clock())
-        res.status = "ok" if not res.notes else "degraded"
+        res.status = "ok" if not res.problems else "degraded"
         if publish and run_transform:
             from undercurrent import publish as pub
 
@@ -232,7 +254,13 @@ def run_day(
             _record_run(data_dir, res)
             no_session = any(n.startswith("no GPW session") for n in res.notes)
             pub.publish(
-                work_dir, data_dir, day, out=site_dir, digest_dir=digest_dir, send=not no_session
+                work_dir,
+                data_dir,
+                day,
+                out=site_dir,
+                digest_dir=digest_dir,
+                send=not no_session and not closed,
+                digest=not closed,
             )
             if no_session:
                 pub.send_alert(
@@ -275,15 +303,14 @@ def nightly_date(now: datetime) -> date:
     """Trading day a nightly run started at ``now`` belongs to.
 
     GitHub can deliver a schedule hours late. A run that starts before the 17:05 close belongs
-    to the last weekday whose session has finished, not to the new day.
+    to the last session that has finished, not to the new day; weekends and exchange
+    holidays (``gpw_calendar``) are skipped.
     """
     local = now.astimezone(WARSAW)
     day = local.date()
     if local.time() < time(17, 5):
         day -= timedelta(days=1)
-    while day.weekday() >= 5:
-        day -= timedelta(days=1)
-    return day
+    return gpw_calendar.last_session(day)
 
 
 def _yield_to_nightly(clock: Callable[[], datetime], sleep: Callable[[float], None]) -> None:

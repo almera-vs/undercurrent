@@ -9,14 +9,21 @@
 # The trading day follows pipeline.nightly_date: before the 17:05 close it is the last
 # weekday whose session has finished.
 #
+# A scheduled attempt never picks an exchange holiday: it falls back to the last session
+# (src/undercurrent/gpw_calendar.py), whose digest is normally out already. A run started by
+# hand for a holiday goes through, and the pipeline records the day as closed.
+#
 # Prints "date=YYYY-MM-DD", "go=true|false" and "reason=..." (GITHUB_OUTPUT format).
 # Usage: nightly_gate.sh <schedule|workflow_dispatch> <requested date|today>
 # Env:   NOW      "YYYY-MM-DD HH:MM" Warsaw time, for tests (default: the clock)
 #        DIGEST_EXISTS  command that succeeds if the digest of $1 is on main
 #                       (default: asks the GitHub API; needs GH_TOKEN and GITHUB_REPOSITORY)
+#        PYTHON   interpreter for the calendar (default: python3)
 set -euo pipefail
 event="${1:-schedule}"
 requested="${2:-today}"
+calendar="$(dirname "$0")/../src/undercurrent/gpw_calendar.py"
+python="${PYTHON:-python3}"
 
 if [ -n "${NOW:-}" ]; then
   today="${NOW%% *}"
@@ -45,6 +52,21 @@ if [ "$event" != "schedule" ]; then
   echo "date=$day"
   echo "go=true"
   echo "reason=started by hand"
+  exit 0
+fi
+
+session=$("$python" "$calendar" last-session "$day")
+if [ "$session" != "$day" ]; then
+  why=$("$python" "$calendar" closed "$day" || true)
+  day="$session"
+  echo "date=$day"
+  if digest_exists "$day"; then
+    echo "go=false"
+    echo "reason=GPW closed ($why); the digest for $day is already out"
+  else
+    echo "go=true"
+    echo "reason=GPW closed ($why); no digest for $day yet"
+  fi
   exit 0
 fi
 

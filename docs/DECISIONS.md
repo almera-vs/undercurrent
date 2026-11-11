@@ -237,6 +237,18 @@ it costs. Method details (event study, walk-forward, verdicts) are in
   disclaimer. A failed job or a weekday without GPW session data sends an alert instead.
 - **Keepalive:** GitHub disables schedules in repos without recent commits. The nightly run
   commits `digests/YYYY/MM/DD.md` to `main` in addition to data commits on `data`.
+- **Exchange holidays are known in advance** (`gpw_calendar.py`). GPW closes on the Polish
+  public holidays and also on Good Friday, Christmas Eve and New Year's Eve; for 2026 that is
+  ten weekdays (GPW resolution 753/2025). The rule reproduces every closed weekday in the
+  lake's WIG calendar; one-off closures (2013-04-16, 2018-01-02, 2018-11-12) are listed by
+  hand, and a new one has to be added there. Before this, 11 November 2026 ran as a session
+  day: the empty price archive made it "degraded", NewConnect prices "pending", the SLO
+  missed, and Telegram got an alert. Now scheduled attempts on a holiday resolve to the last
+  session and end in the gate; the watchdog expects no run; a run started by hand for a
+  holiday collects reports, fetches no prices, renders the site, writes no digest file,
+  sends nothing and records "GPW closed: <holiday>" with status ok. The holiday's reports go
+  into the next session's digest, as before. The gate runs the calendar with the runner's
+  own `python3` (standard library only), before the project is installed.
 - **Freshness SLO:** digest sent by 20:30 Warsaw time on every trading day. The `runs` table
   records each run and the Pipeline page shows whether it met the SLO; `watchdog.yml` sends
   an alert if no successful run exists by 20:15.
