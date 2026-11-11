@@ -297,8 +297,8 @@ PL: dict[str, str] = {
     "No price data for this company yet.": "Brak notowań tej spółki.",
     "{t} on XTB ↗": "{t} w XTB ↗",
     "xtb_note": (
-        "Strona instrumentu w XTB, sprawdzona po kodzie ISIN. Undercurrent nie jest "
-        "powiązany z XTB."
+        "Strona instrumentu w XTB, sprawdzona po kodzie ISIN; logo pochodzi z serwera XTB i "
+        "jest znakiem towarowym spółki. Undercurrent nie jest powiązany z XTB."
     ),
     "Other reports of this company": "Inne raporty tej spółki",
     "Avg vs WIG, {p} after entry": "Śr. wobec WIG, {p} od wejścia",
@@ -415,6 +415,35 @@ PL: dict[str, str] = {
     "Stock of the week · Undercurrent": "Spółka tygodnia · Undercurrent",
     "Stock of the week": "Spółka tygodnia",
     "the model’s estimate, not a promise": "szacunek modelu, nie obietnica",
+    "week of {d}": "tydzień od {d}",
+    "Logo from XTB’s server; it is the company’s trademark.": (
+        "Logo z serwera XTB; jest znakiem towarowym spółki."
+    ),
+    "How the model chose it": "Jak model ją wybrał",
+    "rank among liquid WIG stocks": "miejsce wśród płynnych spółek z WIG",
+    "Last 12 months vs WIG": "Ostatnie 12 miesięcy wobec WIG",
+    "Median daily turnover": "Mediana dziennego obrotu",
+    "A year against WIG": "Rok wobec WIG",
+    "Return vs WIG": "Wynik wobec WIG",
+    "a price-sensitive report (hover for its kind)": (
+        "raport cenotwórczy (najedź, by zobaczyć rodzaj)"
+    ),
+    "The top 10 this week": "Dziesiątka tego tygodnia",
+    "last 60 sessions": "ostatnie 60 sesji",
+    "Expected result against WIG over 20 sessions; the line is the last 60 sessions.": (
+        "Oczekiwany wynik wobec WIG w ciągu 20 sesji; linia to ostatnie 60 sesji."
+    ),
+    "How good is the model?": "Jak dobry jest model?",
+    "Ranking accuracy (IC)": "Trafność rankingu (IC)",
+    "0 = no link, 0.10 = a lot · t = {t}": "0 = brak związku, 0,10 = dużo · t = {t}",
+    "Top 10 vs all liquid stocks": "Dziesiątka a wszystkie płynne spółki",
+    "vs {b} for all, against WIG, before costs": (
+        "wobec {b} dla wszystkich; względem WIG, przed kosztami"
+    ),
+    "The single pick, after costs": "Pojedynczy wybór, po kosztach",
+    "{w} weeks out of sample · p = {p}": "tygodnie poza próbą: {w} · p = {p}",
+    "switch": "zamiana",
+    "Every feature and its weight": "Wszystkie cechy i ich wagi",
     "pick_lede": (
         "Spośród płynnych spółek z WIG model wybiera tę o najwyższym oczekiwanym wyniku "
         "wobec WIG w ciągu 20 sesji. Wybór zmienia się raz w tygodniu, tylko gdy nowy lider "
@@ -588,8 +617,8 @@ EN_OVERRIDES: dict[str, str] = {
         "figures above do not apply to it."
     ),
     "xtb_note": (
-        "The instrument's page on XTB, checked against the ISIN. Undercurrent is not "
-        "affiliated with XTB."
+        "The instrument's page on XTB, checked against the ISIN; the logo comes from XTB's "
+        "server and is the company's trademark. Undercurrent is not affiliated with XTB."
     ),
     "wf_title": (
         "A rule chosen from earlier years only, tested on the next year, after the cost of "
@@ -1057,7 +1086,8 @@ def long_date(d: date, lang: str) -> str:
 
 
 def _bad(x: float | None) -> bool:
-    return x is None or (isinstance(x, float) and math.isnan(x))
+    # anything that is not a number shows as "—" (a template's missing value included)
+    return not isinstance(x, int | float) or (isinstance(x, float) and math.isnan(x))
 
 
 def group_digits(s: str, lang: str) -> str:

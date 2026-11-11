@@ -306,7 +306,8 @@ def _refresh_xtb_links(
     try:
         since = now - timedelta(days=XTB_LOOKBACK_DAYS)
         top = duckdb_file.parent / "gold" / "pick_scores.parquet"
-        also = pl.read_parquet(top).head(10)["isin"].to_list() if top.exists() else []
+        scores = pl.read_parquet(top) if top.exists() else pl.DataFrame()
+        also = scores.head(10)["isin"].to_list() if "isin" in scores.columns else []
         xtb.refresh(client, data_dir, xtb.recent_companies(duckdb_file, since, also), now=now)
     except Exception as exc:  # the links are a convenience; the digest must not wait on them
         log.warning("xtb links not refreshed: %s: %s", type(exc).__name__, exc)

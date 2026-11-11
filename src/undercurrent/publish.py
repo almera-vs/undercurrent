@@ -660,6 +660,27 @@ def _series(work: Path, isin: str, day: date, sessions: int) -> dict[str, Any]:
     }
 
 
+def _spark_series(work: Path, isins: list[str], day: date, sessions: int) -> dict[str, list[float]]:
+    """Each stock's compounded return over its last ``sessions`` sessions, for sparklines."""
+    from undercurrent.transform import duckdb_path
+
+    if not isins:
+        return {}
+    con = duckdb.connect(str(duckdb_path(work)))
+    try:
+        rows = con.execute(
+            "select isin, trade_date, adj_ret from adjusted_prices where list_contains(?, isin) "
+            "and trade_date <= ? order by isin, trade_date",
+            [isins, day],
+        ).fetchall()
+    finally:
+        con.close()
+    by: dict[str, list[float]] = {}
+    for isin, _, r in rows:
+        by.setdefault(isin, []).append(0.0 if r is None else float(r))
+    return {k: _cum(v[-sessions:]) for k, v in by.items()}
+
+
 def _cum(rets: list[float]) -> list[float]:
     out, acc = [], 1.0
     for r in rets:
@@ -722,8 +743,12 @@ def _pick_context(
     if not ctx["ready"]:
         return ctx
     top = scores.head(10).to_dicts()
+    sparks = _spark_series(work, [r["isin"] for r in top], day, 60)
+    best = max((abs(r["expected"]) for r in top), default=0.0) or 1.0
     for r in top:
         r["name"] = names.get(r["isin"], r["ticker"])
+        r["spark"] = pages.spark_svg(sparks.get(r["isin"], []))
+        r["bar"] = round(abs(r["expected"]) / best * 100)
     ctx["top"] = top
     current = live.sort("week").row(-1, named=True) if live.height else None
     isin = current["isin"] if current else top[0]["isin"]
@@ -743,8 +768,12 @@ def _pick_context(
         "ticker": pick_row["ticker"] if pick_row else (current or {}).get("ticker"),
         "name": names.get(isin, isin),
         "row": pick_row,
+        "rank": pick_row["rank"] if pick_row else None,
+        "universe": scores.height,
         "xtb_url": xtb.read_links(data_dir).get(isin),
+        "logo": xtb.read_logos(data_dir).get(isin),
     }
+    ctx["pick"]["initials"], ctx["pick"]["hue"] = pages.monogram(ctx["pick"]["ticker"])
     if pick_row is not None:
         contrib = sorted(
             ((f, pick_row[f"c_{f}"], pick_row[f"f_{f}"]) for f in FEATURES),
@@ -764,18 +793,30 @@ def _pick_context(
             for f, c, v in contrib[:6]
             if c
         ]
+        biggest = max((abs(w["contribution"]) for w in ctx["pick"]["why"]), default=0.0) or 1.0
+        for w in ctx["pick"]["why"]:
+            w["bar"] = round(abs(w["contribution"]) / biggest * 100)
     s = _series(work, isin, day, 252)
     ctx["pick"]["last_close"], ctx["pick"]["last_date"] = s["last_close"], s["last_date"]
     if s["dates"]:
+        from undercurrent.study import signal_key as _key
+
+        marks = []
+        first = s["dates"][0]
+        for r in reports.filter(
+            (pl.col("isin") == isin)
+            & (pl.col("pub_date") >= first)
+            & pl.col("signal_type").is_in(["insider_tx", "holder_threshold", "inside_info"])
+        ).iter_rows(named=True):
+            marks.append((r["pub_date"], _key(r["signal_type"], r["subtype"], r["insider_side"])))
         ctx["pick"]["chart"] = {
-            lang: pages.lines_svg(
-                [
-                    ("l-pick", ctx["pick"]["ticker"] or isin, _cum(s["stock"])),
-                    ("l-all", "WIG", _cum(s["wig"])),
-                ],
+            lang: pages.spotlight_svg(
                 s["dates"],
+                _cum(s["stock"]),
+                _cum(s["wig"]),
+                [(d, label_for(k, lang)) for d, k in marks],
+                ctx["pick"]["ticker"] or isin,
                 lang,
-                i18n.tr(lang)("Share price against WIG, last year"),
             )
             for lang in i18n.LANGS
         }
@@ -795,9 +836,9 @@ def _pick_context(
         )
     with_pages = {e["report_id"] for e in events}
     since = day - timedelta(days=PICK_REPORT_DAYS)
-    recent = reports.filter((pl.col("isin") == isin) & (pl.col("pub_date") >= since)).sort(
-        "known_at", descending=True
-    )
+    recent = reports.filter(
+        (pl.col("isin") == isin) & pl.col("pub_date").is_between(since, day)
+    ).sort("known_at", descending=True)
     from undercurrent.study import signal_key
 
     items = []
@@ -1022,13 +1063,13 @@ def _env(lang: str = "en") -> Environment:
         "health": lambda bits: health_text(bits, lang),
         "decimal": lambda x, d=2: (
             "—"
-            if x is None or (isinstance(x, float) and math.isnan(x))
+            if not isinstance(x, int | float) or (isinstance(x, float) and math.isnan(x))
             else i18n.group_digits(f"{x:.{d}f}", lang)
         ),
         "pct2": lambda x: i18n.pct(x, lang, digits=2),
         "qval": lambda q: (
             "—"
-            if q is None or (isinstance(q, float) and math.isnan(q))
+            if not isinstance(q, int | float) or (isinstance(q, float) and math.isnan(q))
             else ("< " + i18n.group_digits("0.01", lang))
             if q < 0.01
             else i18n.group_digits(f"{q:.2f}", lang)
@@ -1039,6 +1080,7 @@ def _env(lang: str = "en") -> Environment:
         "_": _,
         "lang": lang,
         "plural": lambda n, key: i18n.plural(lang, n, key),
+        "ring": lambda rank, universe: pages.ring_svg(rank, universe, lang),
     }
     return env
 

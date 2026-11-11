@@ -243,4 +243,13 @@ except whether the page exists and which ISIN it shows. Checked on 2026-11-11:
 - **Load:** the nightly run checks only stocks of events from the last 45 days that are new
   or were last checked over 30 days ago, at most 40 per night, one request per second.
   Results are in `state/xtb_links.parquet`; `undercurrent xtb-links` checks a backlog.
+- **Logos** (since 2026-11-11). Each verified page's title names XTB's symbol (`PKO.PL`), and
+  XTB serves the company's logo at `https://logos.xtb.com/<code>_pl.svg` (403 when it has
+  none). It is fetched once to check it exists, then the stock-of-the-week page shows it
+  straight from XTB's server, with a generated monogram as the fallback. The logos are the
+  companies' trademarks, and XTB's terms for reusing these files are not stated. The page
+  says where the logo comes from. If XTB objects, drop the `logo` column and the page falls
+  back to the monogram.
+- **Slug matching** ignores hyphens (`PKOBP` finds `pko-bp`) and also tries the first word
+  of the company name (`santander`). Every guess is still accepted only on the ISIN.
 - Undercurrent is not affiliated with XTB; the site says so next to every link.
