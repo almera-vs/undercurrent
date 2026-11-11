@@ -945,7 +945,9 @@ def _add_company_context(
         same = by_isin.get(e.get("isin"))
         e["history"] = []
         if same is not None:
-            rows = same.filter(pl.col("report_id") != e["report_id"]).head(COMPANY_HISTORY)
+            rows = same.filter(
+                (pl.col("report_id") != e["report_id"]) & (pl.col("pub_date") <= day)
+            ).head(COMPANY_HISTORY)
             for r in rows.iter_rows(named=True):
                 e["history"].append(
                     {

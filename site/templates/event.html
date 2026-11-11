@@ -74,13 +74,14 @@
   </section>
 </div>
 
-<section class="panel">
+<div class="event-stats">
+<section class="panel chart-panel">
   <h2>{{ _('What happened after {n} similar events', n=e.path_n|num) if e.path_n else _('What happened after similar events') }}</h2>
   <p class="muted small">{{ _('event_chart_note', h=e.horizon) }}</p>
   {{ e.path|chart(e.entry, e.horizon)|safe }}
 </section>
 
-<section class="tiles five">
+<section class="tile-stack">
   <div class="tile"><span>{{ _('Avg vs WIG, {p} after entry', p=e.horizon|period) }}</span><b class="mono {{ (s.mean_car if s else none)|tone }}">{{ (s.mean_car if s else none)|pct }}</b></div>
   {% if s and s.hit_rate is not none %}
   <div class="tile"><span>{{ _('Better than WIG') }}</span><b class="mono">{{ ((s.hit_rate * 100)|round|int) }}%</b><small>{{ _('of {n} past cases', n=s.n|num) }}</small></div>
@@ -89,6 +90,7 @@
   <div class="tile"><span>{{ _('Chance it is luck') }} <a class="q" href="../glossary.html#q" title="{{ _('q_title') }}" aria-label="{{ _('What is this?') }}">?</a></span><b class="mono">{{ (s.q_value if s else none)|qval }}</b><small>{{ _('FDR-adjusted q') }}</small></div>
   <div class="tile"><span>{{ _('Bad case for a short (1 in 20), in sample') if e.tail_short else _('Bad case (1 in 20), in sample') }} <a class="q" href="../glossary.html#bad-case" title="{{ _('tail_title') }}" aria-label="{{ _('What is this?') }}">?</a></span><b class="mono {{ e.tail|tone }}">{{ e.tail|pct }}</b></div>
 </section>
+</div>
 
 <section class="panel">
   <h2>{{ _('Most recent past events') }}</h2>
