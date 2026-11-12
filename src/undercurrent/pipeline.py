@@ -244,6 +244,7 @@ def run_day(
             transform.build(data_dir, work_dir)
             stats_path = study.run_study(transform.duckdb_path(work_dir), work_dir, day)
             snapshot_gold(data_dir, stats_path, day)
+            _run_market_state(work_dir, transform.duckdb_path(work_dir), day)
             _run_pick(work_dir, data_dir, transform.duckdb_path(work_dir), day)
             _refresh_xtb_links(client, data_dir, transform.duckdb_path(work_dir), clock())
         res.status = "ok" if not res.problems else "degraded"
@@ -285,6 +286,23 @@ def run_day(
         if own_client:
             client.close()
         log.info("run summary: %s", json.dumps(res.row(), default=str, ensure_ascii=False))
+
+
+def _run_market_state(work_dir: Path, duckdb_file: Path, day: date) -> None:
+    """Market state (``market_state.py``), read by the pick. A failure is logged, not fatal.
+
+    A table left over from an earlier run is removed first, so a failure can never feed the
+    pick yesterday's state: the pick then falls back to its base model at flat costs and
+    records that it did (``uses_state`` in its summary).
+    """
+    from undercurrent import market_state
+    from undercurrent.pick_features import STATE_FILE
+
+    (work_dir / "gold" / STATE_FILE).unlink(missing_ok=True)
+    try:
+        market_state.run_market_state(duckdb_file, work_dir, day)
+    except Exception as exc:  # the digest must not wait on it
+        log.warning("market state not computed: %s: %s", type(exc).__name__, exc)
 
 
 def _run_pick(work_dir: Path, data_dir: Path, duckdb_file: Path, day: date) -> None:

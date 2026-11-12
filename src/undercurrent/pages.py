@@ -200,6 +200,12 @@ class CompanyContext:
     since_sessions: int = 0
     spark: dict[str, str] = field(default_factory=dict)  # per language
     notes: list[str] = field(default_factory=list)
+    # from the market state (market_state.py) and the forecast (pick.py), when they exist
+    tier: str | None = None  # thin / tradable / liquid
+    surprise: float | None = None  # day 0's residual return in its forecast σ
+    sigma_20: float | None = None  # forecast σ of the next 20 sessions' return
+    cost: float | None = None  # round-trip cost
+    forecast: dict[str, Any] | None = None  # this stock's row of pick_scores
 
 
 def liquidity(hist: PriceHistory, before: date) -> tuple[float | None, float | None, bool | None]:
@@ -367,6 +373,11 @@ FEATURE_KINDS: dict[str, str] = {
     "illiquidity": "num",
     "insider_net": "num",
     "corp_actions": "count",
+    "garch_vol": "pct",
+    "kalman_beta": "num",
+    "bond_beta": "num",
+    "resid_mom": "logret",
+    "surprise_20": "num",
 }
 
 

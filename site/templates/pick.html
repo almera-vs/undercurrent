@@ -35,12 +35,14 @@
     </div>
     <p class="spot-verdict"><span class="verdict v-{{ vclass }}">{{ _('The model so far') }}: {{ v|pickverdict }}</span></p>
     <p class="spot-explain">{{ v|pickexplain }}</p>
+    {% if p.source == 'basket' %}<p class="muted small">{{ _('The basket’s largest position this week: {w} of the basket. Weights follow risk, so steadier stocks get more; it is not necessarily the highest forecast.', w=p.weight|share) }}</p>
+    {% elif p.source == 'top_score' %}<p class="muted small">{{ _('No stock beats its own trading cost this week, so the basket stays in WIG. This is the model’s top score.') }}</p>{% endif %}
     <p class="spot-actions">
       {% if p.xtb_url %}<a class="btn" href="{{ p.xtb_url }}" rel="noopener nofollow">{{ _('{t} on XTB ↗', t=p.ticker) }}</a>{% endif %}
       <a class="btn btn-ghost" href="#model">{{ _('How the model chose it') }}</a>
     </p>
     {% if p.logo %}<p class="muted small">{{ _('Logo from XTB’s server; it is the company’s trademark.') }}</p>{% endif %}
-    {% if not k.is_live %}<p class="muted small">{{ _('Not yet in the live record: the first live pick is made on the first session of a week.') }}</p>{% endif %}
+    {% if not k.is_live %}<p class="muted small">{{ _('Not yet in the live record: the live basket is recorded on the first session of a week.') }}</p>{% endif %}
   </div>
   <div class="spot-side">
     {{ ring(p.rank, p.universe)|safe }}
@@ -116,6 +118,23 @@
   </ol>
   <p class="muted small">{{ _('Expected result against WIG over 20 sessions; the line is the last 60 sessions.') }}</p>
 </section>
+{% if k.basket and k.basket.rows %}
+<section class="panel reveal" id="basket">
+  <h2>{{ _('The basket this week') }}</h2>
+  <p class="muted">{{ _('Up to {k} stocks whose expected result beats their own trading cost, weighted so that groups of stocks that move together carry similar risk. The rest, {wig}, stays in WIG.', k=k.basket.max_names, wig=k.basket.wig|share) }}</p>
+  <ol class="board">
+    {% for b in k.basket.rows %}
+    <li class="{{ 'is-pick' if b.isin == p.isin else '' }}">
+      <span class="board-rank mono">{{ loop.index }}</span>
+      <span class="board-name"><b class="mono">{{ b.ticker }}</b><small class="muted">{{ b.name|company }}</small></span>
+      <span class="board-spark mono {{ b.expected|tone }}" title="{{ _('Expected vs WIG, 20 sessions') }}">{{ b.expected|pct }}</span>
+      <span class="board-exp"><span class="exp-track" aria-hidden="true"><span class="exp-bar pos" style="--w: {{ b.bar }}"></span></span><b class="mono">{{ b.weight|share }}</b></span>
+    </li>
+    {% endfor %}
+  </ol>
+  <p class="muted small">{{ _('Weights of the basket; the figure beside each name is its expected result against WIG over 20 sessions, before costs.') }}</p>
+</section>
+{% endif %}
 {% endif %}
 
 {% if k %}
@@ -128,7 +147,9 @@
     <div class="kpi"><span>{{ _('Ranking accuracy (IC)') }} <a class="q" href="glossary.html#ic" aria-label="{{ _('What is this?') }}">?</a></span><b class="mono">{{ s.ic_mean|decimal(2) }}</b>
       <span class="meter" aria-hidden="true"><span style="--w: {{ [icw, 0]|max }}"></span></span><small>{{ _('0 = no link, 0.10 = a lot · t = {t}', t=s.ic_t|decimal(1)) }}</small></div>
     <div class="kpi"><span>{{ _('Top 10 vs all liquid stocks') }}</span><b class="mono {{ s.top10_total|tone }}">{{ s.top10_total|pct }}</b><small>{{ _('vs {b} for all, against WIG, before costs', b=s.basket_total|pct) }}</small></div>
+    {% if s.basket_weeks %}<div class="kpi"><span>{{ _('The basket, after costs') }}</span><b class="mono {{ s.basket_total_net|tone }}">{{ s.basket_total_net|pct }}</b><small>{{ _('{w} weeks out of sample · p = {p} · {n} names on average', w=s.basket_weeks, p=s.basket_p_value|qval, n=s.basket_names|decimal(1)) }}{% if k.basket and k.basket.live_weeks %} · {{ _('live: {r} over {w} weeks', r=k.basket.live_total|pct, w=k.basket.live_weeks) }}{% endif %}</small></div>{% endif %}
     <div class="kpi"><span>{{ _('The single pick, after costs') }}</span><b class="mono {{ s.total_net|tone }}">{{ s.total_net|pct }}</b><small>{{ _('{w} weeks out of sample · p = {p}', w=s.oos_weeks, p=s.p_value|qval) }}</small></div>
+    {% if s.band_coverage is not none %}<div class="kpi"><span>{{ _('How often the result fell inside the 90% band') }}</span><b class="mono">{{ s.band_coverage|share }}</b><small>{% if s.live_coverage is not none %}{{ _('live: {c} over {w} weeks', c=s.live_coverage|share, w=s.ledger_scored_weeks) }}{% else %}{{ _('out of sample; no live week scored yet') }}{% endif %}</small></div>{% endif %}
   </div>
   {% if k.backtest_chart %}{{ k.backtest_chart[lang]|safe }}
   <p class="muted small">{{ _('backtest_note', weeks=s.oos_weeks, start=s.oos_start, end=s.oos_end, mean=s.mean_net|pct2, p=s.p_value|qval, switches=s.switches, ic=s.ic_mean|decimal(2), t=s.ic_t|decimal(1), mom=s.momentum_total_net|pct) }}</p>{% endif %}
@@ -139,9 +160,9 @@
   <p class="muted small">{{ _('live_note') }}</p>
   <ul class="weeks">
     {% for l in k.live %}
-    <li class="{{ l.net|tone }}"><span class="mono">{{ l.week|dm }}</span><b class="mono">{{ l.ticker }}</b><span class="mono">{{ l.net|pct }}</span>{% if l.switched %}<small>{{ _('switch') }}</small>{% endif %}</li>
+    <li class="{{ l.net|tone }}"><span class="mono">{{ l.week|dm }}</span><b class="mono">{{ l.top_ticker }}</b><span class="mono">{{ l.net|pct }}</span><small>{{ _('{n} names', n=l.names) }}</small></li>
     {% else %}
-    <li class="muted empty">{{ _('No live picks yet.') }}</li>
+    <li class="muted empty">{{ _('No live baskets yet.') }}</li>
     {% endfor %}
   </ul>
 

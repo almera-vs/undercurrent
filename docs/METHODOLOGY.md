@@ -250,6 +250,42 @@ Code: `src/undercurrent/pick_features.py` (features), `src/undercurrent/pick.py`
 
   The rank IC (with a moving-block bootstrap t), the deflated Sharpe ratio (trials: the four
   penalties and the momentum baseline), the drawdown and the switches are reported alongside.
+- **With the market state (§ 10).** Five more features: GARCH σ of the next 20 sessions,
+  Kalman betas to WIG and to bonds, residual momentum (12-1 months of the returns the betas
+  did not explain) and the last 20 sessions' surprises. Every purchase pays the bought
+  stock's own round-trip cost, and a switch must beat the held stock by that cost. Three
+  nested variants are walked forward (the 22 original features; plus the state's five; plus
+  an expected return in units of each stock's σ). The one with the best out-of-sample rank
+  IC of its expected return is the model; the page and `pick_ablation.parquet` show all
+  three. Without the state the three are the same model and costs are the flat 2.0 %.
+- **Band.** Conformal, per regime. Every training year after the first is scored by a
+  model fitted only on the purged weeks before it; each error (outcome − expected) ÷ σ is
+  kept with its week's regime (stress when the market state's stress probability is at
+  least ½). The 5th and 95th percentiles of a regime's errors give its band, expected +
+  percentile × σ; a regime with fewer than 8 weeks of errors uses the pooled percentiles.
+  "Bad case (1 in 20)" on the page is the lower edge of the band for the current regime. The
+  backtest records, per week, the regime, the band used and the share of outcomes inside it
+  (nominal 90 %). Bands are calibrated and scored on the outcomes before winsorizing.
+- **Coverage that corrects itself.** Adaptive conformal inference (Gibbs and Candès 2021):
+  the band's miss rate α starts at 10 % and, after each week whose 20-session outcome is
+  known, moves by 0.05 × (10 % − that week's share of outcomes outside the band), within
+  1 %–50 %. The percentiles become α/2 and 1 − α/2. The history is the walk-forward's own
+  out-of-sample weeks until the first live week, and the forecast ledger's after it. The
+  step of 0.05 is fixed in advance, not fitted.
+- **The basket** (`basket.py`). From the same weekly forecasts: up to 10 stocks whose
+  expected excess beats their own round-trip cost, best first; a held stock stays while it
+  is in the best 20 and still beats its cost. Weights by hierarchical risk parity on the
+  covariance of the names' Kalman residual returns over the last 120 sessions (at least 60
+  known), shrunk halfway to its diagonal, at most 25 % per name; inverse variance from σ
+  when the window is too short. With fewer than 10 names the basket invests names / 10 and
+  the rest stays in WIG. Every increase of a weight pays that stock's round-trip cost on the
+  increase. It is walked forward week by week beside the single pick, with the same verdict
+  rule, and appended weekly to `state/basket.parquet`, never rewritten. **It is the
+  decision:** the stock of the week is its largest position, the verdict on the page is the
+  basket's, and its weekly record is the live record (the single pick stays as a comparison).
+- **Forecast ledger.** On the first session of each week every scored stock's expected
+  excess, band, α, regime and cost are appended to `state/forecasts.parquet` and never
+  rewritten. Its realized coverage is shown on the page next to the backtest's.
 - **Live record.** On the first session of each week the nightly run appends the pick to
   `state/picks.parquet` and never rewrites it. The page shows its results while each pick was
   held, net of switch costs, separately from the backtest.
@@ -260,3 +296,42 @@ Code: `src/undercurrent/pick_features.py` (features), `src/undercurrent/pick.py`
   −6 % after costs, p ≈ 0.6, so the verdict is "no edge". 12-1 momentum alone under the same
   rule lost 88 % after costs. One test year is a small sample; the result will be re-run as
   the backfill adds years.
+
+## 10. Market state
+
+Code: `src/undercurrent/vol.py`, `beta.py`, `regime.py`, `market_state.py`; output
+`gold/market_state.parquet`, one row per (stock, session). It is the shared input layer of
+the forecast (DECISIONS, "One source of truth"); the stock of the week reads it (§ 9).
+
+- **Fitting.** Every model is fitted once per calendar year Y on the 750 sessions before Y and
+  frozen for Y. A value on session t uses returns up to t's close and parameters from before
+  t's year, so cutting the data at any date leaves every earlier value unchanged; the tests
+  check exactly that. Nothing reaches across a hole in the lake.
+- **σ.** GARCH(1,1) with variance targeting, (α, β) chosen on a fixed grid by Gaussian
+  quasi-likelihood. A stock with fewer than 250 returns in the window gets the RiskMetrics
+  EWMA (λ = 0.94) after 20 returns. `sigma` is the next session's forecast standard deviation,
+  `sigma_20` that of the next 20 sessions' return, with the GARCH forecast decaying toward the
+  long-run variance. Stock variances never go below (0.5 % a day)².
+- **Betas and surprise.** A Kalman filter per stock, without an intercept, on WIG and the
+  treasury bond index TBSP. Betas follow a random walk whose daily drift q is chosen per year
+  from {0.002, 0.005, 0.01, 0.02} by predictive likelihood. The observation noise is the
+  stock's GARCH variance minus what the factors explain. `resid` is the session's return the
+  betas did not predict; `surprise` is `resid` over its forecast standard deviation. Betas
+  are reported after 60 returns.
+- **Regime.** A two-state Gaussian HMM on WIG's daily return. `regime_stress` is the
+  filtered probability of the high-variance state, never the smoothed one.
+- **Liquidity.** The study's buyability rule over the last 60 sessions (median close ≥ 0.50
+  zł): `tradable` from a median turnover of 10,000 zł, `liquid` from 100,000 zł, `thin` below.
+- **Cost.** Round trip of a 10,000 zł order: the stock's own Abdi–Ranaldo spread over the last
+  60 sessions (the market-wide 1.6 % / 4.8 % with fewer than 20 traded pairs), 0.2 % commission
+  each way, and square-root impact σ·√(10,000 / median turnover) each way, capped at 25 %.
+- **First run (2015–2018).** Median σ of liquid stocks 2.1 % a day, median cost 1.7 % for
+  liquid and 4.7 % for tradable stocks, surprise standard deviation 1.09 on tradable stocks.
+- **Read by the pick (out of sample 2018).** Rank IC 0.167 without the state, 0.172 with
+  its features (adopted), 0.171 with σ scaling as well (not adopted). The 90 % band held
+  86.5 % of outcomes with a fixed α and 87.8 % with the self-correcting one, which ended the
+  year at α ≈ 7.5 %. The basket held 3.8 names on average (38 % invested; few names beat their
+  cost) and ended −2.8 % against WIG after 3.6 % of costs, against −2.2 % for the single pick
+  and −14.2 % for the whole liquid universe. No stress band exists yet: 2017,
+  the history it would be calibrated on, had almost no stress weeks, and the 8 stress weeks
+  of 2018 (November and December) have no 20-session outcome before the hole in the lake.

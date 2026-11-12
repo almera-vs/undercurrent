@@ -52,6 +52,12 @@ flowchart LR
    expected 20-session result against WIG. It is tested walk-forward after costs against
    momentum and the whole universe, and keeps a live record that is never rewritten.
    Point-in-time and byte-for-byte reproducible.
+   **Market state** (`vol.py`, `beta.py`, `regime.py`, `market_state.py`): one row per stock
+   and session with GARCH volatility, Kalman betas to WIG and bonds, the session's surprise,
+   the market regime, liquidity and a per-stock trading cost: the one shared input, so every
+   page reads one set of numbers. The stock of the week reads it, puts a self-correcting 90 %
+   band on every forecast, keeps an append-only ledger of them, and builds a weekly basket
+   weighted by hierarchical risk parity (`basket.py`); event pages show the same forecast.
 5. **Publish** (`publish.py`, `pages.py`, `i18n.py`): Jinja2 site in Polish and English with
    inline SVG charts, plain-language summaries, the report's own text, the stock's price and
    liquidity, a glossary, and a Telegram digest via the Bot API. Event pages link to the

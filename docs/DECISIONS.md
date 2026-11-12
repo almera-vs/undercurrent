@@ -279,6 +279,195 @@ it costs. Method details (event study, walk-forward, verdicts) are in
   feature would have to prove itself on the live record.
 - **The pick never blocks the digest.** It runs after the study; a failure is logged.
 
+## One source of truth (decided 2026-11-12)
+
+- **One forecast per stock, not one opinion per page.** Until now the site had two answers
+  about the same stock: event pages said what a kind of report did on average, and the pick
+  said which stock should beat WIG. They could contradict each other. The site moves to one
+  layered stack. Every number a page shows comes from one row of it, and a view never
+  computes a number of its own.
+
+  ```
+  L0  RAW        bronze, immutable
+                 stock prices · NC file · 56 GPW indices · ESPI/EBI reports · MAR forms
+                   │
+  L1  CLEAN      silver, dbt-tested
+                 adjusted returns · sessions · events (known_at) · WIG, size, TBSP indices
+                   │
+  L2  STATE      one row per (isin, date); every column known at that date's close
+                 liquidity tier (one rule for everything)
+                 σ GARCH ──┬──► cost (spread, σ, turnover)
+                           ├──► β Kalman vs WIG · TBSP ──► residual return
+                           └──► surprise = residual return / residual σ
+                 WIG returns ──► regime probability
+                 signal effect = walk-forward event-study mean, shrunk by its evidence
+                 trend · risk · liquidity · news features
+                   │
+  L3  FORECAST   one per (isin, date): THE answer
+                 ridge on ranked state ─► score ─► expected excess = score × σ
+                 − cost ─► net expected;  conformal band on errors / σ, per regime
+                 the contribution of every term
+                   │
+  L4  DECISION   basket weights = f(net expected, σ, residual correlations)
+                 headline pick = largest weight
+                   │
+  L5  VIEWS      Today · event page · pick page · Telegram: render L3/L4 rows only
+                   │
+  L6  LEDGER     append-only: forecast and band frozen at the date ─► outcome
+                 ─► coverage · rank IC · net result ─► calibration of later dates only
+  ```
+
+- **Rules of the wiring.**
+  - Data flows down only. The one loop is the ledger, and it informs later dates only,
+    after the same purge as the walk-forward.
+  - Each input moves each quantity once. σ scales the expected excess, normalises the band
+    and drives the cost: the same σ in all three. The regime enters the forecast and the
+    band calibration; the basket is not de-risked a second time for it.
+  - Modules do not call each other. Each writes its columns into the L2 table and reads only
+    what is above it, so each can be tested, replayed point-in-time and dropped on its own.
+  - The backtest and the nightly run share the same code path, the cost function included.
+  - Diagnostics are evidence, not opinions: signal verdicts, GARCH fits and regime charts
+    explain the forecast on the methodology and pipeline pages. They are not a second answer
+    on Today.
+  - A module joins the forecast only if the walk-forward with it beats the one without it
+    out of sample. Every variant tried counts as a trial in the deflated Sharpe ratio.
+- **One source of truth is also one point of failure.** A wrong σ would reach every number.
+  So every L2 column has tests of its own, and every estimator has a fallback that is flagged
+  in the row: σ from EWMA (RiskMetrics, λ = 0.94) when a stock has too little history for a
+  GARCH fit; β from the trailing 250-session regression before a Kalman filter can start.
+- **Fitted the way the pick is fitted.** GARCH, Kalman and regime parameters for year Y are
+  estimated only on sessions before Y began, then frozen; the filters run day by day through
+  Y with those parameters. A state value at date t uses returns up to t and parameters from
+  before t's year. Filtered regime probabilities are used, never smoothed ones: smoothing
+  uses the future.
+- **Written in numpy, not with `arch` or `hmmlearn`.** GARCH(1,1) is fitted by Gaussian
+  quasi-likelihood on a fixed grid of (α, β) with variance targeting, for all stocks at once.
+  A grid has no convergence failures and no optimiser tolerances, so the output is the same
+  bytes on every machine, which the reproducibility test needs. The Kalman filter and the
+  two-state HMM are a few dozen lines each. No new dependency enters the lock.
+- **What the first run on 2015–2018 changed.**
+  - The regime model reads WIG alone. With the size spread (sWIG80 minus WIG20) as a
+    second input, EM split days rather than periods: each state's chance of lasting another
+    session was about 0.5. On WIG alone the states last (0.99 calm, 0.95 stress) and mark
+    the right months: about 5 % stress through 2017, 37 % in February 2018, 60–70 % in
+    November–December 2018. A fit whose states do not last is now rejected.
+  - Stock variances have a floor of (0.5 % a day)². Without it, a stock whose price had not
+    moved for weeks got a near-zero variance and its next tick a "surprise" of 20σ (the
+    surprise of thin stocks had a standard deviation of 22). Indices keep no practical
+    floor: TBSP moves about 0.2 % a day.
+  - The Kalman filter carries its state from year to year. Restarting it each year from the
+    prior 750 sessions back was not enough warm-up for a slowly drifting beta, and betas
+    jumped on 1 January (1.41 to 1.20 on a synthetic test).
+  - The likelihood picks the fastest beta drift on the grid (0.02 a day) in most years,
+    because a fast beta absorbs fat-tailed noise. The grid stops there on purpose.
+  - On the tradable stocks the surprise has a standard deviation of 1.09: the forecasts'
+    scale is right, and the tails are a little fatter than normal.
+- **Asymmetric GARCH (GJR, EGARCH) was left out.** It adds a parameter for the leverage
+  effect; on 100-odd liquid stocks and a 20-session horizon the gain is small, and every
+  extra parameter widens the grid. It can be tried later as one more trial.
+- **No sector benchmark yet.** The lake has every GPW sector index (WIG-BANKI, WIG-PALIWA, …),
+  but the GPW share archive carries no sector per stock, and a hand-made mapping of 400
+  issuers would go stale. Rates (TBSP) are a factor instead, and `gold/index_returns` keeps
+  WIG20, mWIG40 and sWIG80 for features; a sector source can add a column later without
+  touching the rest.
+- **Order of work:** L2 (σ, β, residuals, surprise, regime, liquidity, cost) first, then the
+  forecast reads it (L3), then bands, basket and the live ledger. Until a layer is wired, the
+  site keeps showing what it shows today.
+- **The forecast reads the state (L3, 2026-11-12).**
+  - Costs are the measure, not a variant. Every model is charged each stock's own round
+    trip, in the backtest and the live record alike; comparing variants under different cost
+    rules would compare accounting, not forecasts. The hysteresis asks the leader to beat the
+    held stock by the leader's own cost.
+  - Three nested variants are walked forward: the original 22 features, plus the five state
+    features, plus σ scaling of the expected return. The one with the best out-of-sample
+    rank IC of its *expected return* is adopted, ties to the simpler one. The IC is taken on
+    the expected return, not the bare score, because σ scaling changes which stock comes
+    first but not the order of scores. All 12 variant × penalty runs and the momentum
+    baseline are trials of the deflated Sharpe ratio.
+  - First result (out of sample 2018, 49 weeks): rank IC 0.167 (base), 0.172 (state
+    features, adopted), 0.171 (σ scaling, rejected). The gain is small, as expected: the
+    GARCH σ is close to the 60-session volatility already in the model. Both of the first
+    two variants held PKOBP all year (one purchase); the scaled one held another stock and
+    ended +4.2 % against −2.2 %, a difference of one stock's year that the rule rightly ignores.
+  - The band is split conformal and the page's "bad case" is its lower edge. Before, the
+    page worked out its own bad case from the stock's past year of 20-session windows: a
+    second, backward-looking answer next to the forecast. In 2018 the 90 % band held 86.6 % of
+    the outcomes; it was calibrated on calmer 2017.
+  - **Bands per regime (Mondrian conformal).** Errors are grouped by the regime of their
+    week and each regime gets its own percentiles. Two changes made that possible:
+    - Calibration uses every training year, each scored by a model fitted on the weeks
+      before it, instead of only the last year. Stress is rare (about 5 % of 2017), so a
+      last-year-only calibration would almost never contain stress weeks; years like 2020
+      and 2022 will, once the backfill reaches them.
+    - A regime needs 8 weeks of errors for a band of its own; until then the pooled band is
+      used and the backtest says so (`band = all`).
+
+    On a synthetic market whose stocks are 2.5 times as noisy in stress, with a σ that does
+    not know it, the pooled band held 75 % of stress-week outcomes and the stress band 89 %.
+    On the real lake nothing changes yet: there are no stress weeks to calibrate on and none
+    to test on, and calm weeks hold 86.3 %. The remaining gap is in calm weeks, so it is not
+    the regime; the live ledger's own coverage is the next correction.
+- **The ledger closes the loop (L6, 2026-11-12).**
+  - Every scored stock's forecast and band is frozen weekly in `state/forecasts.parquet`.
+    One row per stock, not only the pick: one stock a week would take years to say anything
+    about coverage.
+  - The band's miss rate adapts to realized misses (adaptive conformal inference). It reacts
+    to whatever makes the band wrong, the regime or anything else, and needs no stress weeks
+    in the calibration set. It moves only on weeks whose outcome is known, 20 sessions
+    later, so it is as point-in-time as the rest.
+  - The history it learns from is the walk-forward's out-of-sample weeks until the first
+    live week, then the ledger's. The backtest is recomputed every night and could change;
+    the ledger cannot, so once it exists it is the one that counts.
+  - The step (0.05) is a prior. On 2018 a step of 0.1 would have scored a little better
+    (88.4 % against 87.8 %), and choosing it from that would be tuning on the test year.
+  - On a synthetic market that gets steadily noisier, a fixed band held 78.7 % and the
+    adaptive one 88.2 %. On 2018: 86.5 % fixed, 87.8 % adaptive.
+  - Calibration and coverage now use outcomes before winsorizing: the ledger can only see
+    real outcomes, and the backtest must be measured the same way.
+- **The decision layer (L4) and the event pages (L5, 2026-11-12).**
+  - The basket is its own module and reads only what the forecast wrote for each week:
+    expected excess, cost and σ. It forecasts nothing, so a better forecast improves it
+    without touching it.
+  - Names must beat their *own* cost to enter, and a held name stays while it is in the
+    best 20. Without that buffer, rank noise near the 10th place turns into trades.
+  - HRP rather than mean-variance: ten names and 120 sessions give a covariance matrix that
+    is too noisy to invert, and HRP never inverts it. It is shrunk halfway to its diagonal
+    for the same reason. Residual returns, not raw ones, because every name shares WIG.
+  - Unfilled weight stays in WIG instead of being spread over fewer names: a basket of two
+    is not a diversified basket, and WIG is what the result is measured against.
+  - First result (2018): −2.8 % after costs, with 3.8 names and 38 % invested on average.
+    Before costs it was about +0.9 %; weekly turnover of 13 % cost 3.6 %. The single pick
+    did −2.2 % and the universe −14.2 %. Neither beats WIG, and the page says so.
+  - **The basket is the decision (decided 2026-11-12).** The stock of the week is the
+    basket's largest position, the headline verdict is the basket's, and its weekly record
+    is the live record. The single pick is still walked forward and shown, as a comparison.
+    - Why: the model's evidence is in the ranking (rank IC 0.17), not in any one name. In
+      2018 the single pick held one stock all year, so its result says more about that stock
+      than about the model. A basket of the best names is where a ranking can pay.
+    - Why now: the single pick launched on 2026-11-11 and had no live week yet, so nothing
+      recorded was lost. `state/picks` is no longer appended to.
+    - The largest position is not the highest forecast: risk parity gives steadier stocks
+      more weight, and the page says so. In a week when nothing beats its cost the basket
+      stays in WIG and the headline is the top score, flagged as such.
+    - How often a top-ranked stock "wins" its week, out of sample in 2018 (49 weeks): the
+      model's top stock beat WIG in 45 % of weeks (an average liquid stock: 47.5 %) and over
+      its 20 sessions in 41 %; it was never the week's best stock; the top 10 names beat WIG
+      52 % of the time. A stock's 20-session σ is about 9 % against a top forecast of about
+      2 %: one name in one week is mostly noise, and only a spread of names over many weeks
+      can show what the ranking is worth.
+  - Event pages now read the shared layers: liquidity tier, the day-0 surprise (the residual
+    move in the stock's own σ), the 20-session σ and the round-trip cost from the market
+    state, and the stock's forecast, band, rank and the part of it that comes from reports
+    from the pick's scores. The page's own liquidity rule is only a fallback when the market
+    state is missing. σ, cost and surprise are not shown for a stock too thin to trade: a
+    stale price makes them meaningless. A forecast is shown only when it was computed for
+    the same as-of date as the page.
+  - If the market state fails, the nightly run removes any stale table first, so the pick
+    falls back to its base model at flat costs and records `uses_state = false`; it never
+    reads yesterday's state.
+  - The deflated Sharpe ratio is still empty on the pick page. It was before this change as
+    well; a weekly series with one purchase a year gives it little to work with.
+
 ## Known limitations
 
 - Insider trade details (side, volume, price) are missing for reports that no portal

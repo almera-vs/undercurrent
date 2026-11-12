@@ -15,6 +15,13 @@ Features, all measured against WIG where they are returns:
 
 No financial statements, share counts or market values exist in the lake, so there are no
 valuation features.
+
+From the market state (``market_state.py``, L2 in DECISIONS) come five more, when its table
+is in the work dir: the GARCH forecast of the next 20 sessions' volatility, the Kalman betas
+to WIG and to bonds, residual momentum (12-1 months of the returns the betas did not
+explain) and the last month's surprises. The same table gives each stock's σ (to turn a
+score into an expected return) and its round-trip cost. ``FEATURES`` are the original
+features; ``ALL_FEATURES`` adds the state's.
 """
 
 from __future__ import annotations
@@ -45,6 +52,8 @@ YEAR = 252
 MIN_RETURNS = 200  # of the last YEAR sessions, at least this many with a return
 LIQ = 60
 MIN_TURNOVER_PICK = 100_000.0  # zł a day, median over LIQ sessions (study: 10,000)
+MIN_STATE_DAYS_YEAR = 150  # residual returns resid_mom needs out of its 231 sessions
+MIN_STATE_DAYS_MONTH = 10  # surprises surprise_20 needs out of its 20 sessions
 
 # News groups: signal key prefix → feature name.
 NEWS_GROUPS: dict[str, tuple[str, ...]] = {
@@ -81,6 +90,24 @@ FEATURES: tuple[str, ...] = (
     "insider_net",
     "corp_actions",
 )
+STATE_FEATURES: tuple[str, ...] = (
+    "garch_vol",
+    "kalman_beta",
+    "bond_beta",
+    "resid_mom",
+    "surprise_20",
+)
+ALL_FEATURES: tuple[str, ...] = (*FEATURES, *STATE_FEATURES)
+STATE_FILE = "market_state.parquet"
+STATE_COLUMNS = (
+    "sigma_20",
+    "beta_wig",
+    "beta_tbsp",
+    "resid",
+    "surprise",
+    "cost",
+    "regime_stress",
+)
 
 
 @dataclass(frozen=True)
@@ -91,6 +118,7 @@ class PickInputs:
     prices: pl.DataFrame  # isin, trade_date, ticker, close, adj_ret, value_pln, ca, known_at
     benchmark: pl.DataFrame  # trade_date, wig_ret, known_at
     events: pl.DataFrame  # isin, event_date, signal_key, insider_value, known_at
+    state: pl.DataFrame | None = None  # isin, trade_date, STATE_COLUMNS, known_at
 
 
 @dataclass
@@ -111,6 +139,16 @@ class Panel:
     news: dict[str, FloatArray]  # feature → stocks × (T+1) prefix sums of daily counts
     insider_value: FloatArray  # stocks × (T+1) prefix sums of signed insider value
     corp: FloatArray  # stocks × (T+1) prefix sums of corporate-action days
+    # from the market state; all NaN when the inputs carry none
+    sigma_20: FloatArray  # forecast σ of the next 20 sessions' return
+    beta_wig: FloatArray
+    beta_tbsp: FloatArray
+    cost: FloatArray  # round-trip cost
+    resid: FloatArray  # stocks × (T+1) prefix sums of residual returns (unknown as 0)
+    n_resid: npt.NDArray[np.int64]
+    surprise: FloatArray  # stocks × (T+1) prefix sums of surprises
+    n_surprise: npt.NDArray[np.int64]
+    regime: FloatArray  # per session: filtered probability of the stress regime
 
 
 def load_inputs(duckdb_file: Path, as_of: datetime) -> PickInputs:
@@ -134,11 +172,25 @@ def load_inputs(duckdb_file: Path, as_of: datetime) -> PickInputs:
         ).pl()
     finally:
         con.close()
-    return cut_inputs(prices, bench, events, as_of)
+    state_file = duckdb_file.parent / "gold" / STATE_FILE
+    state = (
+        pl.read_parquet(
+            state_file, columns=["isin", "trade_date", *STATE_COLUMNS, "known_at", "market"]
+        )
+        .filter(pl.col("market") == "GPW")
+        .drop("market")
+        if state_file.exists()
+        else None
+    )
+    return cut_inputs(prices, bench, events, as_of, state)
 
 
 def cut_inputs(
-    prices: pl.DataFrame, benchmark: pl.DataFrame, events: pl.DataFrame, as_of: datetime
+    prices: pl.DataFrame,
+    benchmark: pl.DataFrame,
+    events: pl.DataFrame,
+    as_of: datetime,
+    state: pl.DataFrame | None = None,
 ) -> PickInputs:
     """Keep rows known by ``as_of`` and give events their signal key."""
     ts = pl.lit(as_of).cast(pl.Datetime("us", "UTC"))
@@ -165,6 +217,7 @@ def cut_inputs(
         prices=cut(prices).sort(["isin", "trade_date"]),
         benchmark=cut(benchmark).sort("trade_date"),
         events=ev.select("isin", "event_date", "signal_key", "insider_value", "known_at"),
+        state=None if state is None else cut(state).sort(["isin", "trade_date"]),
     )
 
 
@@ -174,6 +227,7 @@ def assert_point_in_time(inputs: PickInputs) -> None:
         ("prices", inputs.prices),
         ("benchmark", inputs.benchmark),
         ("events", inputs.events),
+        ("state", inputs.state if inputs.state is not None else pl.DataFrame()),
     ):
         if df.height and df["known_at"].max() > inputs.as_of:  # type: ignore[operator]
             raise LookAheadError(f"{name} has rows known after {inputs.as_of.isoformat()}")
@@ -246,6 +300,7 @@ def build_panel(inputs: PickInputs) -> Panel:
     cum_mkt = np.concatenate([[0.0], np.cumsum(np.log1p(mkt))])
     n_ret = np.zeros((n, t_n + 1), dtype=np.int64)
     np.cumsum(np.isfinite(ret), axis=1, out=n_ret[:, 1:])
+    st = _state_arrays(inputs.state, idx, pos, (n, t_n))
     return Panel(
         cal=cal,
         seg=calendar_segments(cal),
@@ -261,7 +316,50 @@ def build_panel(inputs: PickInputs) -> Panel:
         news={k: _prefix(v) for k, v in news_daily.items()},
         insider_value=_prefix(insider),
         corp=_prefix(corp),
+        sigma_20=st["sigma_20"],
+        beta_wig=st["beta_wig"],
+        beta_tbsp=st["beta_tbsp"],
+        cost=st["cost"],
+        resid=_prefix(np.where(np.isfinite(st["resid"]), st["resid"], 0.0)),
+        n_resid=_count_prefix(st["resid"]),
+        surprise=_prefix(np.where(np.isfinite(st["surprise"]), st["surprise"], 0.0)),
+        n_surprise=_count_prefix(st["surprise"]),
+        regime=_per_session(st["regime_stress"]),
     )
+
+
+def _per_session(a: FloatArray) -> FloatArray:
+    """A value that is the same for every stock on a session (NaN where none has it)."""
+    known = np.isfinite(a)
+    out = np.full(a.shape[1], np.nan)
+    has = known.any(axis=0)
+    first = np.argmax(known, axis=0)
+    out[has] = a[first[has], np.nonzero(has)[0]]
+    return out
+
+
+def _count_prefix(a: FloatArray) -> npt.NDArray[np.int64]:
+    out = np.zeros((a.shape[0], a.shape[1] + 1), dtype=np.int64)
+    np.cumsum(np.isfinite(a), axis=1, out=out[:, 1:])
+    return out
+
+
+def _state_arrays(
+    state: pl.DataFrame | None, idx: dict[date, int], pos: dict[str, int], shape: tuple[int, int]
+) -> dict[str, FloatArray]:
+    """The market state's columns on the panel grid (NaN where it has no value)."""
+    out = {c: np.full(shape, np.nan) for c in STATE_COLUMNS}
+    if state is None or not state.height:
+        return out
+    keep = state.filter(pl.col("isin").is_in(list(pos)) & pl.col("trade_date").is_in(list(idx)))
+    if not keep.height:
+        return out
+    rows = np.array([pos[s] for s in keep["isin"].to_list()], dtype=np.int64)
+    cols = np.array([idx[d] for d in keep["trade_date"].to_list()], dtype=np.int64)
+    for c in STATE_COLUMNS:
+        if c in keep.columns:  # an older state table may lack a newer column
+            out[c][rows, cols] = keep[c].cast(pl.Float64).fill_null(np.nan).to_numpy()
+    return out
 
 
 def rebalance_positions(panel: Panel) -> list[int]:
@@ -296,10 +394,10 @@ def eligible(panel: Panel, t: int) -> BoolArray:
 
 
 def raw_features(panel: Panel, t: int) -> FloatArray:
-    """Stocks × FEATURES at session ``t`` (meaningful only for eligible stocks)."""
+    """Stocks × ALL_FEATURES at session ``t`` (meaningful only for eligible stocks)."""
     n = len(panel.isins)
-    out = np.full((n, len(FEATURES)), np.nan)
-    col = {f: k for k, f in enumerate(FEATURES)}
+    out = np.full((n, len(ALL_FEATURES)), np.nan)
+    col = {f: k for k, f in enumerate(ALL_FEATURES)}
     out[:, col["mom_12_1"]] = _excess_log(panel, t - YEAR + 1, t - 21)
     out[:, col["mom_6_1"]] = _excess_log(panel, t - 125, t - 21)
     out[:, col["rev_1m"]] = _excess_log(panel, t - 19, t)
@@ -337,6 +435,19 @@ def raw_features(panel: Panel, t: int) -> FloatArray:
     with np.errstate(invalid="ignore", divide="ignore"):
         out[:, col["insider_net"]] = np.where(med_tv > 0, net / med_tv, 0.0)
     out[:, col["corp_actions"]] = panel.corp[:, t + 1] - panel.corp[:, t + 1 - LIQ]
+    out[:, col["garch_vol"]] = panel.sigma_20[:, t]
+    out[:, col["kalman_beta"]] = panel.beta_wig[:, t]
+    out[:, col["bond_beta"]] = panel.beta_tbsp[:, t]
+    lo, hi = t - YEAR + 1, t - 21  # 12-1 months, like mom_12_1
+    n_res = panel.n_resid[:, hi + 1] - panel.n_resid[:, lo]
+    res = panel.resid[:, hi + 1] - panel.resid[:, lo]
+    out[:, col["resid_mom"]] = np.where(n_res >= MIN_STATE_DAYS_YEAR, res, np.nan)
+    n_s = panel.n_surprise[:, t + 1] - panel.n_surprise[:, t + 1 - HORIZON]
+    s = panel.surprise[:, t + 1] - panel.surprise[:, t + 1 - HORIZON]
+    with np.errstate(invalid="ignore", divide="ignore"):
+        out[:, col["surprise_20"]] = np.where(
+            n_s >= MIN_STATE_DAYS_MONTH, s / np.sqrt(np.maximum(n_s, 1)), np.nan
+        )
     return out
 
 

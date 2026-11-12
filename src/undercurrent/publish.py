@@ -21,7 +21,6 @@ from zoneinfo import ZoneInfo
 
 import duckdb
 import httpx
-import numpy as np
 import polars as pl
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -698,8 +697,6 @@ def _pick_context(
     events: list[dict[str, Any]],
 ) -> dict[str, Any] | None:
     """Everything the stock-of-the-week page shows, from ``gold/pick_*.parquet``."""
-    from undercurrent.pick_features import FEATURES, HORIZON
-
     gold = work / "gold"
     if not (gold / "pick_summary.parquet").exists():
         return None
@@ -707,7 +704,13 @@ def _pick_context(
     scores = pl.read_parquet(gold / "pick_scores.parquet")
     model = pl.read_parquet(gold / "pick_model.parquet").to_dicts()
     bt = pl.read_parquet(gold / "pick_backtest.parquet")
-    live = pl.read_parquet(gold / "pick_live.parquet")
+    # the basket's live record is the live record (pick.py, "The basket is the decision")
+    live_path = gold / "pick_basket_live.parquet"
+    live = (
+        pl.read_parquet(live_path)
+        if live_path.exists()
+        else pl.DataFrame(schema={"week": pl.Date, "net": pl.Float64})
+    )
     names = {
         r["isin"]: r["issuer_name"]
         for r in reports.filter(pl.col("isin").is_not_null())
@@ -721,16 +724,48 @@ def _pick_context(
     ctx["live"] = live.sort("week", descending=True).to_dicts()
     live_total = live["net"].drop_nans().drop_nulls()
     ctx["live_total"] = float((1 + live_total).product() - 1) if live_total.len() else None
+    # The decision layer's basket (basket.py), as the pick wrote it.
+    bpath = gold / "pick_basket.parquet"
+    brows = pl.read_parquet(bpath).to_dicts() if bpath.exists() else []
+    top_w = max((r["weight"] for r in brows), default=0.0) or 1.0
+    for r in brows:
+        r["name"] = names.get(r["isin"], r["ticker"])
+        r["bar"] = round(r["weight"] / top_w * 100)
+    invested = sum(r["weight"] for r in brows)
+    blive_path = gold / "pick_basket_live.parquet"
+    blive = (
+        pl.read_parquet(blive_path)["net"].drop_nans().drop_nulls() if blive_path.exists() else None
+    )
+    from undercurrent import basket
+
+    ctx["basket"] = {
+        "rows": brows,
+        "invested": invested,
+        "wig": max(0.0, 1.0 - invested),
+        "max_names": basket.K,
+        "live_total": float((1 + blive).product() - 1)
+        if blive is not None and blive.len()
+        else None,
+        "live_weeks": blive.len() if blive is not None else 0,
+    }
+    bpath_bt = gold / "pick_basket_backtest.parquet"
+    bbt = pl.read_parquet(bpath_bt) if bpath_bt.exists() else pl.DataFrame()
+    by_day = dict(zip(bbt["day"], bbt["net"], strict=True)) if bbt.height else {}
+    bt_basket = [by_day.get(d, 0.0) for d in bt["day"].to_list()] if bt.height else []
     if bt.height:
         dates = bt["day"].to_list()
         ctx["backtest_chart"] = {
             lang: pages.lines_svg(
                 [
-                    ("l-pick", i18n.tr(lang)("The pick, after costs"), _cum(bt["net"].to_list())),
+                    (
+                        "l-pick",
+                        i18n.tr(lang)("The basket, after costs"),
+                        _cum(bt_basket),
+                    ),
                     (
                         "l-top",
-                        i18n.tr(lang)("Top 10 scores, before costs"),
-                        _cum(bt["top10"].to_list()),
+                        i18n.tr(lang)("The single pick, after costs"),
+                        _cum(bt["net"].to_list()),
                     ),
                     ("l-all", i18n.tr(lang)("All liquid stocks"), _cum(bt["basket"].to_list())),
                 ],
@@ -750,22 +785,18 @@ def _pick_context(
         r["spark"] = pages.spark_svg(sparks.get(r["isin"], []))
         r["bar"] = round(abs(r["expected"]) / best * 100)
     ctx["top"] = top
-    current = live.sort("week").row(-1, named=True) if live.height else None
-    isin = current["isin"] if current else top[0]["isin"]
-    ctx["is_live"] = current is not None
-    ctx["held_since"] = None
-    if current is not None:
-        since = current["week"]
-        for r in live.sort("week", descending=True).iter_rows(named=True):
-            if r["isin"] != isin:
-                break
-            since = r["week"]
-        ctx["held_since"] = since
+    # The stock of the week is the pick's decision, not the page's: the basket's largest
+    # position (or the top score, flagged, when nothing beats its cost).
+    isin = summary.get("headline_isin") or top[0]["isin"]
+    ctx["is_live"] = bool(summary.get("headline_live"))
+    ctx["held_since"] = summary.get("headline_since")
     row = scores.filter(pl.col("isin") == isin)
     pick_row = row.row(0, named=True) if row.height else None
     ctx["pick"] = {
         "isin": isin,
-        "ticker": pick_row["ticker"] if pick_row else (current or {}).get("ticker"),
+        "ticker": pick_row["ticker"] if pick_row else summary.get("headline_ticker"),
+        "weight": summary.get("headline_weight"),
+        "source": summary.get("headline_source"),
         "name": names.get(isin, isin),
         "row": pick_row,
         "rank": pick_row["rank"] if pick_row else None,
@@ -774,9 +805,11 @@ def _pick_context(
         "logo": xtb.read_logos(data_dir).get(isin),
     }
     ctx["pick"]["initials"], ctx["pick"]["hue"] = pages.monogram(ctx["pick"]["ticker"])
+    # the adopted model's own features (pick_model.parquet), not a list of the page's own
+    features = [m["feature"] for m in model if f"c_{m['feature']}" in scores.columns]
     if pick_row is not None:
         contrib = sorted(
-            ((f, pick_row[f"c_{f}"], pick_row[f"f_{f}"]) for f in FEATURES),
+            ((f, pick_row[f"c_{f}"], pick_row[f"f_{f}"]) for f in features),
             key=lambda t: -abs(t[1]),
         )
         weights = {m["feature"]: m["weight"] for m in model}
@@ -826,14 +859,9 @@ def _pick_context(
             if len(st) == n:
                 rets[label] = (_cum(st)[-1] - _cum(wg)[-1], _cum(st)[-1])
         ctx["pick"]["returns"] = rets
-        st, wg = s["all_stock"], s["all_wig"]
-        windows = [
-            _cum(st[k : k + HORIZON])[-1] - _cum(wg[k : k + HORIZON])[-1]
-            for k in range(0, max(0, len(st) - HORIZON), 5)
-        ]
-        ctx["pick"]["bad_case"] = (
-            float(np.quantile(windows, TAIL_SHARE)) if len(windows) >= MIN_EVENTS_FOR_TAIL else None
-        )
+    # The forecast's own band (pick.py), not a figure the page works out for itself.
+    lo = (pick_row or {}).get("band_lo")
+    ctx["pick"]["bad_case"] = float(lo) if lo is not None and math.isfinite(lo) else None
     with_pages = {e["report_id"] for e in events}
     since = day - timedelta(days=PICK_REPORT_DAYS)
     recent = reports.filter(
@@ -926,6 +954,8 @@ def _add_company_context(
             h.adj_close.append(float(adj))
             h.ret.append(None if ret is None else float(ret))
             h.turnover.append(float(val))
+    state = _state_rows(work, isins, day)
+    forecasts = _forecast_rows(work, day)
     links = xtb.read_links(data_dir)
     with_pages = {e["report_id"] for e in events}
     by_isin = {
@@ -941,7 +971,10 @@ def _add_company_context(
         e["lead"] = pages.report_lead(text)
         e["amounts"] = pages.money_amounts(text)
         e["xtb_url"] = links.get(e.get("isin") or "")
-        e["company"] = _company(e, hist.get(e.get("isin") or ""), wig, sessions, day)
+        isin = e.get("isin") or ""
+        e["company"] = _company(
+            e, hist.get(isin), wig, sessions, day, state.get(isin), forecasts.get(isin)
+        )
         same = by_isin.get(e.get("isin"))
         e["history"] = []
         if same is not None:
@@ -958,25 +991,82 @@ def _add_company_context(
                 )
 
 
+def _state_rows(work: Path, isins: list[str], day: date) -> dict[str, pl.DataFrame]:
+    """The market state's rows for these stocks up to ``day``, per stock (none without it)."""
+    path = work / "gold" / "market_state.parquet"
+    if not isins or not path.exists():
+        return {}
+    cols = ["isin", "trade_date", "surprise", "sigma_20", "cost", "liquidity_tier"]
+    cols += ["median_close", "median_turnover"]
+    df = (
+        pl.scan_parquet(path)
+        .select(cols)
+        .filter(pl.col("isin").is_in(isins) & (pl.col("trade_date") <= day))
+        .sort(["isin", "trade_date"])
+        .collect()
+    )
+    return {str(k[0]): v for k, v in df.partition_by("isin", as_dict=True).items()}
+
+
+def _forecast_rows(work: Path, day: date) -> dict[str, dict[str, Any]]:
+    """The forecast per stock (``pick_scores``), if it is this run's (as of ``day``)."""
+    gold = work / "gold"
+    if not (gold / "pick_scores.parquet").exists() or not (gold / "pick_summary.parquet").exists():
+        return {}
+    summary = pl.read_parquet(gold / "pick_summary.parquet").row(0, named=True)
+    from undercurrent.study import as_of_for
+
+    if summary.get("as_of") != as_of_for(day):  # a work dir left over from another day
+        return {}
+    scores = pl.read_parquet(gold / "pick_scores.parquet")
+    n = scores.height
+    return {r["isin"]: {**r, "universe": n} for r in scores.iter_rows(named=True)}
+
+
+def _finite(x: Any) -> float | None:
+    return float(x) if x is not None and math.isfinite(x) else None
+
+
 def _company(
     e: dict[str, Any],
     h: pages.PriceHistory | None,
     wig: dict[date, float],
     sessions: list[date],
     day: date,
+    st: pl.DataFrame | None = None,
+    fc: dict[str, Any] | None = None,
 ) -> pages.CompanyContext:
-    """Price, reaction, liquidity and result since entry of the stock of one event."""
+    """Price, reaction, liquidity and result since entry of the stock of one event.
+
+    Liquidity, the day-0 surprise, σ, cost and the forecast come from the shared layers
+    (the market state and the pick) when they exist; the page computes none of them.
+    """
     c = pages.CompanyContext()
     if h is None or not h.dates:
         return c
     c.last_close, c.last_date = h.close[-1], h.dates[-1]
     d0 = e.get("day0")
     ref = d0 if d0 is not None and d0 <= day else e["pub_date"]
-    c.median_close, c.median_turnover, c.buyable = pages.liquidity(h, ref)
+    before = st.filter(pl.col("trade_date") < ref) if st is not None else None
+    if before is not None and before.height and before["liquidity_tier"][-1] is not None:
+        last = before.row(-1, named=True)
+        c.median_close = _finite(last["median_close"])
+        c.median_turnover = _finite(last["median_turnover"])
+        c.tier = last["liquidity_tier"]
+        c.buyable = c.tier != "thin"
+    else:
+        c.median_close, c.median_turnover, c.buyable = pages.liquidity(h, ref)
     if c.buyable is None:  # no history before the event (a hole in the lake): use the latest
         c.median_close, c.median_turnover, c.buyable = pages.liquidity(
             h, h.dates[-1] + timedelta(days=1)
         )
+    if st is not None and st.height:
+        if d0 is not None:
+            on = st.filter(pl.col("trade_date") == d0)
+            c.surprise = _finite(on["surprise"][0]) if on.height else None
+        latest = st.row(-1, named=True)
+        c.sigma_20, c.cost = _finite(latest["sigma_20"]), _finite(latest["cost"])
+    c.forecast = fc
     if d0 is not None and d0 in h.dates and d0 in wig:
         c.day0_ret, c.day0_wig = h.ret[h.dates.index(d0)], wig[d0]
     entry = e.get("entry_date")
@@ -1038,6 +1128,7 @@ def _env(lang: str = "en") -> Environment:
 
     env.filters |= {
         "pct": lambda x: pct(x, lang),
+        "share": lambda x: pct(x, lang, sign=False),
         "num": lambda x: num(x, lang),
         "short_pln": lambda x: short_pln(x, lang),
         "tone": tone,

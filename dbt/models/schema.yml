@@ -39,3 +39,15 @@ models:
     columns:
       - name: report_id
         tests: [unique, not_null]
+
+  - name: index_returns
+    description: Daily returns of WIG, the size indices and TBSP, between consecutive sessions.
+    tests:
+      - dbt_utils_unique_combination:
+          arguments:
+            columns: [name, trade_date]
+    columns:
+      - name: close
+        tests: [not_null]
+      - name: known_at
+        tests: [not_null]
