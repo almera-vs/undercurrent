@@ -1,1 +1,3 @@
 isin,ex_date,action,factor,comment
+PLMGRON00016,2026-07-23,bad_print,0.04057142857142857,"MEGARON: close and reference printed as 0.284 for one session with no trades; the exchange restored 7.00 the next day. Factors kept as published so they cancel and the return is 0."
+PLMGRON00016,2026-07-24,bad_print,24.647887323943664,"MEGARON: the exchange restoring 7.00 after the 0.284 print of 2026-07-23 (no trades either day)."
