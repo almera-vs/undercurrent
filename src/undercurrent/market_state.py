@@ -22,6 +22,9 @@ Columns of ``gold/market_state.parquet``:
   the stock has too few traded pairs).
 * ``cost``: round-trip cost of a ``TICKET`` zł order: one spread, commission both ways and
   square-root market impact ``Y · σ · √(ticket / median turnover)`` both ways.
+* ``signal_effect``: what the stock's recent reports are expected to add against WIG over
+  the rest of their 20-session windows, each kind's event-study result shrunk by its
+  evidence (``signal_effect.py``); 0 with no report running, missing without the study.
 """
 
 from __future__ import annotations
@@ -37,7 +40,7 @@ import numpy.typing as npt
 import polars as pl
 
 from undercurrent import beta as beta_mod
-from undercurrent import lake, regime, study, vol
+from undercurrent import lake, regime, signal_effect, study, vol
 
 log = logging.getLogger(__name__)
 FloatArray = npt.NDArray[np.float64]
@@ -74,7 +77,7 @@ def load_inputs(duckdb_file: Path, as_of: datetime) -> StateInputs:
         prices = con.sql(
             "select a.isin, a.trade_date, a.market, a.close, a.adj_ret, "
             "coalesce(a.value_pln, 0) as value_pln, coalesce(a.volume, 0) as volume, "
-            "p.high, p.low, (a.factor_source is not null)::int as ca, a.known_at "
+            "p.open, p.high, p.low, (a.factor_source is not null)::int as ca, a.known_at "
             "from adjusted_prices a left join prices_daily p using (isin, trade_date)"
         ).pl()
         indices = con.sql("select name, trade_date, ret, known_at from index_returns").pl()
@@ -118,6 +121,7 @@ class Grid:
     traded: npt.NDArray[np.bool_]
     log_c: FloatArray
     eta: FloatArray  # mean of log high and log low
+    rv: FloatArray  # the session's range variance (vol.range_variance), NaN without prices
     ca: npt.NDArray[np.bool_]
     known_at: list[datetime | None]  # per session: when its prices were known
     index: dict[str, FloatArray]  # index name → returns on the calendar
@@ -159,6 +163,7 @@ def build_grid(inputs: StateInputs) -> Grid:
         arr("high"),
         arr("low"),
     )
+    op = arr("open") if "open" in p.columns else np.full(len(cl), np.nan)
     close[rows, cols] = cl
     ret[rows, cols] = np.where(np.isfinite(r), r, np.nan)
     value[rows, cols] = np.where(np.isfinite(v), v, 0.0)
@@ -170,6 +175,15 @@ def build_grid(inputs: StateInputs) -> Grid:
             ok, (np.log(np.where(ok, hi, 1.0)) + np.log(np.where(ok, lo, 1.0))) / 2, np.nan
         )
     ca[rows, cols] = p["ca"].to_numpy().astype(bool)
+    rv = np.full(shape, np.nan)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        good = (op > 0) & (hi > 0) & (lo > 0) & (cl > 0) & (vo > 0)
+
+        def lg(x: FloatArray) -> FloatArray:
+            return np.asarray(np.log(np.where(good, x, 1.0)), dtype=np.float64)
+
+        day_rv = vol.range_variance(lg(op), lg(hi), lg(lo), lg(cl), r)
+    rv[rows, cols] = np.where(good, day_rv, np.nan)
     for i, m in zip(pos_rows, p["market"].to_list(), strict=True):
         market[i] = m or market[i]
     started = np.maximum.accumulate(has_row, axis=1)
@@ -196,6 +210,7 @@ def build_grid(inputs: StateInputs) -> Grid:
         log_c=log_c,
         eta=eta,
         ca=ca,
+        rv=rv,
         known_at=[known.get(d) for d in cal],
         index=index,
     )
@@ -300,12 +315,17 @@ class State:
     spread: FloatArray
     spread_source: npt.NDArray[np.object_]
     cost: FloatArray
+    signal_effect: FloatArray | None = None
+    effects: pl.DataFrame | None = None  # every year's shrunk effect per kind of report
 
 
-def compute(inputs: StateInputs) -> State:
-    """Compute the state on the grid (no lake writes)."""
+def compute(inputs: StateInputs, study_inputs: study.StudyInputs | None = None) -> State:
+    """Compute the state on the grid (no lake writes).
+
+    ``study_inputs`` (cut at the same ``as_of``) add the ``signal_effect`` column.
+    """
     g = build_grid(inputs)
-    sig = vol.sigma_forecasts(g.ret, g.seg, g.cal)
+    sig = vol.sigma_forecasts(g.ret, g.seg, g.cal, rv=g.rv)
     t_n = len(g.cal)
     nan = np.full(t_n, np.nan)
     f = np.stack([g.index.get(name, nan) for name in FACTORS], axis=1)
@@ -316,6 +336,12 @@ def compute(inputs: StateInputs) -> State:
     spread, _ = spreads(g)
     sigma = np.sqrt(sig.h_next)
     cost, used, source = costs(sigma, med_tv, spread, g.market)
+    effect, effects = None, None
+    if study_inputs is not None:
+        study_cal = study_inputs.benchmark["trade_date"].to_list()
+        evs = signal_effect.events_from(study.compute_event_ars(study_inputs), study_cal, g.cal)
+        effect, by_year = signal_effect.daily_effect(evs, g.cal, g.isins)
+        effects = signal_effect.effects_frame(by_year)
     return State(
         grid=g,
         sigma=sig,
@@ -327,6 +353,8 @@ def compute(inputs: StateInputs) -> State:
         spread=used,
         spread_source=source,
         cost=cost,
+        signal_effect=effect,
+        effects=effects,
     )
 
 
@@ -369,12 +397,16 @@ def to_frame(s: State) -> pl.DataFrame:
                 for x, i, j in zip(s.spread_source[rows, cols].tolist(), rows, cols, strict=True)
             ],
             "cost": f(s.cost),
+            "signal_effect": f(s.signal_effect)
+            if s.signal_effect is not None
+            else [None] * len(rows),
         },
         schema_overrides={
             "known_at": pl.Datetime("us", "UTC"),
             "sigma_source": pl.String,
             "liquidity_tier": pl.String,
             "spread_source": pl.String,
+            "signal_effect": pl.Float64,
         },
     )
     return df.sort(["isin", "trade_date"])
@@ -387,10 +419,12 @@ def run_market_state(duckdb_file: Path, work: Path, day: date) -> Path:
     as_of = study.as_of_for(day)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)
-        state = compute(load_inputs(duckdb_file, as_of))
+        state = compute(load_inputs(duckdb_file, as_of), study.load_inputs(duckdb_file, as_of))
     df = to_frame(state)
     out = work / "gold" / "market_state.parquet"
     lake.write_frame(df, out)
+    if state.effects is not None:
+        lake.write_frame(state.effects, work / "gold" / "signal_effects.parquet")
     log.info(
         "market_state: %d rows, %d stocks, q=%s, sha256=%s",
         df.height,

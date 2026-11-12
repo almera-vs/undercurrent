@@ -325,6 +325,14 @@ the forecast (DECISIONS, "One source of truth"); the stock of the week reads it 
 - **Cost.** Round trip of a 10,000 zł order: the stock's own Abdi–Ranaldo spread over the last
   60 sessions (the market-wide 1.6 % / 4.8 % with fewer than 20 traded pairs), 0.2 % commission
   each way, and square-root impact σ·√(10,000 / median turnover) each way, capped at 25 %.
+- **The day's range.** With open, high and low, the GARCH recursion is fed
+  `(1 − w)·r² + w·rv`, `rv` the overnight move squared plus the Garman–Klass intraday
+  variance, `w ∈ {0, ½, 1}` fitted with α and β. Indices use returns only.
+- **Report effects.** `signal_effect`: for each kind of report, the 20-session excess return
+  after entry, estimated each year from events closed before it, shrunk towards the pooled
+  mean of all kinds (by τ² / (τ² + se²)), with the pooled mean shrunk towards 0 (kept share
+  1 − 1/t²). Per stock and session: the sum over kinds of the latest report's effect times
+  the share of its 20-session window still ahead.
 - **First run (2015–2018).** Median σ of liquid stocks 2.1 % a day, median cost 1.7 % for
   liquid and 4.7 % for tradable stocks, surprise standard deviation 1.09 on tradable stocks.
 - **Read by the pick (out of sample 2018).** Rank IC 0.167 without the state, 0.172 with

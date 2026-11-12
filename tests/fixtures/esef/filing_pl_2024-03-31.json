@@ -1,0 +1,396 @@
+{
+ "documentInfo": {
+  "documentType": "https://xbrl.org/2021/xbrl-json"
+ },
+ "facts": {
+  "Afc8dd2b930af4388b7f6f041f1087d1d_40": {
+   "value": "3986000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:CashAndCashEquivalents",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2024-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "Af0be3a21aba9486aa06d0e2145e39a5d_41": {
+   "value": "5481000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:CashAndCashEquivalents",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2023-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "Ab6de38b2407b4639ab7b9f38a5f4e69a_46": {
+   "value": "501484000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Assets",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2024-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "Acdddf2ec27544588a5e4bd6f7207d201_47": {
+   "value": "499283000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Assets",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2023-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "A0c3a0c5c0c3b44aba4bfcd2e7ca6ea27_48": {
+   "value": "149723000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2024-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "A908057fba52445b887ec51cd330f107f_49": {
+   "value": "143496000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2023-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "Ab1680f97a3a44bec944b5166dc3dad2d_58": {
+   "value": "149723000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:EquityAttributableToOwnersOfParent",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2024-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "Ae7509d911ce947bd9cb90514374b1a5b_59": {
+   "value": "143496000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:EquityAttributableToOwnersOfParent",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2023-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "Ab67e3b5d94254dd793930be5706ff198_62": {
+   "value": "351761000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Liabilities",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2024-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "Adc81ae90cea34b7caee30f60f1c0b525_63": {
+   "value": "355787000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Liabilities",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2023-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "Aa77f14103d0740ab84cb12d1baafd94a_102": {
+   "value": "1186121000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Revenue",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2023-04-01T00:00:00/2024-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "A4d0b0c7cf2104b08bf99641882bfcf95_103": {
+   "value": "1228513000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Revenue",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2022-04-01T00:00:00/2023-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "A3f22ee9d286f4606a13241ada477af6c_122": {
+   "value": "16923000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLossFromOperatingActivities",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2023-04-01T00:00:00/2024-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "A03dc0a582fcc46339a7764d82d1ecbe5_123": {
+   "value": "34001000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLossFromOperatingActivities",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2022-04-01T00:00:00/2023-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "Ab5b920c248494d29bb83ee7cab8983d4_136": {
+   "value": "6210000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2023-04-01T00:00:00/2024-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "A596564a48fe346659e02a5e2d219b631_137": {
+   "value": "22320000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2022-04-01T00:00:00/2023-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "A8a7fecd1aaf44975936852c37e781676_140": {
+   "value": "6210000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLossAttributableToOwnersOfParent",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2023-04-01T00:00:00/2024-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "Adb1a3a49de9046e49d9ceb39a4e217eb_141": {
+   "value": "22320000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLossAttributableToOwnersOfParent",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2022-04-01T00:00:00/2023-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "Ab5b920c248494d29bb83ee7cab8983d4_142": {
+   "value": "6210000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2023-04-01T00:00:00/2024-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "A596564a48fe346659e02a5e2d219b631_143": {
+   "value": "22320000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2022-04-01T00:00:00/2023-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "A394bc61e14424007addb2a3bb67458bf_167": {
+   "value": "0.39",
+   "decimals": 2,
+   "dimensions": {
+    "concept": "ifrs-full:BasicEarningsLossPerShare",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2023-04-01T00:00:00/2024-04-01T00:00:00",
+    "unit": "iso4217:PLN/xbrli:shares"
+   }
+  },
+  "A0eba41d728344a67833a30fa0233722b_168": {
+   "value": "1.45",
+   "decimals": 2,
+   "dimensions": {
+    "concept": "ifrs-full:BasicEarningsLossPerShare",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2022-04-01T00:00:00/2023-04-01T00:00:00",
+    "unit": "iso4217:PLN/xbrli:shares"
+   }
+  },
+  "Ab5b920c248494d29bb83ee7cab8983d4_175": {
+   "value": "6210000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2023-04-01T00:00:00/2024-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "A596564a48fe346659e02a5e2d219b631_176": {
+   "value": "22320000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2022-04-01T00:00:00/2023-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "Aea22d09e556c41af98b02b06a73ff43b_203": {
+   "value": "43439000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:CashFlowsFromUsedInOperatingActivities",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2023-04-01T00:00:00/2024-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "Aac9b1146ea6547aea14ef9a6e64da23c_204": {
+   "value": "-22340000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:CashFlowsFromUsedInOperatingActivities",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2022-04-01T00:00:00/2023-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "Af0be3a21aba9486aa06d0e2145e39a5d_233": {
+   "value": "5481000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:CashAndCashEquivalents",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2023-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "A981dce7a358943a4a8f20dae1b2921ca_234": {
+   "value": "10115000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:CashAndCashEquivalents",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2022-04-02T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "Afc8dd2b930af4388b7f6f041f1087d1d_235": {
+   "value": "3986000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:CashAndCashEquivalents",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2024-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "Af0be3a21aba9486aa06d0e2145e39a5d_236": {
+   "value": "5481000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:CashAndCashEquivalents",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2023-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "A908057fba52445b887ec51cd330f107f_245": {
+   "value": "143496000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2023-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "Ab5b920c248494d29bb83ee7cab8983d4_252": {
+   "value": "6210000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2023-04-01T00:00:00/2024-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "A0c3a0c5c0c3b44aba4bfcd2e7ca6ea27_294": {
+   "value": "149723000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2024-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "A1277dc3561bd4c319ebc6139f5a32cb9_301": {
+   "value": "134097000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2022-04-02T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "A596564a48fe346659e02a5e2d219b631_308": {
+   "value": "22320000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2022-04-01T00:00:00/2023-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "A908057fba52445b887ec51cd330f107f_350": {
+   "value": "143496000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2023-04-01T00:00:00",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "A48e50561a93744a88d67a99b3e5af9a4_239": {
+   "value": "1538000",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2023-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:IssuedCapitalMember",
+    "unit": "iso4217:PLN"
+   }
+  },
+  "Abfff7b706562493b8520f2539dcdde69_1": {
+   "value": "<p>text block</p>",
+   "dimensions": {
+    "concept": "ifrs-full:DisclosureOfGeneralInformationAboutFinancialStatementsExplanatory",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2023-04-01T00:00:00/2024-04-01T00:00:00"
+   }
+  },
+  "shares": {
+   "value": "10000",
+   "decimals": 0,
+   "dimensions": {
+    "concept": "ifrs-full:Revenue",
+    "entity": "scheme:2594007GQP5TDYY9OD45",
+    "period": "2023-04-01T00:00:00/2024-04-01T00:00:00",
+    "unit": "xbrli:shares"
+   }
+  }
+ }
+}

@@ -18,12 +18,14 @@ Method (details in ``docs/METHODOLOGY.md`` § Stock of the week):
 * **Live record:** on the first session of each week the nightly run appends that week's
   pick to ``state/picks.parquet``. Rows are never rewritten; this is the record that counts.
 * **Reads the market state** (``market_state.py``) when the work dir has it. Costs are then
-  each stock's own round trip, in the backtest and in the live record alike, and three
+  each stock's own round trip, in the backtest and in the live record alike, and four
   nested variants are walked forward: the original features (``base``), plus the state's
   features (``state_features``), plus a score → expected-return map in units of each
-  stock's forecast σ (``state``). The variant with the best out-of-sample rank IC becomes
-  the model (ties go to the simpler one); every variant × penalty counts as a trial in the
-  deflated Sharpe ratio. Without the state all three are the same model.
+  stock's forecast σ (``state``), plus the shrunk event-study effect of the stock's recent
+  reports (``state_signals``). Each richer variant is adopted only if its out-of-sample
+  rank IC beats the one adopted so far (ties go to the simpler one); every variant ×
+  penalty counts as a trial in the deflated Sharpe ratio. Without the state all four are
+  the same model.
 * **Band** (conformal, per regime): every training year after the first is scored by a
   model fitted only on the weeks before it (purged), and the errors, divided by each stock's
   forecast σ, are kept with the regime of their week (stress when the market state's
@@ -115,13 +117,16 @@ class Variant:
     scaled: bool  # expected excess = (a + b·score) × the stock's forecast 20-session σ
 
 
+_STATE_ONLY = tuple(f for f in ALL_FEATURES if f != "signal_effect")
 VARIANTS: tuple[Variant, ...] = (
     Variant("base", FEATURES, False),
-    Variant("state_features", ALL_FEATURES, False),
-    Variant("state", ALL_FEATURES, True),
+    Variant("state_features", _STATE_ONLY, False),
+    Variant("state", _STATE_ONLY, True),
+    Variant("state_signals", ALL_FEATURES, True),
 )
 BASE = VARIANTS[0]
-NEWS_FEATURES = frozenset((*NEWS_GROUPS, "insider_net"))  # the features read from reports
+# the features read from reports
+NEWS_FEATURES = frozenset((*NEWS_GROUPS, "insider_net", "signal_effect"))
 
 
 # --------------------------------------------------------------------------- dataset

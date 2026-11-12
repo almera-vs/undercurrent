@@ -303,3 +303,67 @@ def test_market_spread_fallback_for_a_stock_with_few_trades():
     )
     assert src[0, 0] == "market" and used[0, 0] == market_state.MARKET_SPREAD["NC"]
     assert g_cost[0, 1] == market_state.MAX_COST  # no turnover: untradable
+
+
+# --------------------------------------------------------------------------- the day's range
+
+
+def test_range_variance_is_overnight_plus_garman_klass():
+    lo_, hi_ = np.log(np.array([9.0])), np.log(np.array([11.0]))
+    op, cl = np.log(np.array([10.0])), np.log(np.array([10.5]))
+    ret = np.array([0.08])  # +8 % from the previous close: overnight part = log(1.08) − log(1.05)
+    rv = vol.range_variance(op, hi_, lo_, cl, ret)
+    gk = 0.5 * np.log(11 / 9) ** 2 - vol.GK_K * np.log(1.05) ** 2
+    assert rv[0] == pytest.approx((np.log(1.08) - np.log(1.05)) ** 2 + gk)
+    # a missing price or return gives no range
+    assert np.isnan(vol.range_variance(op, hi_, lo_, cl, np.array([np.nan]))[0])
+
+
+def _intraday_market(n: int, t_n: int, seed: int):
+    """A hidden, persistent variance (stochastic volatility, as in real markets), with each
+    day's return built from 50 intraday steps, so the high and low carry information."""
+    rng = np.random.default_rng(seed)
+    mu, phi, eta = np.log(4e-4), 0.97, 0.15
+    ret = np.zeros((n, t_n))
+    rv = np.zeros((n, t_n))
+    log_h = np.full(n, mu)
+    for t in range(t_n):
+        h = np.exp(log_h)
+        steps = rng.standard_normal((n, 50)) * np.sqrt(h / 50)[:, None]
+        path = np.cumsum(steps, axis=1)
+        close = path[:, -1]
+        hi_, lo_ = np.maximum(path.max(axis=1), 0), np.minimum(path.min(axis=1), 0)
+        ret[:, t] = np.expm1(close)
+        rv[:, t] = vol.range_variance(np.zeros(n), hi_, lo_, close, ret[:, t])
+        log_h = mu + phi * (log_h - mu) + eta * rng.standard_normal(n)
+    return ret, rv
+
+
+def test_the_fit_uses_the_range_when_it_helps():
+    ret, rv = _intraday_market(60, 1100, seed=9)
+    cal = sessions(1100, start=date(2015, 1, 5))
+    seg = study.calendar_segments(cal)
+    p = vol.fit_garch(ret, seg, 0, 900, rv=rv)
+    assert np.median(p.w) > 0  # the range is informative here, so it is used
+    plain = vol.sigma_forecasts(ret, seg, cal)
+    ranged = vol.sigma_forecasts(ret, seg, cal, rv=rv)
+    r_next = ret[:, 801:1100]
+
+    def qlike(h):
+        x = h[:, 800:1099]
+        return float(np.mean(np.log(x) + r_next**2 / x))
+
+    assert qlike(ranged.h_next) < qlike(plain.h_next)
+    # still point in time
+    part = vol.sigma_forecasts(ret[:, :700], seg[:700], cal[:700], rv=rv[:, :700])
+    np.testing.assert_array_equal(part.h_next, ranged.h_next[:, :700])
+
+
+def test_without_a_range_nothing_changes():
+    r = _garch(5, 800, 0.08, 0.9, 4e-4, seed=10)
+    cal = sessions(800, start=date(2015, 1, 5))
+    seg = study.calendar_segments(cal)
+    none = np.full_like(r, np.nan)
+    np.testing.assert_allclose(
+        vol.sigma_forecasts(r, seg, cal, rv=none).h_next, vol.sigma_forecasts(r, seg, cal).h_next
+    )

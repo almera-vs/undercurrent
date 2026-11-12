@@ -25,6 +25,8 @@ requests where the server sends validators, on-disk cache in `.cache/http`.
 | 7 | newconnect.pl daily statistics (XLSX/XLS) | NewConnect daily OHLCV | 200 | 200 | ✅ used |
 | 8 | espiebi.pap.pl | alternative ESPI/EBI mirror | **Incapsula challenge** | 200 | ⛔ not used |
 | 10 | xtb.com stock pages | optional link to the company on XTB | 200 | — | ✅ used, links only |
+| 11 | filings.xbrl.org (ESEF, xBRL-JSON) | company fundamentals, fiscal 2020–2024 | 200 | — | ✅ used, manual |
+| 12 | api.gleif.org | LEI → ISIN for those filings | 200 | — | ✅ used, manual |
 
 ¹ The NewConnect listing uses the same `ajaxindex.php` handler on the same infrastructure as
 row 1; confirmed from the runner in the same probe run, along with a NewConnect report page.
@@ -253,3 +255,34 @@ except whether the page exists and which ISIN it shows. Checked on 2026-11-11:
 - **Slug matching** ignores hyphens (`PKOBP` finds `pko-bp`) and also tries the first word
   of the company name (`santander`). Every guess is still accepted only on the ISIN.
 - Undercurrent is not affiliated with XTB; the site says so next to every link.
+
+## 11. filings.xbrl.org (ESEF annual reports)
+
+Since 2021 issuers on EU regulated markets file their annual reports in ESEF: XHTML with
+every number of the financial statements tagged in iXBRL. The exchange's copy is an ESPI
+attachment, which gpw.pl serves only behind bot protection (§ 4), and the periodic-report
+page itself holds no figures (checked on 2026-11-12 on two quarterly reports). XBRL
+International's public repository converts each filing to xBRL-JSON. Checked on 2026-11-12:
+
+- **Listing:** `https://filings.xbrl.org/api/filings?filter[country]=PL&page[size]=200&sort=date_added`
+  (JSON:API, `links.next` for paging). Each filing gives its LEI (in `fxo_id`), the fiscal
+  period end, the time it was added, and `json_url`.
+- **Document:** `json_url` is the xBRL-JSON conversion, about 2.6 MB per annual report, mostly
+  narrative text blocks. Facts carry `concept`, `entity`, `period` (an instant, or
+  `start/end` with the end given as the next day's midnight) and `unit`.
+- **Coverage:** 876 Polish filings from 313 entities; fiscal years 2020 (1), 2021 (130),
+  2022 (302), 2023 (161), 2024 (6); nothing added after July 2024. It is history, not a live
+  feed.
+- **robots.txt** does not exist (404); the API needs no key.
+- **Load:** `undercurrent esef --max N` reads at most N filings it has not read before (one
+  request per second), keeps only the headline facts listed in `esef.CONCEPTS`, and never
+  caches the documents. `esef.yml` runs it by hand and commits the facts.
+
+## 12. api.gleif.org (LEI → ISIN)
+
+The filings name their issuer by LEI; the lake knows ISINs. GLEIF's public API maps one to
+the other: `https://api.gleif.org/api/v1/lei-records/<LEI>/isins` lists every ISIN linked to
+the LEI (shares and bonds alike; the join with prices picks the share). Checked on
+2026-11-12 (GRODNO: `PLGRODN00015`, the ISIN the GPW archive uses). Called once per new LEI;
+results in `state/lei_isins.parquet`.
+

@@ -95,6 +95,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     st.add_argument("--date", type=_parse_date, default=_parse_date("today"))
 
+    es = sub.add_parser(
+        "esef", help="read ESEF annual reports (filings.xbrl.org) into bronze fundamentals"
+    )
+    es.add_argument("--max", type=int, default=25, help="at most this many new filings")
+
     xl = sub.add_parser("xtb-links", help="verify links to company pages on xtb.com")
     xl.add_argument("--days", type=int, default=45, help="stocks with events in this many days")
     xl.add_argument("--max", type=int, default=400, help="at most this many stocks per run")
@@ -232,6 +237,16 @@ def cmd_market_state(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_esef(args: argparse.Namespace) -> int:
+    """Read new ESEF filings into ``bronze/fundamentals_esef`` (polite, resumable)."""
+    from undercurrent import esef
+    from undercurrent.fetch import PoliteClient
+
+    with PoliteClient() as client:
+        esef.ingest(client, args.data_dir, max_filings=args.max)
+    return 0
+
+
 def cmd_xtb_links(args: argparse.Namespace) -> int:
     """Verify XTB links for the stocks of recent events (needs a built work dir)."""
     from datetime import UTC, datetime, timedelta
@@ -285,6 +300,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "xtb-links": cmd_xtb_links,
         "pick": cmd_pick,
         "market-state": cmd_market_state,
+        "esef": cmd_esef,
     }
     return handlers[args.command](args)
 

@@ -1,0 +1,44 @@
+name: esef
+
+# Company fundamentals from ESEF annual reports (filings.xbrl.org, LEIs mapped to ISINs via
+# GLEIF). Manual for now: the repository's Polish coverage ends in mid-2024, so there is
+# nothing new to fetch on a schedule. Each run reads at most `max` filings it has not read
+# before (about 2.6 MB each, read in memory, never cached) and commits the extracted facts.
+on:
+  workflow_dispatch:
+    inputs:
+      max:
+        description: "at most this many new filings"
+        required: true
+        default: "200"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily  # one writer to the data branch at a time, as for the nightly run
+  cancel-in-progress: false
+
+jobs:
+  esef:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          ref: data
+          path: data
+          fetch-depth: 1
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --locked --no-dev
+      - name: read new filings
+        run: uv run undercurrent --data-dir data esef --max "${{ inputs.max }}"
+      - name: lake size check
+        run: uv run undercurrent --data-dir data check-lake --max-mb 900
+      - name: commit
+        if: always()
+        run: scripts/commit_data.sh "esef fundamentals $(date -u +%F)"

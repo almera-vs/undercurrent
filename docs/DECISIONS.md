@@ -468,6 +468,48 @@ it costs. Method details (event study, walk-forward, verdicts) are in
   - The deflated Sharpe ratio is still empty on the pick page. It was before this change as
     well; a weekly series with one purchase a year gives it little to work with.
 
+## Report effects, the day's range and fundamentals (2026-11-12)
+
+- **Report kinds as a forecast input.** Each kind's 20-session event-study result becomes a
+  point-in-time input (`signal_effect.py`, a market-state column): estimated each year
+  only from events whose trade had closed before it, standard errors clustered by stock and
+  month, and shrunk in two steps.
+  - The first version shrank each kind towards 0 and let through what all kinds share: in
+    2016 every kind showed +2 to +4 %, in 2026 every kind about −1 %. That is a drift common
+    to stocks with news against a large-cap index, not a property of any kind. Kinds are now
+    shrunk towards the pooled mean, and the pooled mean towards 0 by its own t-statistic
+    (kept share `1 − 1/t²`).
+  - Result on 2015–2018: the kinds do not differ beyond noise (τ² = 0), and what is left is
+    a common −0.9 % over 20 sessions after any report, kept at about 80 % (t ≈ −2.2). This
+    agrees with the study's own verdicts ("noise").
+  - Repeated filings of one kind (an insider filing daily) count once, from the latest.
+  - In the forecast it is its own variant (`state_signals`). It did not beat the model
+    without it out of sample (rank IC 0.168 against 0.170), so it is not used; it stays wired
+    and will be tested again as the backfill adds years. Event pages show the shrunk effect
+    as evidence.
+- **The day's range in the volatility forecast** (GARCH-X). The innovation is
+  `(1 − w)·r² + w·rv`, with `rv` the overnight move squared plus the Garman–Klass intraday
+  variance, and `w ∈ {0, ½, 1}` fitted with α and β by the same likelihood. The overnight
+  move is the adjusted return minus the open-to-close move, so corporate actions cannot
+  inflate it. Out of sample on 2017–2018, tradable stocks: the QLIKE loss of the next day's
+  variance fell by 0.018 a day (Diebold–Mariano t = −4.5 with Newey–West errors over 483
+  days), and the range version was better on 65 % of days. The fit uses the range for 56 % of
+  stocks. Downstream it is small so far: band coverage 87.8 % → 88.0 %; the pick's IC and
+  the basket moved within noise.
+- **Fundamentals: the start** (`esef.py`). The exchange's copies of annual reports are
+  behind bot protection and the periodic-report pages hold no figures, so ESEF filings come
+  from XBRL International's repository and LEIs are mapped with GLEIF (SOURCES § 11–12).
+  - Only consolidated headline facts are kept (revenue, gross and operating profit, net
+    profit, assets, liabilities, equity, cash, operating cash flow, EPS), for every period a
+    filing reports, so the prior year's comparatives come along.
+  - `known_at` is when the repository added the filing. It is later than the issuer's own
+    publication, so the data can only look older than it was. Matching each filing to its
+    ESPI annual-report timestamp would make it exact; that is a later step.
+  - The repository's Polish coverage ends in July 2024 (fiscal 2020–2024). It is enough to
+    test value, profitability and investment features once prices for 2021–2024 are in the
+    lake, not to run them live; a live source for fiscal 2024–2025 is still to be found.
+  - Not wired into the forecast yet: the lake has no prices for the years the filings cover.
+
 ## Known limitations
 
 - Insider trade details (side, volume, price) are missing for reports that no portal

@@ -457,6 +457,17 @@ PL: dict[str, str] = {
         "miejsce {r} z {u} płynnych spółek z WIG"
     ),
     "the model": "model",
+    "Reports like this, as evidence": "Raporty tego typu jako dowód",
+    "over 20 sessions: what any report adds, shrunk by its evidence; too few reports of this "
+    "kind to tell it apart": (
+        "w ciągu 20 sesji: to, co dodaje dowolny raport, ściągnięte do zera według dowodów; za "
+        "mało raportów tego typu, by go odróżnić"
+    ),
+    "over 20 sessions after shrinking by the evidence: {c} common to all reports, {k} for this "
+    "kind (measured {m} over {n} reports)": (
+        "w ciągu 20 sesji po ściągnięciu według dowodów: {c} wspólne dla wszystkich raportów, "
+        "{k} dla tego typu (zmierzone {m} na {n} raportach)"
+    ),
     "none: the model scores only liquid WIG stocks with a year of history": (
         "brak: model ocenia tylko płynne spółki z WIG z rocznym notowaniem"
     ),
@@ -958,6 +969,7 @@ FEATURE_LABELS: dict[str, dict[str, str]] = {
         "bond_beta": "Sensitivity to bond prices (TBSP)",
         "resid_mom": "12-month trend of its own (beyond WIG and bonds)",
         "surprise_20": "Surprises last month (in standard deviations)",
+        "signal_effect": "What its recent reports are expected to add (shrunk event study)",
     },
     "pl": {
         "mom_12_1": "Trend 12 miesięcy wobec WIG (bez ostatniego miesiąca)",
@@ -987,6 +999,7 @@ FEATURE_LABELS: dict[str, dict[str, str]] = {
         "bond_beta": "Wrażliwość na ceny obligacji (TBSP)",
         "resid_mom": "Własny trend 12 miesięcy (poza WIG i obligacjami)",
         "surprise_20": "Zaskoczenia w ostatnim miesiącu (w odchyleniach standardowych)",
+        "signal_effect": "Oczekiwany wpływ ostatnich raportów (badanie zdarzeń, ściągnięty do 0)",
     },
 }
 PICK_VERDICTS: dict[str, dict[str, str]] = {

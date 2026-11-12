@@ -16,12 +16,13 @@ Features, all measured against WIG where they are returns:
 No financial statements, share counts or market values exist in the lake, so there are no
 valuation features.
 
-From the market state (``market_state.py``, L2 in DECISIONS) come five more, when its table
+From the market state (``market_state.py``, L2 in DECISIONS) come six more, when its table
 is in the work dir: the GARCH forecast of the next 20 sessions' volatility, the Kalman betas
 to WIG and to bonds, residual momentum (12-1 months of the returns the betas did not
-explain) and the last month's surprises. The same table gives each stock's σ (to turn a
-score into an expected return) and its round-trip cost. ``FEATURES`` are the original
-features; ``ALL_FEATURES`` adds the state's.
+explain), the last month's surprises, and what the stock's recent reports are expected to
+add (each kind's event-study result shrunk by its evidence, ``signal_effect.py``). The same
+table gives each stock's σ (to turn a score into an expected return) and its round-trip
+cost. ``FEATURES`` are the original features; ``ALL_FEATURES`` adds the state's.
 """
 
 from __future__ import annotations
@@ -96,6 +97,7 @@ STATE_FEATURES: tuple[str, ...] = (
     "bond_beta",
     "resid_mom",
     "surprise_20",
+    "signal_effect",
 )
 ALL_FEATURES: tuple[str, ...] = (*FEATURES, *STATE_FEATURES)
 STATE_FILE = "market_state.parquet"
@@ -107,6 +109,7 @@ STATE_COLUMNS = (
     "surprise",
     "cost",
     "regime_stress",
+    "signal_effect",
 )
 
 
@@ -149,6 +152,7 @@ class Panel:
     surprise: FloatArray  # stocks × (T+1) prefix sums of surprises
     n_surprise: npt.NDArray[np.int64]
     regime: FloatArray  # per session: filtered probability of the stress regime
+    signal_effect: FloatArray  # what the stock's running reports are expected to add
 
 
 def load_inputs(duckdb_file: Path, as_of: datetime) -> PickInputs:
@@ -325,6 +329,7 @@ def build_panel(inputs: PickInputs) -> Panel:
         surprise=_prefix(np.where(np.isfinite(st["surprise"]), st["surprise"], 0.0)),
         n_surprise=_count_prefix(st["surprise"]),
         regime=_per_session(st["regime_stress"]),
+        signal_effect=st["signal_effect"],
     )
 
 
@@ -438,6 +443,7 @@ def raw_features(panel: Panel, t: int) -> FloatArray:
     out[:, col["garch_vol"]] = panel.sigma_20[:, t]
     out[:, col["kalman_beta"]] = panel.beta_wig[:, t]
     out[:, col["bond_beta"]] = panel.beta_tbsp[:, t]
+    out[:, col["signal_effect"]] = panel.signal_effect[:, t]
     lo, hi = t - YEAR + 1, t - 21  # 12-1 months, like mom_12_1
     n_res = panel.n_resid[:, hi + 1] - panel.n_resid[:, lo]
     res = panel.resid[:, hi + 1] - panel.resid[:, lo]

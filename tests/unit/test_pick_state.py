@@ -120,7 +120,7 @@ def test_hysteresis_uses_the_leaders_cost():
 
 def test_scaled_expected_is_score_map_times_sigma():
     m = pick.Model(
-        weights=np.ones(len(pf.ALL_FEATURES)),
+        weights=np.ones(len(pick.VARIANTS[2].features)),
         penalty=1.0,
         intercept=0.1,
         slope=0.5,

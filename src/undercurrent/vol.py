@@ -18,6 +18,12 @@ given returns up to and including ``t`` (``h[t]`` is known at ``t``'s close).
 * **Missing returns and holes.** A session without a return updates the variance with its
   expectation (``h ← ω + (α + β)·h``; EWMA keeps ``h``). At a hole in the calendar the filter
   restarts: GARCH from ``v``, EWMA from a new warm-up.
+* **The day's range** (GARCH-X). A squared daily return is a very noisy measure of that
+  day's variance; the open, high and low say much more. With ``rv`` given (``range_variance``:
+  the overnight move squared plus the Garman–Klass intraday variance) the recursion is fed
+  ``(1 − w)·r² + w·rv`` instead of ``r²``, and ``w`` ∈ ``WEIGHTS`` is a third grid
+  dimension, chosen with α and β by the same likelihood of the returns. ``w = 0`` is plain
+  GARCH, so the fit can always fall back to it. Sessions without a range use ``r²``.
 """
 
 from __future__ import annotations
@@ -48,6 +54,33 @@ _ALPHAS = np.round(np.arange(0.02, 0.301, 0.02), 4)
 _PERSISTENCE = np.array([0.80, 0.85, 0.90, 0.93, 0.95, 0.97, 0.98, 0.99])
 
 
+WEIGHTS = (0.0, 0.5, 1.0)  # share of the day's range variance in the innovation
+GK_K = 2 * np.log(2) - 1  # Garman–Klass constant
+
+
+def range_variance(
+    log_open: FloatArray,
+    log_high: FloatArray,
+    log_low: FloatArray,
+    log_close: FloatArray,
+    ret: FloatArray,
+) -> FloatArray:
+    """A session's variance from its prices: overnight move² + Garman–Klass intraday variance.
+
+    The overnight move is the session's (adjusted) log return minus its open-to-close move,
+    so a corporate action, which the adjusted return already removes, cannot inflate it.
+    NaN where any price or the return is missing.
+    """
+    with np.errstate(invalid="ignore"):
+        hl = log_high - log_low
+        co = log_close - log_open
+        gk = 0.5 * hl**2 - GK_K * co**2
+        overnight = np.log1p(ret) - co
+        out = overnight**2 + np.maximum(gk, 0.0)
+    ok = np.isfinite(out) & np.isfinite(ret) & (hl >= 0)
+    return np.asarray(np.where(ok, out, np.nan), dtype=np.float64)
+
+
 def _grid() -> tuple[FloatArray, FloatArray]:
     a, p = np.meshgrid(_ALPHAS, _PERSISTENCE, indexing="ij")
     a, p = a.ravel(), p.ravel()
@@ -65,6 +98,12 @@ class GarchParams:
     alpha: FloatArray
     beta: FloatArray
     target: FloatArray  # unconditional variance v
+    weight: FloatArray | None = None  # w, the range's share of the innovation (0 without)
+
+    @property
+    def w(self) -> FloatArray:
+        """The range weight, 0 where none was fitted."""
+        return self.weight if self.weight is not None else np.zeros_like(self.alpha)
 
     @property
     def fitted(self) -> npt.NDArray[np.bool_]:
@@ -80,6 +119,7 @@ class Sigma:
     source: npt.NDArray[np.int8]
     persistence: FloatArray  # α + β of the fit behind the value (1 for EWMA)
     target: FloatArray  # v of that fit (the EWMA value itself for EWMA)
+    weight: FloatArray | None = None  # the range weight w of the fit behind the value
 
     def horizon_var(self, horizon: int) -> FloatArray:
         """Variance of the sum of the next ``horizon`` daily returns."""
@@ -95,10 +135,25 @@ def year_starts(cal: list[date]) -> list[tuple[int, int]]:
     return [(s, starts[k + 1] if k + 1 < len(starts) else len(cal)) for k, s in enumerate(starts)]
 
 
+def _innovation(r2: FloatArray, rv: FloatArray | None, w: FloatArray) -> FloatArray:
+    """``(1 − w)·r² + w·rv``, with ``r²`` where the range is missing."""
+    if rv is None:
+        return r2
+    return np.where(np.isfinite(rv), (1 - w) * r2 + w * np.where(np.isfinite(rv), rv, 0.0), r2)
+
+
 def fit_garch(
-    ret: FloatArray, seg: IntArray, lo: int, hi: int, floor: float = VAR_FLOOR
+    ret: FloatArray,
+    seg: IntArray,
+    lo: int,
+    hi: int,
+    floor: float = VAR_FLOOR,
+    rv: FloatArray | None = None,
 ) -> GarchParams:
-    """Fit every stock on sessions ``lo .. hi-1`` by grid quasi-likelihood."""
+    """Fit every stock on sessions ``lo .. hi-1`` by grid quasi-likelihood.
+
+    With ``rv`` the range weight ``w`` is fitted too (``WEIGHTS``), else it is 0.
+    """
     n = ret.shape[0]
     r = ret[:, lo:hi]
     known = np.isfinite(r)
@@ -109,30 +164,41 @@ def fit_garch(
     ok = (cnt >= MIN_FIT) & (target > floor)
     if not ok.any() or hi <= lo:
         nan = np.full(n, np.nan)
-        return GarchParams(nan, nan.copy(), nan.copy())
-    a = GRID_ALPHA[None, :]
-    p = GRID_PERSISTENCE[None, :]
+        return GarchParams(nan, nan.copy(), nan.copy(), nan.copy())
+    weights = np.array(WEIGHTS if rv is not None else (0.0,))
+    g = len(GRID_ALPHA)
+    a = np.tile(GRID_ALPHA, len(weights))[None, :]
+    p = np.tile(GRID_PERSISTENCE, len(weights))[None, :]
+    w = np.repeat(weights, g)[None, :]
     b = p - a
     tv = np.where(ok, target, 1.0)[:, None]
     omega = tv * (1 - p)
     h = np.repeat(tv, a.shape[1], axis=1)
     ll = np.zeros_like(h)
     s = seg[lo:hi]
+    x = rv[:, lo:hi] if rv is not None else None
     for j in range(r.shape[1]):
         if j and s[j] != s[j - 1]:
             h[:] = tv
-        e2 = r0[:, j : j + 1] ** 2
+        r2 = r0[:, j : j + 1] ** 2
         k = known[:, j : j + 1]
-        ll -= np.where(k, 0.5 * (np.log(h) + e2 / h), 0.0)
+        ll -= np.where(k, 0.5 * (np.log(h) + r2 / h), 0.0)
+        e2 = _innovation(r2, x[:, j : j + 1] if x is not None else None, w)
         h = omega + np.where(k, a * e2 + b * h, p * h)
     best = np.argmax(ll, axis=1)
-    alpha = np.where(ok, GRID_ALPHA[best], np.nan)
-    beta = np.where(ok, GRID_PERSISTENCE[best] - GRID_ALPHA[best], np.nan)
-    return GarchParams(alpha, beta, np.where(ok, target, np.nan))
+    alpha = np.where(ok, a[0, best], np.nan)
+    beta = np.where(ok, p[0, best] - a[0, best], np.nan)
+    return GarchParams(alpha, beta, np.where(ok, target, np.nan), np.where(ok, w[0, best], np.nan))
 
 
 def _garch_path(
-    ret: FloatArray, seg: IntArray, prm: GarchParams, lo: int, hi: int, floor: float
+    ret: FloatArray,
+    seg: IntArray,
+    prm: GarchParams,
+    lo: int,
+    hi: int,
+    floor: float,
+    rv: FloatArray | None = None,
 ) -> FloatArray:
     """``h_next`` for sessions ``lo .. hi-1`` (NaN for stocks without a fit)."""
     n = ret.shape[0]
@@ -143,6 +209,7 @@ def _garch_path(
     a = np.where(ok, prm.alpha, 0.0)
     b = np.where(ok, prm.beta, 0.0)
     v = np.where(ok, prm.target, 1.0)
+    wt = np.where(ok, np.nan_to_num(prm.w), 0.0)
     p = a + b
     omega = v * (1 - p)
     h = v.copy()
@@ -151,7 +218,7 @@ def _garch_path(
             h = v.copy()
         r = ret[:, t]
         k = np.isfinite(r)
-        e2 = np.where(k, r, 0.0) ** 2
+        e2 = _innovation(np.where(k, r, 0.0) ** 2, rv[:, t] if rv is not None else None, wt)
         h = np.maximum(omega + np.where(k, a * e2 + b * h, p * h), floor)
         out[:, j] = np.where(ok, h, np.nan)
     return out
@@ -186,23 +253,29 @@ def ewma_path(ret: FloatArray, seg: IntArray, floor: float = VAR_FLOOR) -> Float
 
 
 def sigma_forecasts(
-    ret: FloatArray, seg: IntArray, cal: list[date], floor: float = VAR_FLOOR
+    ret: FloatArray,
+    seg: IntArray,
+    cal: list[date],
+    floor: float = VAR_FLOOR,
+    rv: FloatArray | None = None,
 ) -> Sigma:
     """Point-in-time variance forecasts for every stock and session (see module docstring).
 
     ``floor`` is the smallest variance reported: ``VAR_FLOOR`` for stocks,
-    ``INDEX_VAR_FLOOR`` for indices.
+    ``INDEX_VAR_FLOOR`` for indices. ``rv`` (``range_variance``) lets the fit use the day's
+    range.
     """
     n, t_n = ret.shape
     h_next = np.full((n, t_n), np.nan)
     source = np.zeros((n, t_n), dtype=np.int8)
     persistence = np.full((n, t_n), np.nan)
     target = np.full((n, t_n), np.nan)
+    weight = np.full((n, t_n), np.nan)
     ew = ewma_path(ret, seg, floor)
     for start, end in year_starts(cal):
         lo = max(0, start - TRAIN)
-        prm = fit_garch(ret, seg, lo, start, floor)
-        g = _garch_path(ret, seg, prm, lo, end, floor)[:, start - lo :]
+        prm = fit_garch(ret, seg, lo, start, floor, rv)
+        g = _garch_path(ret, seg, prm, lo, end, floor, rv)[:, start - lo :]
         has_g = np.isfinite(g)
         e = ew[:, start:end]
         has_e = np.isfinite(e)
@@ -213,4 +286,5 @@ def sigma_forecasts(
         pers = (prm.alpha + prm.beta)[:, None]
         persistence[:, start:end] = np.where(has_g, pers, np.where(has_e, 1.0, np.nan))
         target[:, start:end] = np.where(has_g, prm.target[:, None], e)
-    return Sigma(h_next, source, persistence, target)
+        weight[:, start:end] = np.where(has_g, prm.w[:, None], np.nan)
+    return Sigma(h_next, source, persistence, target, weight)

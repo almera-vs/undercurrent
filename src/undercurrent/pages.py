@@ -378,6 +378,7 @@ FEATURE_KINDS: dict[str, str] = {
     "bond_beta": "num",
     "resid_mom": "logret",
     "surprise_20": "num",
+    "signal_effect": "logret",
 }
 
 

@@ -956,6 +956,7 @@ def _add_company_context(
             h.turnover.append(float(val))
     state = _state_rows(work, isins, day)
     forecasts = _forecast_rows(work, day)
+    effects = _effect_rows(work, day)
     links = xtb.read_links(data_dir)
     with_pages = {e["report_id"] for e in events}
     by_isin = {
@@ -975,6 +976,7 @@ def _add_company_context(
         e["company"] = _company(
             e, hist.get(isin), wig, sessions, day, state.get(isin), forecasts.get(isin)
         )
+        e["effect"] = effects.get(e["signal_key"]) or effects.get("*")
         same = by_isin.get(e.get("isin"))
         e["history"] = []
         if same is not None:
@@ -1021,6 +1023,18 @@ def _forecast_rows(work: Path, day: date) -> dict[str, dict[str, Any]]:
     scores = pl.read_parquet(gold / "pick_scores.parquet")
     n = scores.height
     return {r["isin"]: {**r, "universe": n} for r in scores.iter_rows(named=True)}
+
+
+def _effect_rows(work: Path, day: date) -> dict[str, dict[str, Any]]:
+    """Each kind of report's shrunk effect in use on ``day`` (``signal_effect.py``)."""
+    path = work / "gold" / "signal_effects.parquet"
+    if not path.exists():
+        return {}
+    df = pl.read_parquet(path).filter(pl.col("year") <= day.year)
+    if not df.height:
+        return {}
+    df = df.filter(pl.col("year") == df["year"].max())
+    return {r["signal_key"]: r for r in df.iter_rows(named=True)}
 
 
 def _finite(x: Any) -> float | None:
