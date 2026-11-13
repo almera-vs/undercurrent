@@ -141,6 +141,16 @@ it costs. Method details (event study, walk-forward, verdicts) are in
   ignored (at most 0.2 % on one day).
 - **Overrides:** `seeds/corporate_action_overrides.csv` replaces the factor for an
   `(isin, ex_date)`; every row needs a comment.
+- **Bad prints are drafted, not decided (2026-11-13).** The 2019–2025 backfill will turn up
+  more cases like MEGARON's 0.284 print, and each stops the nightly build until override rows
+  settle it. `undercurrent bad-prints` runs the two gates' rules on the built
+  `adjusted_prices`, shows each case with three sessions either side and drafts the rows; a
+  failed nightly build writes the same report to the job summary. Only one shape is called
+  clear: a factor undone within a month with no trades on any session of the episode. Nobody
+  traded at that price, so the file was wrong; the published factors are kept and cancel, and
+  `--append` writes those rows. A reversal with trades, or a silent jump that stays, is
+  printed but never written: telling a garbled print from a real split followed by a reverse
+  split, or from a stale quote, takes a person.
 - **Jump gate.** The first version passed any move the exchange's published change
   "confirmed". The adjusted return is built from that change, so the gate could not fail: on
   2015–2016 all 1,586 moves above 35 % were confirmed. It now asks for evidence the change

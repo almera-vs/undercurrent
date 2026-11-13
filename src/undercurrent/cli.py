@@ -100,6 +100,17 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     es.add_argument("--max", type=int, default=25, help="at most this many new filings")
 
+    bp = sub.add_parser(
+        "bad-prints",
+        help="list what the price gates caught and draft override rows (needs a built work dir)",
+    )
+    bp.add_argument(
+        "--append",
+        action="store_true",
+        help="append the drafted rows of clear bad prints to seeds/corporate_action_overrides.csv",
+    )
+    bp.add_argument("--all", action="store_true", help="include cases already settled")
+
     xl = sub.add_parser("xtb-links", help="verify links to company pages on xtb.com")
     xl.add_argument("--days", type=int, default=45, help="stocks with events in this many days")
     xl.add_argument("--max", type=int, default=400, help="at most this many stocks per run")
@@ -237,6 +248,22 @@ def cmd_market_state(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_bad_prints(args: argparse.Namespace) -> int:
+    """List what the price gates caught, with drafted override rows. Exit 1 if any is open."""
+    from undercurrent import bad_prints, transform
+
+    cases, added = bad_prints.review(
+        transform.duckdb_path(args.work_dir), include_settled=args.all, append=args.append
+    )
+    sys.stdout.write(bad_prints.report(cases))
+    for row in added:
+        log.info("appended override %s %s (%s)", row.isin, row.ex_date, row.action)
+    if added:
+        log.info("%d row(s) appended to %s; rebuild to check", len(added), bad_prints.SEED)
+    still_open = [c for c in cases if not c.settled_as and not (args.append and c.clear)]
+    return 1 if still_open else 0
+
+
 def cmd_esef(args: argparse.Namespace) -> int:
     """Read new ESEF filings into ``bronze/fundamentals_esef`` (polite, resumable)."""
     from undercurrent import esef
@@ -301,6 +328,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "pick": cmd_pick,
         "market-state": cmd_market_state,
         "esef": cmd_esef,
+        "bad-prints": cmd_bad_prints,
     }
     return handlers[args.command](args)
 

@@ -50,7 +50,8 @@ Code: `src/undercurrent/study.py` (event studies), `dbt/models/gold/adjusted_pri
   split). NewConnect publishes the reference price. For GPW it is recovered from the published
   change: `reference = close / (1 + change% / 100)`. `factor = reference / prev_close`;
   every earlier price is multiplied by the factor. Factors within 0.2 % of 1 are rounding.
-  Manual overrides live in `seeds/corporate_action_overrides.csv`.
+  Manual overrides live in `seeds/corporate_action_overrides.csv`; `undercurrent bad-prints`
+  lists what the gates caught and drafts the rows (`--append` writes only the clear bad prints).
 - Adjusted daily returns therefore equal the exchange's own published change, which makes them
   **total returns** (GPW adjusts the reference for dividends; verified on real dividends).
 - Nothing is derived across a hole in the lake (months not backfilled yet): the first session

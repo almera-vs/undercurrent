@@ -278,6 +278,10 @@ def run_day(
         res.status = "failed"
         res.notes.append(f"{type(exc).__name__}: {exc}")
         log.exception("run %s failed", day)
+        from undercurrent import transform as _transform
+
+        if run_transform and isinstance(exc, _transform.DbtError):
+            _report_price_cases(work_dir)
         return 1
     finally:
         if res.finished_at is None or res.status == "failed":
@@ -286,6 +290,32 @@ def run_day(
         if own_client:
             client.close()
         log.info("run summary: %s", json.dumps(res.row(), default=str, ensure_ascii=False))
+
+
+def _report_price_cases(work_dir: Path) -> None:
+    """After a failed dbt build: what the price gates caught, with drafted override rows.
+
+    Goes to the log and, on GitHub Actions, to the job summary, so the red run already says
+    which rows would settle it (``undercurrent bad-prints --append`` writes the clear ones).
+    Best effort: a build that failed before ``adjusted_prices`` exists has nothing to show.
+    """
+    import os
+
+    from undercurrent import bad_prints, transform
+
+    try:
+        cases, _ = bad_prints.review(transform.duckdb_path(work_dir))
+    except Exception:
+        log.warning("price cases not listed", exc_info=True)
+        return
+    if not cases:
+        return
+    text = bad_prints.report(cases)
+    log.error("price gates caught %d case(s):\n%s", len(cases), text)
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a", encoding="utf-8") as fh:
+            fh.write(text)
 
 
 def _run_market_state(work_dir: Path, duckdb_file: Path, day: date) -> None:
