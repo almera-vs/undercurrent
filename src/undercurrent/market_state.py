@@ -72,7 +72,9 @@ def load_inputs(duckdb_file: Path, as_of: datetime) -> StateInputs:
     """Read the gold tables and cut them at ``as_of`` by ``known_at``."""
     import duckdb
 
-    con = duckdb.connect(str(duckdb_file), read_only=True)
+    # Same configuration as every other reader: in the nightly run dbt still holds the file
+    # open in this process, and DuckDB refuses a second connection with other settings.
+    con = duckdb.connect(str(duckdb_file))
     try:
         prices = con.sql(
             "select a.isin, a.trade_date, a.market, a.close, a.adj_ret, "

@@ -367,3 +367,34 @@ def test_without_a_range_nothing_changes():
     np.testing.assert_allclose(
         vol.sigma_forecasts(r, seg, cal, rv=none).h_next, vol.sigma_forecasts(r, seg, cal).h_next
     )
+
+
+def test_inputs_load_while_another_connection_holds_the_file(tmp_path):
+    """The nightly run reads the state in the process where dbt still holds the database."""
+    import duckdb
+
+    db = tmp_path / "u.duckdb"
+    holder = duckdb.connect(str(db))
+    try:
+        holder.execute(
+            "create table adjusted_prices as select 'PLX' as isin, date '2026-11-12' as trade_date,"
+            " 'GPW' as market, 10.0 as close, 0.01 as adj_ret, 1e6 as value_pln, 1e5 as volume,"
+            " cast(null as varchar) as factor_source,"
+            " timestamptz '2026-11-12 16:35:00+00' as known_at"
+        )
+        holder.execute(
+            "create table prices_daily as select 'PLX' as isin, date '2026-11-12' as trade_date,"
+            " 9.9 as open, 10.2 as high, 9.8 as low"
+        )
+        holder.execute(
+            "create table index_returns as select 'WIG' as name, date '2026-11-12' as trade_date,"
+            " 0.0 as ret, timestamptz '2026-11-12 16:35:00+00' as known_at"
+        )
+        holder.execute(
+            "create table benchmark as select date '2026-11-12' as trade_date,"
+            " timestamptz '2026-11-12 16:35:00+00' as known_at"
+        )
+        inputs = market_state.load_inputs(db, known(date(2026, 11, 12)))
+        assert inputs.prices.height == 1 and inputs.sessions.height == 1
+    finally:
+        holder.close()
