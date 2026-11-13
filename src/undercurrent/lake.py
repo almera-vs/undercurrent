@@ -75,6 +75,15 @@ def read_partition(root: Path, layer: str, table: str, day: date) -> pl.DataFram
     return pl.concat(frames, how="diagonal_relaxed")
 
 
+def partition_dates(root: Path, layer: str, table: str, column: str) -> set[date]:
+    """Days a table has data for: daily partition names, and the days inside month files."""
+    base = root / layer / table
+    out = {date.fromisoformat(p.name[5:]) for p in base.glob("date=*") if p.is_dir()}
+    for f in sorted(base.glob("month=*/*.parquet")):
+        out.update(pl.read_parquet(f, columns=[column])[column].unique().to_list())
+    return out
+
+
 def read_table(root: Path, layer: str, table: str) -> pl.DataFrame | None:
     """Read a whole table (all partitions), or ``None`` if empty."""
     base = root / layer / table

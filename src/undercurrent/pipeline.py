@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+import httpx
 import polars as pl
 
 from undercurrent import gpw_calendar, ingest, lake
@@ -46,6 +47,9 @@ FORMS_WINDOW_DAYS = 21
 XTB_LOOKBACK_DAYS = 45
 # Backfill yields to the nightly job inside this UTC window on weekdays.
 NIGHTLY_WINDOW_UTC = (time(17, 30), time(19, 30))
+# Days in a row a backfill may fail on the network before it stops: the source is down, and
+# retrying every remaining day would only run the job into its time limit (2020-02 did).
+MAX_UNREACHABLE_DAYS = 3
 
 RUNS_SCHEMA: dict[str, Any] = {
     "run_date": pl.Date,
@@ -396,9 +400,13 @@ def backfill(
 ) -> int:
     """Backfill every day in ``[start, end]``: reports daily, prices on weekdays.
 
-    A day that fails (the source is down, a file is malformed) does not stop the range: the
-    remaining days run, the failed days are tried once more at the end, and the exit code is
-    1 only if some still fail. Every day is idempotent, so a re-run fetches what is missing.
+    A day that fails (a file is malformed, one request times out) does not stop the range:
+    the remaining days run, the failed days are tried once more at the end, and the exit code
+    is 1 only if some still fail. Every day is idempotent, so a re-run fetches what is missing.
+
+    If ``MAX_UNREACHABLE_DAYS`` days in a row fail on the network, the source is down: the
+    run stops at once with exit code 1 instead of waiting out every remaining day, and the
+    days left are found again by ``price_gaps`` (the workflow's ``gaps`` mode).
     """
     own_client = client is None
     client = client or PoliteClient()
@@ -426,22 +434,32 @@ def backfill(
         )
         return st.failed + st.blocked
 
+    unreachable = 0
+
     def attempt(days: list[date]) -> list[date]:
-        nonlocal failures
+        nonlocal failures, unreachable
         broken: list[date] = []
-        for d in days:
+        for k, d in enumerate(days):
             _yield_to_nightly(clock, sleep)
             try:
                 failures += one_day(d)
-            except Exception:
+                unreachable = 0
+            except Exception as exc:
                 log.exception("backfill %s failed; continuing with the next day", d)
                 broken.append(d)
+                unreachable = unreachable + 1 if _network_error(exc) else 0
+                if unreachable >= MAX_UNREACHABLE_DAYS:
+                    log.error(
+                        "the source failed on the network %d days in a row; stopping here",
+                        unreachable,
+                    )
+                    return broken + days[k + 1 :]
         return broken
 
     try:
         days = [start + timedelta(days=i) for i in range((end - start).days + 1)]
         broken = attempt(days)
-        if broken:
+        if broken and unreachable < MAX_UNREACHABLE_DAYS:
             log.info("retrying %d failed day(s): %s", len(broken), ", ".join(map(str, broken)))
             broken = attempt(broken)
     finally:
@@ -452,3 +470,54 @@ def backfill(
         log.error("days still failing: %s", ", ".join(map(str, broken)))
         return 1
     return 0
+
+
+def _network_error(exc: BaseException) -> bool:
+    """A timeout, refused or reset connection, anywhere in the exception's chain."""
+    seen: BaseException | None = exc
+    while seen is not None:
+        if isinstance(seen, httpx.TransportError):
+            return True
+        seen = seen.__cause__ or seen.__context__
+    return False
+
+
+def price_gaps(data_dir: Path, start: date, end: date) -> list[date]:
+    """GPW sessions in ``[start, end]`` the price lake has no main-market file for."""
+    have = lake.partition_dates(data_dir, "bronze", "prices_gpw", "trade_date")
+    days = (start + timedelta(days=i) for i in range((end - start).days + 1))
+    return [d for d in days if gpw_calendar.is_session(d) and d not in have]
+
+
+def gap_ranges(missing: list[date]) -> list[tuple[date, date]]:
+    """The missing sessions as backfill ranges: one per run of missing sessions in a month.
+
+    A run that starts at the month's first session starts on the 1st, and one that ends at
+    its last session ends on the last day, so the weekends' reports come along too.
+    """
+    runs: list[list[date]] = []
+    for d in sorted(set(missing)):
+        if runs and _next_session(d, -1) == runs[-1][-1] and _same_month(runs[-1][0], d):
+            runs[-1].append(d)
+        else:
+            runs.append([d])
+    out = []
+    for run in runs:
+        first = run[0].replace(day=1)
+        last = (first + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+        a = first if _next_session(run[0], -1).month != first.month else run[0]
+        b = last if _next_session(run[-1], 1).month != first.month else run[-1]
+        out.append((a, b))
+    return out
+
+
+def _same_month(a: date, b: date) -> bool:
+    return (a.year, a.month) == (b.year, b.month)
+
+
+def _next_session(d: date, step: int) -> date:
+    """The session before (``step=-1``) or after (``step=1``) ``d``."""
+    x = d + timedelta(days=step)
+    while not gpw_calendar.is_session(x):
+        x += timedelta(days=step)
+    return x

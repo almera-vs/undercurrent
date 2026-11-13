@@ -4,6 +4,10 @@ name: backfill
 # (max-parallel: 1) so total request rate to gpw.pl / newconnect.pl stays <= 1/s, and the
 # Python code pauses during the nightly window. Every step is idempotent: re-running a
 # month only fetches what is missing.
+#
+# With `gaps`, the plan is not every month of the range but the sessions the price lake
+# lacks (`undercurrent lake-gaps`): a month that failed, or stopped because the source was
+# down, is found and re-run without re-listing the months that are complete.
 on:
   workflow_dispatch:
     inputs:
@@ -14,17 +18,46 @@ on:
       end:
         description: "last day YYYY-MM-DD"
         required: true
+      gaps:
+        description: "only the sessions the price lake lacks in the range"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
+
+# Two backfills at once would double the request rate: a second run waits for the first.
+concurrency:
+  group: backfill
+  cancel-in-progress: false
 
 jobs:
   plan:
     runs-on: ubuntu-latest
     outputs:
-      months: ${{ steps.months.outputs.months }}
+      months: ${{ steps.gaps.outputs.months || steps.months.outputs.months }}
     steps:
+      - if: inputs.gaps
+        uses: actions/checkout@v7
+      - if: inputs.gaps
+        uses: actions/checkout@v7
+        with:
+          ref: data
+          path: data
+          fetch-depth: 1
+      - if: inputs.gaps
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+      - if: inputs.gaps
+        run: uv python install 3.12 && uv sync --locked --no-dev
+      - id: gaps
+        if: inputs.gaps
+        run: |
+          ranges=$(uv run undercurrent --data-dir data lake-gaps --start "${{ inputs.start }}" --end "${{ inputs.end }}")
+          python3 -c "import json,sys; r=json.loads(sys.argv[1]); assert len(r) <= 256, 'split the range: max 256 jobs'; print('months=' + json.dumps(r))" "$ranges" >> "$GITHUB_OUTPUT"
       - id: months
+        if: ${{ !inputs.gaps }}
         env:
           START: ${{ inputs.start }}
           END: ${{ inputs.end }}
@@ -44,6 +77,7 @@ jobs:
 
   month:
     needs: plan
+    if: needs.plan.outputs.months != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 350
     strategy:

@@ -50,6 +50,12 @@ def _build_parser() -> argparse.ArgumentParser:
     bf.add_argument("--start", type=_parse_date, required=True)
     bf.add_argument("--end", type=_parse_date, required=True)
 
+    gp = sub.add_parser(
+        "lake-gaps", help="GPW sessions the price lake lacks, as backfill ranges (JSON)"
+    )
+    gp.add_argument("--start", type=_parse_date, required=True)
+    gp.add_argument("--end", type=_parse_date, required=True)
+
     fm = sub.add_parser("forms", help="collect insider notification forms from portal copies")
     fm.add_argument("--start", type=_parse_date, default=None)
     fm.add_argument("--end", type=_parse_date, default=None)
@@ -156,6 +162,19 @@ def cmd_backfill(args: argparse.Namespace) -> int:
         log.error("--end %s is before --start %s", args.end, args.start)
         return 2
     return pipeline.backfill(args.start, args.end, data_dir=args.data_dir)
+
+
+def cmd_lake_gaps(args: argparse.Namespace) -> int:
+    """Print the missing sessions as ``[{"start": ..., "end": ...}]`` (the backfill matrix)."""
+    import json
+
+    from undercurrent import pipeline
+
+    missing = pipeline.price_gaps(args.data_dir, args.start, min(args.end, date.today()))
+    ranges = pipeline.gap_ranges(missing)
+    log.info("%d missing session(s) in %d range(s)", len(missing), len(ranges))
+    print(json.dumps([{"start": a.isoformat(), "end": b.isoformat()} for a, b in ranges]))
+    return 0
 
 
 def cmd_forms(args: argparse.Namespace) -> int:
@@ -329,6 +348,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "market-state": cmd_market_state,
         "esef": cmd_esef,
         "bad-prints": cmd_bad_prints,
+        "lake-gaps": cmd_lake_gaps,
     }
     return handlers[args.command](args)
 

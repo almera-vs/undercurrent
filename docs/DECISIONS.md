@@ -182,6 +182,23 @@ it costs. Method details (event study, walk-forward, verdicts) are in
   sequentially (`max-parallel: 1`), and pauses 17:30–19:30 UTC on weekdays so that combined
   traffic with the nightly job stays at one request per second. Failed-report state is per
   month, so the two jobs never write the same file.
+- **Holes are found from the lake, not remembered (2026-11-13).** The first passes left
+  five holes in the price lake: February and April 2015, 27–29 June and 12–31 December 2018,
+  and February 2020. They cost more than their own sessions. The forecast needs a year of
+  unbroken history, so the December 2018 hole kept all of 2019 out of the walk-forward.
+  - Two causes. Early on, one timed-out price download stopped the whole month (fixed since:
+    each day fails on its own). In February 2020, gpw.pl did not answer the runner for six
+    hours: every day spent 6½ minutes on retries and the month ran into its 350-minute
+    limit.
+  - A backfill now stops after `MAX_UNREACHABLE_DAYS` (3) days in a row fail on the network,
+    in minutes rather than hours.
+  - `undercurrent lake-gaps` compares the price lake with the exchange calendar and prints
+    the missing sessions as backfill ranges. A run that starts or ends at a month's edge is
+    widened to the whole edge, so the weekends' reports come along.
+  - `backfill.yml` with `gaps: true` plans its jobs from that list, so a failed month is
+    re-run without re-listing complete ones.
+  - The workflow has a concurrency group of its own: a second backfill waits for the first,
+    and the request rate stays where it was.
 
 ## Event studies and walk-forward
 
