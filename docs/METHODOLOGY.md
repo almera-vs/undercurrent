@@ -212,7 +212,8 @@ Code: `src/undercurrent/pick_features.py` (features), `src/undercurrent/pick.py`
 
 - **Question.** Of the liquid main-market (WIG) stocks, which one has the highest expected
   result against WIG over the next 20 sessions? Only prices, turnover and current reports are
-  available: no financial statements, share counts or market values, so no valuation.
+  available, plus the headline figures of ESEF annual reports for fiscal 2020–2024; there are
+  no share counts or market values, so no book-to-market.
 - **Universe on a date.** Main market only, a year (260 sessions) of continuous history with
   returns on at least 200 of the last 252, and the study's buyability rule with a higher
   turnover floor: median close ≥ 0.50 zł and median daily turnover ≥ 100,000 zł over the
@@ -249,8 +250,9 @@ Code: `src/undercurrent/pick_features.py` (features), `src/undercurrent/pick.py`
   - "no edge" otherwise;
   - "too little history" under 26 weeks.
 
-  The rank IC (with a moving-block bootstrap t), the deflated Sharpe ratio (trials: the four
-  penalties and the momentum baseline), the drawdown and the switches are reported alongside.
+  The rank IC (with a moving-block bootstrap t), the deflated Sharpe ratio (trials: every
+  variant × the four penalties, and the momentum baseline), the drawdown and the switches are
+  reported alongside.
 - **With the market state (§ 10).** Five more features: GARCH σ of the next 20 sessions,
   Kalman betas to WIG and to bonds, residual momentum (12-1 months of the returns the betas
   did not explain) and the last 20 sessions' surprises. Every purchase pays the bought
@@ -259,6 +261,25 @@ Code: `src/undercurrent/pick_features.py` (features), `src/undercurrent/pick.py`
   an expected return in units of each stock's σ). The one with the best out-of-sample rank
   IC of its expected return is the model; the page and `pick_ablation.parquet` show all
   three. Without the state the three are the same model and costs are the flat 2.0 %.
+- **Earnings drift, turnover and fundamentals.** Two more variants extend the σ-scaled one:
+  - `state_events` adds the earnings drift and abnormal turnover. *Earnings drift* is the
+    surprise (residual return ÷ residual σ) on the session of the stock's latest periodic
+    report (quarterly, half-year or annual; `periodic_reports`, aligned to the first session
+    whose close is after the report) and the session after, summed and divided by √n, while
+    the report is at most 60 sessions old. With no analyst forecasts in the lake, the
+    market's own reaction measures the surprise. *Abnormal turnover* is log(1 + mean
+    turnover of the last 5 sessions) − log(1 + mean of the 60 sessions before them).
+  - `state_fundamentals` adds four ratios from the latest ESEF annual report (`esef.snapshots`):
+    earnings yield (basic EPS ÷ close, PLN filers only), operating profit ÷ assets, asset
+    growth against the prior year-end and accruals ((net profit − operating cash flow) ÷
+    assets). Each filing's values apply from the first session whose close is after the
+    repository added it, using only facts known by then (a restatement counts from the filing
+    that made it), and lapse once the fiscal year ended more than 550 days earlier. There are
+    no share counts, so no book-to-market, and the close is not adjusted for a split after
+    the year end.
+  - Each is adopted only if its out-of-sample rank IC beats the variant adopted so far, and
+    every variant × penalty is a trial in the deflated Sharpe ratio. A missing value ranks
+    in the middle (0), so a stock without a recent report or filing is neutral on that term.
 - **Band.** Conformal, per regime. Every training year after the first is scored by a
   model fitted only on the purged weeks before it; each error (outcome − expected) ÷ σ is
   kept with its week's regime (stress when the market state's stress probability is at

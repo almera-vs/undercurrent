@@ -379,6 +379,12 @@ FEATURE_KINDS: dict[str, str] = {
     "resid_mom": "logret",
     "surprise_20": "num",
     "signal_effect": "logret",
+    "earn_drift": "num",
+    "abn_turnover": "num",
+    "earnings_yield": "spct",
+    "profitability": "spct",
+    "asset_growth": "spct",
+    "accruals": "spct",
 }
 
 
@@ -395,6 +401,8 @@ def feature_value(feature: str, v: float | None, lang: str) -> str:
         return i18n.pct(v * math.sqrt(252), lang, sign=False)
     if kind == "pct":
         return i18n.pct(v, lang, sign=False)
+    if kind == "spct":
+        return i18n.pct(v, lang)
     if kind == "pln":
         return i18n.short_pln(math.expm1(v), lang) + (" zł" if lang == "pl" else " PLN")
     if kind == "num":

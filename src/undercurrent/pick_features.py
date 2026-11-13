@@ -13,8 +13,22 @@ Features, all measured against WIG where they are returns:
 * news flow: signal events of the last 60 sessions by kind, insider net buying of the last
   20 sessions in days of turnover, corporate actions.
 
-No financial statements, share counts or market values exist in the lake, so there are no
-valuation features.
+Two more read reports and turnover (``EVENT_FEATURES``):
+
+* earnings drift: the surprise (residual return / residual σ, from the market state) on the
+  session of the stock's latest periodic report and the one after, while that report is at
+  most ``EARN_WINDOW`` sessions old. Prices keep drifting the way they first reacted to
+  results (post-earnings-announcement drift); with no analyst consensus in the lake, the
+  market's own reaction is the measure of the surprise;
+* abnormal turnover: the last week's mean turnover against the 60 sessions before it, in
+  logs (the high-volume return premium).
+
+And four from ESEF annual reports (``FUNDAMENTAL_FEATURES``, ``esef.snapshots``), from the
+first session after the filing reached the repository, and missing once the fiscal year
+ended more than ``FUND_STALE_DAYS`` ago: earnings yield (EPS / close, PLN filers),
+profitability (operating profit / assets), asset growth and accruals. There are no share
+counts in the lake, so no book-to-market; the close is not adjusted for a split between the
+year end and the session, a rare distortion the ranks bound.
 
 From the market state (``market_state.py``, L2 in DECISIONS) come six more, when its table
 is in the work dir: the GARCH forecast of the next 20 sessions' volatility, the Kalman betas
@@ -27,10 +41,12 @@ cost. ``FEATURES`` are the original features; ``ALL_FEATURES`` adds the state's.
 
 from __future__ import annotations
 
+import bisect
 import math
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import numpy.typing as npt
@@ -45,6 +61,7 @@ from undercurrent.study import (
 )
 
 FloatArray = npt.NDArray[np.float64]
+WARSAW = ZoneInfo("Europe/Warsaw")
 BoolArray = npt.NDArray[np.bool_]
 
 HORIZON = 20  # sessions the target looks ahead
@@ -99,7 +116,26 @@ STATE_FEATURES: tuple[str, ...] = (
     "surprise_20",
     "signal_effect",
 )
-ALL_FEATURES: tuple[str, ...] = (*FEATURES, *STATE_FEATURES)
+EVENT_FEATURES: tuple[str, ...] = ("earn_drift", "abn_turnover")
+FUNDAMENTAL_FEATURES: tuple[str, ...] = (
+    "earnings_yield",
+    "profitability",
+    "asset_growth",
+    "accruals",
+)
+ALL_FEATURES: tuple[str, ...] = (
+    *FEATURES,
+    *STATE_FEATURES,
+    *EVENT_FEATURES,
+    *FUNDAMENTAL_FEATURES,
+)
+EARN_WINDOW = 60  # sessions a periodic report's reaction stays a feature
+EARN_REACTION = 2  # sessions of reaction: the report's session and the next
+ABN_SHORT = 5
+ABN_LONG = 60
+FUND_STALE_DAYS = 550  # a fiscal year end older than this (about 18 months) is too old
+_FUND_COLUMNS = ("eps_pln", "profitability", "asset_growth", "accruals")
+_CLOSE_LOCAL = time(17, 5)  # the session's close, Warsaw time
 STATE_FILE = "market_state.parquet"
 STATE_COLUMNS = (
     "sigma_20",
@@ -122,6 +158,8 @@ class PickInputs:
     benchmark: pl.DataFrame  # trade_date, wig_ret, known_at
     events: pl.DataFrame  # isin, event_date, signal_key, insider_value, known_at
     state: pl.DataFrame | None = None  # isin, trade_date, STATE_COLUMNS, known_at
+    periodic: pl.DataFrame | None = None  # isin, event_date, known_at
+    fundamentals: pl.DataFrame | None = None  # esef.snapshots: isin, known_at, ...
 
 
 @dataclass
@@ -153,6 +191,9 @@ class Panel:
     n_surprise: npt.NDArray[np.int64]
     regime: FloatArray  # per session: filtered probability of the stress regime
     signal_effect: FloatArray  # what the stock's running reports are expected to add
+    # session of the latest periodic report up to each session (-1 before the first)
+    last_periodic: npt.NDArray[np.int64]
+    fund: dict[str, FloatArray]  # _FUND_COLUMNS and fy_end (ordinal), forward-filled
 
 
 def load_inputs(duckdb_file: Path, as_of: datetime) -> PickInputs:
@@ -174,8 +215,23 @@ def load_inputs(duckdb_file: Path, as_of: datetime) -> PickInputs:
             "select isin, event_date, signal_type, subtype, insider_side, insider_value, "
             "known_at from events where isin is not null and event_date is not null"
         ).pl()
+        tables = {
+            r[0] for r in con.sql("select table_name from information_schema.tables").fetchall()
+        }
+        periodic = (
+            con.sql(
+                "select isin, event_date, known_at from periodic_reports "
+                "where event_date is not null"
+            ).pl()
+            if "periodic_reports" in tables
+            else None
+        )
+        facts = con.sql("select * from fundamentals").pl() if "fundamentals" in tables else None
     finally:
         con.close()
+    from undercurrent import esef
+
+    fundamentals = esef.snapshots(facts) if facts is not None else None
     state_file = duckdb_file.parent / "gold" / STATE_FILE
     state = (
         pl.read_parquet(
@@ -186,7 +242,7 @@ def load_inputs(duckdb_file: Path, as_of: datetime) -> PickInputs:
         if state_file.exists()
         else None
     )
-    return cut_inputs(prices, bench, events, as_of, state)
+    return cut_inputs(prices, bench, events, as_of, state, periodic, fundamentals)
 
 
 def cut_inputs(
@@ -195,6 +251,8 @@ def cut_inputs(
     events: pl.DataFrame,
     as_of: datetime,
     state: pl.DataFrame | None = None,
+    periodic: pl.DataFrame | None = None,
+    fundamentals: pl.DataFrame | None = None,
 ) -> PickInputs:
     """Keep rows known by ``as_of`` and give events their signal key."""
     ts = pl.lit(as_of).cast(pl.Datetime("us", "UTC"))
@@ -222,6 +280,10 @@ def cut_inputs(
         benchmark=cut(benchmark).sort("trade_date"),
         events=ev.select("isin", "event_date", "signal_key", "insider_value", "known_at"),
         state=None if state is None else cut(state).sort(["isin", "trade_date"]),
+        periodic=None if periodic is None else cut(periodic).sort(["isin", "event_date"]),
+        fundamentals=(
+            None if fundamentals is None else cut(fundamentals).sort(["isin", "known_at"])
+        ),
     )
 
 
@@ -232,6 +294,11 @@ def assert_point_in_time(inputs: PickInputs) -> None:
         ("benchmark", inputs.benchmark),
         ("events", inputs.events),
         ("state", inputs.state if inputs.state is not None else pl.DataFrame()),
+        ("periodic", inputs.periodic if inputs.periodic is not None else pl.DataFrame()),
+        (
+            "fundamentals",
+            inputs.fundamentals if inputs.fundamentals is not None else pl.DataFrame(),
+        ),
     ):
         if df.height and df["known_at"].max() > inputs.as_of:  # type: ignore[operator]
             raise LookAheadError(f"{name} has rows known after {inputs.as_of.isoformat()}")
@@ -330,7 +397,51 @@ def build_panel(inputs: PickInputs) -> Panel:
         n_surprise=_count_prefix(st["surprise"]),
         regime=_per_session(st["regime_stress"]),
         signal_effect=st["signal_effect"],
+        last_periodic=_last_periodic(inputs.periodic, idx, pos, (n, t_n)),
+        fund=_fund_arrays(inputs.fundamentals, cal, pos, (n, t_n)),
     )
+
+
+def _last_periodic(
+    periodic: pl.DataFrame | None,
+    idx: dict[date, int],
+    pos: dict[str, int],
+    shape: tuple[int, int],
+) -> npt.NDArray[np.int64]:
+    """For every stock and session, the session of its latest periodic report so far."""
+    out = np.full(shape, -1, dtype=np.int64)
+    if periodic is None:
+        return out
+    for isin, d in zip(periodic["isin"].to_list(), periodic["event_date"].to_list(), strict=True):
+        i, j = pos.get(isin), idx.get(d)
+        if i is not None and j is not None:
+            out[i, j] = j
+    return np.maximum.accumulate(out, axis=1)
+
+
+def first_session_after(known_at: datetime, cal: list[date]) -> int:
+    """Position of the first session whose close (17:05 Warsaw) is after ``known_at``."""
+    local = known_at.astimezone(WARSAW)
+    day = local.date() if local.time() < _CLOSE_LOCAL else local.date() + timedelta(days=1)
+    return bisect.bisect_left(cal, day)
+
+
+def _fund_arrays(
+    snaps: pl.DataFrame | None, cal: list[date], pos: dict[str, int], shape: tuple[int, int]
+) -> dict[str, FloatArray]:
+    """Each snapshot's values from its first session on, until the next snapshot."""
+    out = {c: np.full(shape, np.nan) for c in (*_FUND_COLUMNS, "fy_end")}
+    if snaps is None or not snaps.height:
+        return out
+    for r in snaps.sort(["isin", "known_at"]).iter_rows(named=True):
+        i = pos.get(r["isin"])
+        j = first_session_after(r["known_at"], cal)
+        if i is None or j >= shape[1]:
+            continue
+        out["fy_end"][i, j:] = r["fiscal_year_end"].toordinal()
+        for c in _FUND_COLUMNS:
+            out[c][i, j:] = np.nan if r[c] is None else r[c]
+    return out
 
 
 def _per_session(a: FloatArray) -> FloatArray:
@@ -454,7 +565,37 @@ def raw_features(panel: Panel, t: int) -> FloatArray:
         out[:, col["surprise_20"]] = np.where(
             n_s >= MIN_STATE_DAYS_MONTH, s / np.sqrt(np.maximum(n_s, 1)), np.nan
         )
+    _event_features(panel, t, out, col, tv)
+    _fundamental_features(panel, t, out, col)
     return out
+
+
+def _event_features(
+    panel: Panel, t: int, out: FloatArray, col: dict[str, int], tv: FloatArray
+) -> None:
+    """Earnings drift and abnormal turnover at ``t`` (see the module docstring)."""
+    rows = np.arange(len(panel.isins))
+    j0 = panel.last_periodic[:, t]
+    lo = np.maximum(j0, 0)
+    ok = (j0 >= 0) & (t - j0 <= EARN_WINDOW) & (panel.seg[lo] == panel.seg[t])
+    hi = np.minimum(lo + EARN_REACTION - 1, t) + 1  # exclusive, in prefix-sum positions
+    s = panel.surprise[rows, hi] - panel.surprise[rows, lo]
+    k = panel.n_surprise[rows, hi] - panel.n_surprise[rows, lo]
+    with np.errstate(invalid="ignore", divide="ignore"):
+        out[:, col["earn_drift"]] = np.where(ok & (k > 0), s / np.sqrt(np.maximum(k, 1)), np.nan)
+    recent = tv[:, -ABN_SHORT:].mean(axis=1)
+    before = panel.turnover[:, t - ABN_SHORT - ABN_LONG + 1 : t - ABN_SHORT + 1].mean(axis=1)
+    out[:, col["abn_turnover"]] = np.log1p(recent) - np.log1p(before)
+
+
+def _fundamental_features(panel: Panel, t: int, out: FloatArray, col: dict[str, int]) -> None:
+    """The latest annual report's ratios known at ``t``, missing once they are too old."""
+    fresh = panel.cal[t].toordinal() - panel.fund["fy_end"][:, t] <= FUND_STALE_DAYS
+    with np.errstate(invalid="ignore", divide="ignore"):
+        ey = panel.fund["eps_pln"][:, t] / panel.close[:, t]
+    out[:, col["earnings_yield"]] = np.where(fresh, ey, np.nan)
+    for c in ("profitability", "asset_growth", "accruals"):
+        out[:, col[c]] = np.where(fresh, panel.fund[c][:, t], np.nan)
 
 
 def rank_normal(x: FloatArray) -> FloatArray:

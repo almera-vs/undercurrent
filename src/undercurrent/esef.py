@@ -244,6 +244,108 @@ def ingest(
     return {"filings": len(new_done), "facts": n_facts, "isin_links": len(new_leis)}
 
 
+def write_silver(root: Path, work: Path) -> Path:
+    """Every fact with every ISIN of its issuer, for dbt's ``fundamentals`` (empty if none)."""
+    out = work / "silver" / "fundamentals.parquet"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fundamentals_as_of(root, datetime.max.replace(tzinfo=UTC)).write_parquet(out)
+    return out
+
+
+# A fiscal year is a duration of 11–13 months; the prior year-end is about 12 months back.
+_YEAR_DAYS = (330, 400)
+_PRIOR_DAYS = (355, 375)
+SNAPSHOT_SCHEMA: dict[str, Any] = {
+    "isin": pl.String,
+    "known_at": pl.Datetime("us", "UTC"),
+    "fiscal_year_end": pl.Date,
+    "eps_pln": pl.Float64,
+    "profitability": pl.Float64,
+    "asset_growth": pl.Float64,
+    "accruals": pl.Float64,
+}
+
+
+def _latest(
+    facts: list[dict[str, Any]], concept: str, end: date, *, duration: bool
+) -> float | None:
+    """The latest-known value of ``concept`` for the year (or instant) ending ``end``."""
+    best: dict[str, Any] | None = None
+    for f in facts:
+        if f["concept"] != concept or f["period_end"] != end:
+            continue
+        if duration:
+            start = f["period_start"]
+            if start is None or not _YEAR_DAYS[0] <= (end - start).days <= _YEAR_DAYS[1]:
+                continue
+        elif f["period_start"] is not None:
+            continue
+        if best is None or f["known_at"] > best["known_at"]:
+            best = f
+    return None if best is None else float(best["value"])
+
+
+def _prior_end(facts: list[dict[str, Any]], end: date) -> date | None:
+    """The balance-sheet date about a year before ``end`` that the facts report assets for."""
+    ends = {
+        f["period_end"]
+        for f in facts
+        if f["concept"] == "assets"
+        and f["period_start"] is None
+        and _PRIOR_DAYS[0] <= (end - f["period_end"]).days <= _PRIOR_DAYS[1]
+    }
+    return max(ends) if ends else None
+
+
+def _ratio(a: float | None, b: float | None) -> float | None:
+    return None if a is None or b is None or b <= 0 else a / b
+
+
+def snapshots(facts: pl.DataFrame) -> pl.DataFrame:
+    """What the latest annual report said, as known at each moment a filing arrived.
+
+    One row per (ISIN, filing time): the fiscal year is the latest one with facts known by
+    then, and every value uses only facts known by then (a restatement in a later filing
+    replaces the figure from that filing on, never before).
+
+    * ``eps_pln``: basic EPS, PLN filers only (the price is in PLN);
+    * ``profitability``: operating profit / total assets;
+    * ``asset_growth``: total assets / the prior year-end's - 1 (the investment factor);
+    * ``accruals``: (net profit - operating cash flow) / total assets.
+    """
+    if not facts.height:
+        return pl.DataFrame(schema=SNAPSHOT_SCHEMA)
+    rows: list[dict[str, Any]] = []
+    for (isin,), grp in facts.sort("known_at").group_by(["isin"], maintain_order=True):
+        recs = grp.to_dicts()
+        for when in sorted({r["known_at"] for r in recs}):
+            known = [r for r in recs if r["known_at"] <= when]
+            fy = max(r["fiscal_period_end"] for r in known)
+            mine = [r for r in known if r["fiscal_period_end"] <= fy]
+            assets = _latest(mine, "assets", fy, duration=False)
+            prior = _prior_end(mine, fy)
+            assets_prev = _latest(mine, "assets", prior, duration=False) if prior else None
+            op = _latest(mine, "operating_profit", fy, duration=True)
+            net = _latest(mine, "net_profit", fy, duration=True)
+            cfo = _latest(mine, "operating_cash_flow", fy, duration=True)
+            eps = _latest(
+                [r for r in mine if r["unit"] == "PLN/xbrli:shares"], "eps_basic", fy, duration=True
+            )
+            growth = _ratio(assets, assets_prev)
+            rows.append(
+                {
+                    "isin": isin,
+                    "known_at": when,
+                    "fiscal_year_end": fy,
+                    "eps_pln": eps,
+                    "profitability": _ratio(op, assets),
+                    "asset_growth": None if growth is None else growth - 1,
+                    "accruals": _ratio(None if net is None or cfo is None else net - cfo, assets),
+                }
+            )
+    return pl.DataFrame(rows, schema=SNAPSHOT_SCHEMA)
+
+
 def fundamentals_as_of(root: Path, as_of: datetime) -> pl.DataFrame:
     """Facts known by ``as_of``, with every ISIN of the issuer: the point-in-time view."""
     parts = sorted((root / "bronze" / TABLE).glob("*/*.parquet"))

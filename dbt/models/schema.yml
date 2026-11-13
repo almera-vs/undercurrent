@@ -51,3 +51,22 @@ models:
         tests: [not_null]
       - name: known_at
         tests: [not_null]
+
+  - name: periodic_reports
+    columns:
+      - name: report_id
+        tests: [unique, not_null]
+      - name: known_at
+        tests: [not_null]
+
+  - name: fundamentals
+    description: ESEF headline facts with every ISIN of the issuer (point in time by known_at).
+    tests:
+      - dbt_utils_unique_combination:
+          arguments:
+            columns: [isin, filing_id, concept, period_start, period_end, unit]
+    columns:
+      - name: isin
+        tests: [not_null]
+      - name: known_at
+        tests: [not_null]

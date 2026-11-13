@@ -520,7 +520,49 @@ it costs. Method details (event study, walk-forward, verdicts) are in
   - The repository's Polish coverage ends in July 2024 (fiscal 2020–2024). It is enough to
     test value, profitability and investment features once prices for 2021–2024 are in the
     lake, not to run them live; a live source for fiscal 2024–2025 is still to be found.
-  - Not wired into the forecast yet: the lake has no prices for the years the filings cover.
+  - Wired on 2026-11-13 (next section); it cannot be scored until the lake has prices for
+    the years the filings cover.
+
+## Fundamentals, earnings drift and abnormal turnover (2026-11-13)
+
+- **Two variants, not one.** Both extend `state` (the σ-scaled model without the report
+  effects): `state_events` adds earnings drift and abnormal turnover, `state_fundamentals`
+  adds four ratios from ESEF annual reports. Kept apart because they can be judged on
+  different years: the events on every year with prices, the fundamentals only on 2021–2025.
+  Each is adopted only if it beats the variant adopted so far out of sample, and each adds
+  four trials to the deflated Sharpe ratio (25 in all).
+- **Earnings drift from the market's own reaction.** Post-earnings drift is usually measured
+  against an analyst consensus or a seasonal random walk of quarterly EPS. Neither is in the
+  lake (ESEF is annual only), but every periodic report is, with its timestamp. The surprise
+  is therefore the reaction: the market state's surprise (residual return ÷ residual σ) on
+  the report's session and the next, kept for 60 sessions. It reuses an L2 column, so the
+  betas, σ and the point-in-time cut are the ones everything else uses. Periodic reports
+  get a gold model of their own (`periodic_reports`), not rows in `events`: the event study
+  does not test them and its kinds must not change.
+- **Abnormal turnover:** the last 5 sessions against the 60 before, in logs. One term and
+  not one per direction: the ridge on ranks is linear, and a signed version is a second
+  feature to justify.
+- **Fundamentals point in time, per filing.** `esef.snapshots` replays the filings in the
+  order the repository added them. Each moment uses only the facts known by then, so a
+  restated prior year counts from the filing that restated it. Values apply from the first
+  close after `known_at` and lapse 550 days after the fiscal year end, roughly when the next
+  annual report is overdue. Without share counts there is no book-to-market. Earnings yield
+  uses basic EPS over the unadjusted close, PLN filers only.
+  - The silver table is written in Python (`esef.write_silver`, empty when no filing has been
+    read) and gold `fundamentals` applies `known_by`, like the other work-dir tables. So a
+    lake without ESEF facts builds as before.
+- **First result (2018 and 2026 out of sample, 57 weeks; the lake had 2015–2018 and
+  2025–2026 prices).**
+  - `state_events`: rank IC 0.171 against 0.170 for `state`. The difference is noise, and it
+    stays below the adopted `state_features` (0.172), so it is not adopted.
+  - Own rank IC of each new feature: earnings drift −0.002 (nothing), abnormal turnover
+    +0.021.
+  - `state_fundamentals` is the same model as `state` here, because no filing year has
+    prices yet.
+  - Both are wired and walked forward every night. They are re-judged as the backfill adds
+    2019–2025, which is also when the fundamentals first meet prices.
+  - Live, the fundamentals lapse: the repository's Polish filings end with fiscal 2023/2024,
+    so in 2026 every stock is neutral on those terms until a live source is found.
 
 ## Known limitations
 

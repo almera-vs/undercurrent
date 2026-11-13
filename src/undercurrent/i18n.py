@@ -977,6 +977,12 @@ FEATURE_LABELS: dict[str, dict[str, str]] = {
         "resid_mom": "12-month trend of its own (beyond WIG and bonds)",
         "surprise_20": "Surprises last month (in standard deviations)",
         "signal_effect": "What its recent reports are expected to add (shrunk event study)",
+        "earn_drift": "Reaction to its latest results (in standard deviations, 3 months)",
+        "abn_turnover": "Turnover last week against the 3 months before",
+        "earnings_yield": "Earnings yield (EPS / price, last annual report)",
+        "profitability": "Operating profit / assets (last annual report)",
+        "asset_growth": "Asset growth (last annual report)",
+        "accruals": "Accruals: profit not backed by cash, / assets (last annual report)",
     },
     "pl": {
         "mom_12_1": "Trend 12 miesięcy wobec WIG (bez ostatniego miesiąca)",
@@ -1007,6 +1013,12 @@ FEATURE_LABELS: dict[str, dict[str, str]] = {
         "resid_mom": "Własny trend 12 miesięcy (poza WIG i obligacjami)",
         "surprise_20": "Zaskoczenia w ostatnim miesiącu (w odchyleniach standardowych)",
         "signal_effect": "Oczekiwany wpływ ostatnich raportów (badanie zdarzeń, ściągnięty do 0)",
+        "earn_drift": "Reakcja na ostatnie wyniki (w odchyleniach standardowych, 3 miesiące)",
+        "abn_turnover": "Obrót w ostatnim tygodniu wobec 3 miesięcy wcześniej",
+        "earnings_yield": "Stopa zysku (EPS / cena, ostatni raport roczny)",
+        "profitability": "Zysk operacyjny / aktywa (ostatni raport roczny)",
+        "asset_growth": "Wzrost aktywów (ostatni raport roczny)",
+        "accruals": "Memoriały: zysk bez pokrycia w gotówce / aktywa (ostatni raport roczny)",
     },
 }
 PICK_VERDICTS: dict[str, dict[str, str]] = {

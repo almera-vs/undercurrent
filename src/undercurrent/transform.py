@@ -11,7 +11,7 @@ import logging
 import os
 from pathlib import Path
 
-from undercurrent import parse, resolve
+from undercurrent import esef, parse, resolve
 
 log = logging.getLogger(__name__)
 
@@ -69,5 +69,6 @@ def build(data_dir: Path, work: Path, *, as_of: str | None = None, dbt: bool = T
     """Rebuild silver from bronze, then run dbt (unless ``dbt=False``)."""
     parse.build_silver_reports(data_dir, work)
     resolve.resolve_reports(data_dir, work)
+    esef.write_silver(data_dir, work)
     if dbt:
         run_dbt(data_dir, work, as_of=as_of)

@@ -22,10 +22,12 @@ Method (details in ``docs/METHODOLOGY.md`` § Stock of the week):
   nested variants are walked forward: the original features (``base``), plus the state's
   features (``state_features``), plus a score → expected-return map in units of each
   stock's forecast σ (``state``), plus the shrunk event-study effect of the stock's recent
-  reports (``state_signals``). Each richer variant is adopted only if its out-of-sample
+  reports (``state_signals``); two more add, to ``state``, the drift after periodic reports
+  and abnormal turnover (``state_events``) or four ratios from ESEF annual reports
+  (``state_fundamentals``). Each richer variant is adopted only if its out-of-sample
   rank IC beats the one adopted so far (ties go to the simpler one); every variant ×
-  penalty counts as a trial in the deflated Sharpe ratio. Without the state all four are
-  the same model.
+  penalty counts as a trial in the deflated Sharpe ratio. Without the state the first four
+  are the same model.
 * **Band** (conformal, per regime): every training year after the first is scored by a
   model fitted only on the weeks before it (purged), and the errors, divided by each stock's
   forecast σ, are kept with the regime of their week (stress when the market state's
@@ -71,9 +73,12 @@ from scipy import stats as sps
 from undercurrent import basket, lake, study
 from undercurrent.pick_features import (
     ALL_FEATURES,
+    EVENT_FEATURES,
     FEATURES,
+    FUNDAMENTAL_FEATURES,
     HORIZON,
     NEWS_GROUPS,
+    STATE_FEATURES,
     Panel,
     PickInputs,
     build_panel,
@@ -117,16 +122,18 @@ class Variant:
     scaled: bool  # expected excess = (a + b·score) × the stock's forecast 20-session σ
 
 
-_STATE_ONLY = tuple(f for f in ALL_FEATURES if f != "signal_effect")
+_STATE_ONLY = (*FEATURES, *(f for f in STATE_FEATURES if f != "signal_effect"))
 VARIANTS: tuple[Variant, ...] = (
     Variant("base", FEATURES, False),
     Variant("state_features", _STATE_ONLY, False),
     Variant("state", _STATE_ONLY, True),
-    Variant("state_signals", ALL_FEATURES, True),
+    Variant("state_signals", (*_STATE_ONLY, "signal_effect"), True),
+    Variant("state_events", (*_STATE_ONLY, *EVENT_FEATURES), True),
+    Variant("state_fundamentals", (*_STATE_ONLY, *FUNDAMENTAL_FEATURES), True),
 )
 BASE = VARIANTS[0]
 # the features read from reports
-NEWS_FEATURES = frozenset((*NEWS_GROUPS, "insider_net", "signal_effect"))
+NEWS_FEATURES = frozenset((*NEWS_GROUPS, "insider_net", "signal_effect", "earn_drift"))
 
 
 # --------------------------------------------------------------------------- dataset
