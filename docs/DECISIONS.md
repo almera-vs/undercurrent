@@ -215,11 +215,13 @@ it costs. Method details (event study, walk-forward, verdicts) are in
   insider details are missing, the page says so rather than guessing. The event page quotes
   the opening sentences of the report body and lists the money amounts it names, with the
   full text one click away; nothing is summarised or rewritten.
-- **Today is grouped, not repeated.** Every event of one signal type shares the same history,
-  so the statistics appear once per type, with the companies listed under it. Sections follow
-  the verdict ("earned after costs", "moved the price, costs ate the gain", ...), and the
-  headline counts "events of kinds that have moved prices" rather than "worth a look": when
-  no kind earned after costs, the page says so in its first sentence.
+- **Today is one list, newest first (2026-11-13).** Every report of the digest, in the order
+  it was published, each with its type, and for a price-sensitive type the verdict on what
+  reports of that type did before, plus "too thin to trade" where it applies. The sentence of
+  statistics and the walk-forward stay on the event page, one click away. The first version
+  grouped events by verdict and by type, so the statistics appeared once per type; it meant
+  scrolling past sections to find what had just happened. The type filter stays as an
+  option, not as a grouping. The Telegram digest still leads with the kinds that moved prices.
 - **Plain words first, statistics second.** Cards and event pages lead with a sentence
   ("after reports like this the stock did 4.7 pp worse than WIG over 60 sessions; worse in
   64% of 3,590 cases") and a one-line meaning of the verdict. q and the walk-forward stay on

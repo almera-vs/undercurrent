@@ -203,3 +203,64 @@ def test_tail_outcome_is_a_percentile_not_the_extreme():
     dup = pl.concat([cars, cars.head(1).with_columns(pl.lit(-0.99).alias("car_20"))])
     assert publish.tail_outcome(dup, 20, short=False) == low
     assert publish.tail_outcome(cars.head(10), 20, short=False) is None
+
+
+def test_today_is_one_list_newest_first_with_every_reports_type():
+    import re
+    from datetime import UTC, date, datetime
+
+    from undercurrent import publish
+
+    def item(rid, t, signal_type, label_key, verdict=None):
+        return {
+            "report_id": rid,
+            "slug": rid.replace(":", "-"),
+            "pub_time": t,
+            "pub_day": "",
+            "ticker": f"T{rid[-1]}",
+            "issuer_name": "Spółka Testowa S.A.",
+            "title": f"Raport {rid}",
+            "subtype": None,
+            "insider_side": None,
+            "signal_type": signal_type,
+            "label_key": label_key,
+            "filter": {"inside_info": "inside", "insider_tx": "insider"}.get(signal_type, "other"),
+            "is_event": signal_type != "other",
+            "stat": {"verdict": verdict} if verdict else None,
+            "source_url": "https://example.invalid/r",
+        }
+
+    # the publisher sorts the feed newest first; the page must keep that order
+    feed = [
+        item("gpw:3", "18:26", "inside_info", "inside_info:financing", "eaten_by_costs"),
+        item("gpw:2", "12:00", "other", "other"),
+        item("gpw:1", "08:01", "insider_tx", "insider_tx:buy", "noise"),
+    ]
+    ctx = publish.SiteContext(
+        day=date(2026, 11, 12),
+        generated_at=datetime(2026, 11, 12, 20, tzinfo=UTC),
+        run={},
+        counts={"reports": 3, "insider": 1, "inside": 1, "holder": 0, "other": 1},
+        worth=[],
+        feed=feed,
+        stats={},
+        summary={},
+        events=[],
+        runs=[],
+        coverage={},
+        health="ok",
+        site_url="",
+    )
+    for lang in ("pl", "en"):
+        html = (
+            publish._env(lang)
+            .get_template("today.html")
+            .render(ctx=ctx, root="", assets="", other_lang_url="", other_lang="en", page="today")
+        )
+        rows = re.findall(r'<li data-type="(\w+)">(.*?)</li>', html, re.S)
+        assert [t for t, _ in rows] == ["inside", "other", "insider"]  # newest first, as given
+        for (_, body), it in zip(rows, feed, strict=True):
+            assert 'class="chip chip-' in body  # every report says its type
+            assert publish.label_for(it["label_key"], lang) in body
+        assert "verdict v-eaten_by_costs" in rows[0][1] and "verdict v-" not in rows[1][1]
+        assert 'class="tier' not in html and "group-events" not in html  # no grouping

@@ -255,6 +255,11 @@ PL: dict[str, str] = {
         "Wszystkie raporty są w kolumnie obok."
     ),
     "How to read this page": "Jak czytać tę stronę",
+    "Newest first. Every report shows its type; a price-sensitive one also shows how reports "
+    "of its type have moved prices before.": (
+        "Najnowsze na górze. Każdy raport ma swój typ; przy raporcie cenotwórczym widać też, "
+        "jak raporty tego typu ruszały wcześniej kursem."
+    ),
     "Inside information": "Informacje poufne",
     "Art. 17 MAR: contracts, financing, results…": "Art. 17 MAR: umowy, finansowanie, wyniki…",
     "Types that earned after costs": "Typy zarabiające po kosztach",
@@ -814,6 +819,7 @@ EN_OVERRIDES: dict[str, str] = {
 
 # Polish plural forms: (1, 2–4, 5+), keyed by the English singular.
 PL_PLURALS: dict[str, tuple[str, str, str]] = {
+    "report": ("raport", "raporty", "raportów"),
     "event of a kind that has moved prices": (
         "zdarzenie z typu, który ruszał kursem",
         "zdarzenia z typów, które ruszały kursem",
@@ -827,6 +833,7 @@ PL_PLURALS: dict[str, tuple[str, str, str]] = {
     "session": ("sesja", "sesje", "sesji"),
 }
 EN_PLURALS: dict[str, str] = {
+    "report": "reports",
     "event of a kind that has moved prices": "events of kinds that have moved prices",
     "event worth a look today": "events worth a look today",
     "session": "sessions",

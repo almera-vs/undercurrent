@@ -1,24 +1,16 @@
 {% extends "base.html" %}
 {% block title %}{{ _('Today · Undercurrent') }}{% endblock %}
 {% block main %}
-{% set n = ctx.worth|length %}
-{% set holding = ctx.worth|selectattr('stat.verdict', 'equalto', 'holds_up')|list|length %}
+{% set n = ctx.counts.reports %}
 <section class="hero">
   <div>
     <p class="eyebrow">{{ ctx.day|longdate }} · GPW + NewConnect</p>
-    <h1>{{ n }} {{ plural(n, 'event of a kind that has moved prices') }}</h1>
+    <h1>{{ n }} {{ plural(n, 'report') }}</h1>
   </div>
   <p class="lede">
-    {% if n and not holding %}{{ _('today_lede_none_hold') }}{% elif holding %}{{ _('today_lede_some_hold', k=holding) }}{% else %}{{ _('today_lede_empty') }}{% endif %}
+    {{ _('Newest first. Every report shows its type; a price-sensitive one also shows how reports of its type have moved prices before.') }}
     <a href="glossary.html">{{ _('How to read this page') }}</a>
   </p>
-</section>
-
-<section class="tiles">
-  <div class="tile"><span>{{ _('Inside information') }}</span><b>{{ ctx.counts.inside }}</b><small>{{ _('Art. 17 MAR: contracts, financing, results…') }}</small></div>
-  <div class="tile"><span>{{ _('Insider transactions') }}</span><b>{{ ctx.counts.insider }}</b><small>{{ _('{b} buys · {s} sells stated (Art. 19 MAR)', b=ctx.counts.insider_buy, s=ctx.counts.insider_sell) }}</small></div>
-  <div class="tile"><span>{{ _('Holder thresholds crossed') }}</span><b>{{ ctx.counts.holder }}</b><small>{{ _('Art. 69 Public Offering Act') }}</small></div>
-  <a class="tile tile-link" href="signals.html"><span>{{ _('Types that earned after costs') }}</span><b class="{{ 'v-holds_up-text' if ctx.summary.holds_up else '' }}">{{ ctx.summary.holds_up }} <small class="of">/ {{ ctx.summary.tested }}</small></b><small>{{ _('tested on new data, after trading costs') }}</small></a>
 </section>
 
 {% set k = ctx.pick %}
@@ -31,65 +23,40 @@
 </a>
 {% endif %}
 
-<div class="split">
-  <section>
-    {% for t in ctx.tiers %}
-    <section class="tier">
-      <h2 class="eyebrow">{{ t.verdict|tier }} · <span class="mono">{{ t.n }}</span></h2>
-      <p class="tier-note">{{ t.verdict|explain }}</p>
-      {% for g in t.groups %}
-      {% set s = g.stat %}
-      <article class="card group">
-        <header>
-          <span class="chip chip-{{ g.events[0].filter }}">{{ g.key|label }}</span>
-          <span class="verdict v-{{ s.verdict }}">{{ s.verdict|verdict }}</span>
-        </header>
-        <p class="summary">{{ s|summary(g.horizon) }}</p>
-        <ul class="group-events">
-          {% for e in g.events %}
-          {% set c = e.company %}
-          <li>
-            <span class="tick-sym">{{ e.ticker }}</span>
-            <span class="ge-main"><a href="event/{{ e.slug }}.html" lang="{{ 'pl' if e.signal_type != 'insider_tx' else lang }}">{{ e|fact }}</a>
-              <small class="muted">{{ e.issuer_name|company }}</small>
-              {% if c.buyable == false %}<small class="badge badge-thin" title="{{ _('thin_title') }}">{{ _('Too thin to trade') }}</small>{% endif %}</span>
-            <time class="mono muted">{{ e.pub_day ~ ' ' if e.pub_day else '' }}{{ e.pub_time }}</time>
-          </li>
-          {% endfor %}
-        </ul>
-      </article>
-      {% endfor %}
-    </section>
-    {% else %}
-    <p class="card muted">{{ _('No event today is of a type that has moved prices significantly in the past.') }}</p>
+<section class="panel stream">
+  <div class="filters" role="group" aria-label="{{ _('Filter reports by type') }}">
+    {% for f, name, cnt in [('all', 'All', ctx.counts.reports), ('insider', 'Insider', ctx.counts.insider), ('inside', 'Inside info', ctx.counts.inside), ('holdings', 'Holdings', ctx.counts.holder), ('other', 'Other', ctx.counts.other)] %}
+    <button type="button" data-filter="{{ f }}" aria-pressed="{{ 'true' if f == 'all' else 'false' }}">{{ _(name) }} <span class="mono">{{ cnt }}</span></button>
     {% endfor %}
-  </section>
-
-  <aside class="panel">
-    <h2 class="eyebrow">{{ _('Reports in this digest') }}</h2>
-    <div class="filters" role="group" aria-label="{{ _('Filter reports by type') }}">
-      {% for f, name, cnt in [('all', 'All', ctx.counts.reports), ('insider', 'Insider', ctx.counts.insider), ('inside', 'Inside info', ctx.counts.inside), ('holdings', 'Holdings', ctx.counts.holder), ('other', 'Other', ctx.counts.other)] %}
-      <button type="button" data-filter="{{ f }}" aria-pressed="{{ 'true' if f == 'all' else 'false' }}">{{ _(name) }} <span class="mono">{{ cnt }}</span></button>
-      {% endfor %}
-    </div>
-    <ul class="feed">
-      {% for r in ctx.feed %}
-      <li data-type="{{ r.filter }}"><time class="mono muted">{{ r.pub_time }}{% if r.pub_day %}<small>{{ r.pub_day }}</small>{% endif %}</time>
-        <span><b class="mono">{{ r.ticker }}</b>
-        {% if r.filter != 'other' %}<a href="event/{{ r.slug }}.html" lang="{{ 'pl' if r.signal_type != 'insider_tx' else lang }}">{{ r|fact }}</a>{% else %}<a href="{{ r.source_url }}" rel="noopener" lang="pl">{{ r|fact }}</a>{% endif %}</span></li>
-      {% else %}
-      <li class="muted">{{ _('No reports in this window.') }}</li>
-      {% endfor %}
-    </ul>
-    <p class="muted small feed-note">{{ _('{n} reports in this digest', n=ctx.counts.reports) }} · <a href="pipeline.html">{{ ctx.health_bits|health }}</a></p>
-  </aside>
-</div>
+  </div>
+  <ol class="stream-list">
+    {% for r in ctx.feed %}
+    {% set c = r.company %}
+    <li data-type="{{ r.filter }}">
+      <time class="mono muted">{{ r.pub_time }}{% if r.pub_day %}<small>{{ r.pub_day }}</small>{% endif %}</time>
+      <div class="s-main">
+        <div class="s-head">
+          <span class="chip chip-{{ r.filter }}">{{ r.label_key|label }}</span>
+          {% if r.stat %}<span class="verdict v-{{ r.stat.verdict }}" title="{{ r.stat.verdict|explain }}">{{ r.stat.verdict|verdict }}</span>{% endif %}
+          {% if c and c.buyable == false %}<span class="badge badge-thin" title="{{ _('thin_title') }}">{{ _('Too thin to trade') }}</span>{% endif %}
+        </div>
+        <p class="s-title"><span class="tick-sym">{{ r.ticker }}</span>
+          {% if r.is_event %}<a href="event/{{ r.slug }}.html" lang="{{ 'pl' if r.signal_type != 'insider_tx' else lang }}">{{ r|fact }}</a>{% else %}<a href="{{ r.source_url }}" rel="noopener" lang="pl">{{ r|fact }}</a>{% endif %}</p>
+        <small class="muted">{{ r.issuer_name|company }}</small>
+      </div>
+    </li>
+    {% else %}
+    <li class="muted empty">{{ _('No reports in this window.') }}</li>
+    {% endfor %}
+  </ol>
+  <p class="muted small feed-note">{{ _('{n} reports in this digest', n=ctx.counts.reports) }} · <a href="pipeline.html">{{ ctx.health_bits|health }}</a></p>
+</section>
 <script>
 document.querySelectorAll('.filters button').forEach(function (b) {
   b.addEventListener('click', function () {
     var f = b.dataset.filter;
     document.querySelectorAll('.filters button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
-    document.querySelectorAll('.feed li[data-type]').forEach(function (li) { li.hidden = f !== 'all' && li.dataset.type !== f; });
+    document.querySelectorAll('.stream-list li[data-type]').forEach(function (li) { li.hidden = f !== 'all' && li.dataset.type !== f; });
   });
 });
 </script>

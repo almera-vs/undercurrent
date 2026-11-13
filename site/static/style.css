@@ -474,3 +474,22 @@ details.weights summary { cursor: pointer; color: var(--up); font-weight: 600; m
 /* side-by-side panels are not stacked: no top gap between them */
 .split > .panel + .panel { margin-top: 0; }
 .split.halves { align-items: stretch; }
+
+/* Today: one list, newest first; each report carries its type (and, for price-sensitive
+   types, the verdict on what reports of that type did before). */
+.pick-card + .stream { margin-top: 1.2rem; }
+.stream-list { list-style: none; margin: 0; padding: 0; }
+.stream-list li { display: grid; grid-template-columns: 3.4rem 1fr; gap: 0.8rem; padding: 0.85rem 0; border-top: 1px solid var(--line); }
+.stream-list li[hidden] { display: none; }
+.stream-list time small { display: block; font-size: 0.75rem; }
+.s-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-bottom: 0.35rem; }
+.s-head .verdict { margin: 0; }
+.s-title { margin: 0 0 0.15rem; line-height: 1.45; }
+.s-title a { color: var(--text); }
+.s-title .tick-sym { font-size: 0.95rem; margin-right: 0.35rem; }
+.s-main { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .stream-list li { grid-template-columns: 1fr; gap: 0.3rem; }
+  .stream-list time { display: flex; gap: 0.5rem; align-items: baseline; }
+  .stream-list time small { display: inline; }
+}
