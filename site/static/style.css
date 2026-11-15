@@ -689,3 +689,15 @@ details.weights summary { cursor: pointer; color: var(--up); font-weight: 600; m
 .ftests .no span { color: var(--down); }
 .ftests .na { color: var(--muted); }
 @media (max-width: 640px) { .ftests { grid-template-columns: 1fr; } .pbar { width: 3.5rem; } }
+
+/* ------------------------------------------------------------------ report list pages */
+.pager { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin: 1rem 0 0.4rem; }
+.pager[hidden] { display: none; }
+.pager button { font: inherit; font-size: 0.9rem; color: var(--text); background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 0.35rem 0.7rem; cursor: pointer; min-width: 2.4rem; }
+.pager button:hover:not(:disabled) { border-color: var(--muted); }
+.pager button:disabled { color: var(--muted); opacity: 0.5; cursor: default; }
+.pager button[aria-current="page"] { background: var(--panel-2); border-color: var(--up); font-weight: 600; }
+.pager .pages { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
+.pager .gap { color: var(--muted); padding: 0 0.2rem; }
+.pager .range { margin-left: auto; }
+@media (max-width: 640px) { .pager .range { margin-left: 0; flex-basis: 100%; } .pager .lbl { display: none; } }

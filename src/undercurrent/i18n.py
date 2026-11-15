@@ -620,6 +620,11 @@ PL: dict[str, str] = {
     "Signals · Undercurrent": "Sygnały · Undercurrent",
     "Pipeline · Undercurrent": "Proces · Undercurrent",
     # analysis pages: market, screener, stock
+    "Pages of reports": "Strony raportów",
+    "Previous": "Poprzednia",
+    "Next": "Następna",
+    "Page {p} of {n}": "Strona {p} z {n}",
+    "{a}–{b} of {n}": "{a}–{b} z {n}",
     "Valuation": "Wycena",
     "Market cap": "Kapitalizacja",
     "Measure": "Miara",

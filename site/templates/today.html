@@ -49,15 +49,80 @@
     <li class="muted empty">{{ _('No reports in this window.') }}</li>
     {% endfor %}
   </ol>
+  <nav class="pager" aria-label="{{ _('Pages of reports') }}" hidden></nav>
   <p class="muted small feed-note">{{ _('{n} reports in this digest', n=ctx.counts.reports) }} · <a href="pipeline.html">{{ ctx.health_bits|health }}</a></p>
 </section>
 <script>
-document.querySelectorAll('.filters button').forEach(function (b) {
-  b.addEventListener('click', function () {
-    var f = b.dataset.filter;
-    document.querySelectorAll('.filters button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
-    document.querySelectorAll('.stream-list li[data-type]').forEach(function (li) { li.hidden = f !== 'all' && li.dataset.type !== f; });
+/* Filter by type and show the list a page at a time. Without JS every report is listed. */
+(function () {
+  var PAGE = 30;
+  var items = Array.prototype.slice.call(document.querySelectorAll('.stream-list li[data-type]'));
+  var buttons = document.querySelectorAll('.filters button');
+  var pager = document.querySelector('.pager');
+  var list = document.querySelector('.stream-list');
+  var L = {{ {'prev': _('Previous'), 'next': _('Next'), 'page': _('Page {p} of {n}'), 'range': _('{a}–{b} of {n}')}|tojson }};
+  var st = { type: 'all', page: 1 };
+  function readHash() {
+    st = { type: 'all', page: 1 };
+    (location.hash.slice(1) || '').split('&').forEach(function (kv) {
+      var x = kv.split('=');
+      if (x[0] === 'type' && x[1]) st.type = decodeURIComponent(x[1]);
+      if (x[0] === 'page' && x[1]) st.page = Math.max(1, parseInt(x[1], 10) || 1);
+    });
+  }
+  readHash();
+
+  function pages(cur, n) {  // 1 … 4 5 6 … 12
+    var out = [], last = 0;
+    for (var p = 1; p <= n; p++) {
+      if (p === 1 || p === n || Math.abs(p - cur) <= 1) {
+        if (last && p - last > 1) out.push(null);
+        out.push(p);
+        last = p;
+      }
+    }
+    return out;
+  }
+
+  function render(scroll) {
+    var shown = items.filter(function (li) { return st.type === 'all' || li.dataset.type === st.type; });
+    var n = Math.max(1, Math.ceil(shown.length / PAGE));
+    st.page = Math.min(st.page, n);
+    var a = (st.page - 1) * PAGE, b = Math.min(shown.length, a + PAGE);
+    items.forEach(function (li) { li.hidden = true; });
+    shown.slice(a, b).forEach(function (li) { li.hidden = false; });
+    buttons.forEach(function (x) { x.setAttribute('aria-pressed', String(x.dataset.filter === st.type)); });
+    pager.hidden = n <= 1;
+    if (n > 1) {
+      var html = '<button type="button" data-page="' + (st.page - 1) + '"' + (st.page === 1 ? ' disabled' : '') +
+        ' aria-label="' + L.prev + '">← <span class="lbl">' + L.prev + '</span></button><span class="pages">';
+      pages(st.page, n).forEach(function (p) {
+        html += p === null ? '<span class="gap">…</span>'
+          : '<button type="button" data-page="' + p + '"' + (p === st.page ? ' aria-current="page"' : '') +
+            ' aria-label="' + L.page.replace('{p}', p).replace('{n}', n) + '">' + p + '</button>';
+      });
+      html += '</span><button type="button" data-page="' + (st.page + 1) + '"' + (st.page === n ? ' disabled' : '') +
+        ' aria-label="' + L.next + '"><span class="lbl">' + L.next + '</span> →</button><span class="muted small range">' +
+        L.range.replace('{a}', a + 1).replace('{b}', b).replace('{n}', shown.length) + '</span>';
+      pager.innerHTML = html;
+    }
+    var hash = (st.type !== 'all' ? 'type=' + st.type : '') + (st.page > 1 ? (st.type !== 'all' ? '&' : '') + 'page=' + st.page : '');
+    history.replaceState(null, '', hash ? '#' + hash : location.pathname + location.search);
+    if (scroll) list.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
+  buttons.forEach(function (b) {
+    b.addEventListener('click', function () { st.type = b.dataset.filter; st.page = 1; render(false); });
   });
-});
+  pager.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-page]');
+    if (!b || b.disabled) return;
+    st.page = parseInt(b.dataset.page, 10);
+    render(true);
+  });
+  // a link or the address bar changing only the hash does not reload the page
+  window.addEventListener('hashchange', function () { readHash(); render(false); });
+  render(false);
+})();
 </script>
 {% endblock %}
