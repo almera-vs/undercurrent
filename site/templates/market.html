@@ -87,10 +87,38 @@
 <p class="muted small">{{ _('movers_note') }}</p>
 {% endif %}
 
+{% if m.sectors %}
+<section class="panel sectors">
+  <div class="card-head"><h2>{{ _('Sector rotation') }}</h2><span class="muted small">{{ _('The GPW sector indices against WIG') }}</span></div>
+  <div class="sectors-split">
+    <figure class="rrg-fig">{{ rrg(m.sectors)|safe }}<figcaption class="muted small">{{ _('rrg_note') }}</figcaption></figure>
+    <div>
+    <p class="muted small sector-note">{{ _('Against WIG, except today: the index’s own change.') }}</p>
+    <div class="scroll"><table class="sector-table">
+      <thead><tr><th>{{ _('Sector') }}</th><th class="r">{{ _('Today') }}</th><th class="r">{{ _('5 s.') }}</th><th class="r">{{ _('20 s.') }}</th><th class="r">{{ _('60 s.') }}</th><th class="r">{{ _('1 y.') }}</th><th>{{ _('Phase') }}</th></tr></thead>
+      <tbody>
+      {% for r in m.sectors %}
+      <tr>
+        <td>{{ sector_label(r.key) }}</td>
+        <td class="r mono {{ r.r1|tone }}">{{ r.r1|pct }}</td>
+        <td class="r mono {{ r.x5|tone }}">{{ r.x5|pct }}</td>
+        <td class="r mono {{ r.x20|tone }}">{{ r.x20|pct }}</td>
+        <td class="r mono {{ r.x60|tone }}">{{ r.x60|pct }}</td>
+        <td class="r mono {{ r.x250|tone }}">{{ r.x250|pct }}</td>
+        <td>{% if r.quadrant %}<span class="phase phase-{{ r.quadrant }}">{{ _(r.quadrant|capitalize) }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
 <section class="panel presets">
   <div class="card-head"><h2>{{ _('Screener') }}</h2><a href="screener.html">{{ _('All {n} listed stocks', n=m.listed or 0) }} →</a></div>
   <ul class="preset-links">
-    {% for key, label in [('new_hi', 'New 52-week high'), ('rsi_low', 'RSI below 30'), ('rsi_high', 'RSI above 70'), ('above200', 'Above both averages'), ('surprise', 'Surprise beyond 3σ today'), ('insider', 'Insider buying, last 20 sessions'), ('forecast', 'Model forecast, liquid WIG')] %}
+    {% for key, label in [('new_hi', 'New 52-week high'), ('rsi_low', 'RSI below 30'), ('pullback', 'Pullback in an uptrend'), ('squeeze', 'Volatility squeeze'), ('breakout', 'Breakout on heavy turnover'), ('oversold', 'Oversold near the 52-week low'), ('trend', 'Healthy trend (ADX above 25)'), ('above200', 'Above both averages'), ('surprise', 'Surprise beyond 3σ today'), ('insider', 'Insider buying, last 20 sessions'), ('forecast', 'Model forecast, liquid WIG')] %}
     <li><a class="btn btn-ghost" href="screener.html#preset={{ key }}">{{ _(label) }}</a></li>
     {% endfor %}
   </ul>

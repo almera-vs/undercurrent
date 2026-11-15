@@ -410,18 +410,65 @@ Code: `src/undercurrent/ta.py` (indicators), `stock_export.py` (data), `setups.p
   selling in the last 20 sessions; ESEF ratios while the annual report is fresh. Stocks
   under the `tradable` tier are hidden unless asked for.
 - **Chart setups.** Each screener preset becomes a setup: the session a stock enters the
-  preset's state (a new 52-week high or low, RSI falling below 30 or rising above 70, the
-  close moving above both averages, SMA50 crossing above SMA200). A stock counts a setup
+  preset's state. The states are defined once, in `setups.states`, and the screener shows
+  the presets that function says a stock is in, so a preset and its tested setup cannot
+  differ:
+  - a new 52-week high or low; RSI 14 below 30 or above 70; the close above SMA50 and
+    SMA200; SMA50 above SMA200 (the golden cross, a setup without a preset);
+  - pullback: the close above SMA200 with RSI between 30 and 50;
+  - squeeze: the Bollinger width (upper − lower over the middle) at its lowest of 126
+    sessions, RSI between 45 and 55;
+  - breakout: the close within 3 % of the 52-week high, turnover 1.5 times its mean of the
+    20 sessions before, RSI above 55;
+  - oversold: RSI below 30, the close within 10 % of the 52-week low, turnover 1.5 times
+    normal;
+  - healthy trend: close > SMA50 > SMA200, both averages above their value ten sessions
+    earlier, Wilder's ADX 14 above 25.
+
+  A 52-week high or low is an event each time it happens; every other setup when its state
+  begins. A stock counts a setup
   again only 20 sessions after its last one. The event is known when its session's prices
   are, so it reaches that evening's digest and the trade enters at the next session's close.
   `study.compute_signal_stats` measures them exactly as it measures reports (§ 3–5): buyable
   stocks, costs, two-way clustering, bootstrap, Benjamini–Hochberg, walk-forward, deflated
-  Sharpe. The setups are their own family: their q-values are adjusted across the six
+  Sharpe. The setups are their own family: their q-values are adjusted across the 11
   setups, and the report signals' statistics do not change.
-- **First result (2015–2018 and 2025–2026, the lake on 2026-11-12).** A new 52-week high:
-  +2.1 % against WIG over 20 sessions (95 % CI +0.6 % … +3.9 %, q 0.03, 3,557 events), +0.2 %
-  a trade after costs out of sample: "not confirmed". The other five are noise or eaten by
-  costs. The screener shows the matching setup's result next to its preset.
+- **First result (2015–2018 and 2025–2026, the lake on 2026-11-12).** Three setups are
+  significant in sample (q 0.03 each) and none holds up after costs out of sample:
+  - a new 52-week high: +2.1 % against WIG over 20 sessions (95 % CI +0.6 % … +3.9 %,
+    3,557 events), +0.2 % a trade after costs: "not confirmed";
+  - a breakout on heavy turnover: +2.0 % (3,227 events), +0.3 % after costs: "not
+    confirmed";
+  - a healthy trend: +1.6 % (3,876 events), −1.1 % after costs: "eaten by costs".
+
+  The other eight are noise or eaten by costs. The screener shows the matching setup's
+  result next to its preset.
+- **Risk** (`risk.py`, the stock page). From the market state's one-session σ, known at the
+  previous close:
+  - VaR at 95 % and 99 % and expected shortfall at 97.5 % for one session, from a Student-t
+    *scaled to unit variance*: the quantile is `t_ν⁻¹(p) · √((ν − 2) / ν)`, because σ is the
+    return's standard deviation and a plain t's is √(ν / (ν − 2)) (29 % more at ν = 5);
+  - ν from {3, 4, 5, 6, 8, 10, 15, 30} by likelihood on the stock's last 500 returns divided
+    by the σ forecast the evening before; a normal without 150 of them;
+  - a backtest: the last 250 sessions against the VaR from the σ of the evening before and a
+    ν fitted on the 500 sessions before them, with Kupiec's proportion-of-failures test;
+  - the close against its high since the last hole in the lake, the deepest fall from a
+    high in the last year, and tonight's σ as a percentile of the last year's.
+- **The risk model, checked.** On every out-of-sample year the lake holds (1.46 million
+  stock-sessions), the breach rates are 4.8–5.2 % for the 95 % VaR and 0.9–1.1 % for the
+  99 % in each liquidity tier. A normal breaches 3.5–3.6 % and 1.3–1.6 %; filtered
+  historical simulation (σ times the empirical quantile of the stock's own standardised
+  returns) 4.8–5.0 % and 1.1–1.2 %. In the last year alone liquid stocks breached less
+  (3.8 % and 0.5 %): a calm year, which each stock's own backtest shows. ν is 3 for most
+  stocks: GPW returns are fat-tailed, and many sessions without a price change make the
+  middle of the distribution peaked.
+- **Sector rotation** (`sectors.py`, the market page). The exchange's WIG sector
+  sub-indices (17, with case variants such as `WIG-gry` merged): each one's return against
+  WIG over 5, 20, 60 and 250 sessions, and a relative-rotation point. `rs` is the sector
+  over WIG; trend = `100 · rs / SMA50(rs)`, momentum = `100 · trend / trend ten sessions
+  earlier`; leading (both above 100), weakening, lagging, improving, with the last four
+  weeks as a tail. It describes the market and is not tested as a signal.
 - **Size.** About 95 kB per stock file (2,500 sessions), about 110 MB for 1,180 stocks, and
-  a third of that after the gzip GitHub Pages applies. The export adds about 40 seconds to
-  the nightly run and the setups about 40 more.
+  a third of that after the gzip GitHub Pages applies. The export adds about a minute to the
+  nightly run (presets, ADX and risk for every listed stock included) and the setups about
+  40 seconds.

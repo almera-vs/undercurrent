@@ -78,3 +78,29 @@ def test_missing_high_and_low_fall_back_to_the_close() -> None:
     h, lo = ta.fill_range(np.array([np.nan, 0.0, 12.0]), np.array([9.0, np.nan, 11.5]), C[:3])
     assert h.tolist() == [10.0, 11.0, 12.0]
     assert lo.tolist() == [9.0, 11.0, 11.5]
+
+
+def test_adx_of_a_steady_rise_is_100() -> None:
+    c = np.arange(1.0, 61.0)
+    adx, pdi, mdi = ta.adx(c + 0.5, c - 0.5, c, 14)
+    assert np.isnan(adx[:27]).all() and adx[27] == pytest.approx(100.0)  # 2n − 1 sessions
+    assert pdi[14] > 0 and mdi[14] == pytest.approx(0.0)
+    assert np.isnan(pdi[:14]).all()
+
+
+def test_adx_of_a_zigzag_is_low() -> None:
+    c = np.tile([10.0, 11.0], 40)
+    adx, _, _ = ta.adx(c + 0.2, c - 0.2, c, 14)
+    assert adx[-1] < 20
+
+
+def test_bollinger_width_and_relative_turnover() -> None:
+    x = np.linspace(10, 20, 60)
+    w = ta.bollinger_width(x)
+    lo, mid, hi = ta.bollinger(x)
+    assert w[-1] == pytest.approx((hi[-1] - lo[-1]) / mid[-1])
+    tv = np.full(30, 100.0)
+    tv[-1] = 250.0
+    r = ta.relative(tv, 20)
+    assert np.isnan(r[:20]).all() and r[-1] == pytest.approx(2.5) and r[20] == pytest.approx(1.0)
+    assert ta.rolling_min(np.array([3.0, 1.0, 2.0, 5.0]), 2).tolist()[1:] == [1.0, 1.0, 2.0]

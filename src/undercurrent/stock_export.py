@@ -39,7 +39,7 @@ import numpy as np
 import numpy.typing as npt
 import polars as pl
 
-from undercurrent import ta
+from undercurrent import risk, sectors, setups, ta
 
 log = logging.getLogger(__name__)
 FloatArray = npt.NDArray[np.float64]
@@ -65,6 +65,7 @@ class ToolData:
     stocks: list[dict[str, Any]] = field(default_factory=list)  # every stock with a page
     screener: list[dict[str, Any]] = field(default_factory=list)
     market: dict[str, Any] = field(default_factory=dict)
+    risk: dict[str, dict[str, Any]] = field(default_factory=dict)  # risk.profile per ISIN
 
     @property
     def slug_by_isin(self) -> dict[str, str]:
@@ -90,6 +91,18 @@ def _price(x: Any) -> float | None:
     if x is None or not math.isfinite(float(x)):
         return None
     return round(float(x), 4)
+
+
+def _risk_json(rk: dict[str, Any] | None) -> dict[str, Any] | None:
+    """``risk.profile`` rounded for the page."""
+    if rk is None:
+        return None
+    out = {k: (v if k == "nu" else _r(v)) for k, v in rk.items() if k != "backtest"}
+    out["backtest"] = {
+        k: (_r(v) if isinstance(v, float) and k.startswith("p") else v)
+        for k, v in rk["backtest"].items()
+    }
+    return out
 
 
 def _thousands(x: Any) -> float | None:
@@ -167,6 +180,13 @@ def _read(work: Path, day: date) -> dict[str, Any]:
             "select name, trade_date, close from index_returns where trade_date <= ?",
             params=[day],
         ).pl()
+        sector_idx = con.sql(
+            "select name, trade_date, close from bronze_indices_gpw "
+            "where upper(name) like 'WIG-%' and trade_date <= ? "
+            "qualify row_number() over "
+            "(partition by upper(name), trade_date order by ingested_at desc) = 1",
+            params=[day],
+        ).pl()
         events = con.sql(
             "select report_id, isin, event_date, signal_type, subtype, insider_side, "
             "insider_value, title from events "
@@ -187,7 +207,7 @@ def _read(work: Path, day: date) -> dict[str, Any]:
     state_path = work / "gold" / "market_state.parquet"
     state = None
     if state_path.exists():
-        cols = ["isin", "trade_date", "sigma_20", "beta_wig", "surprise", "regime_stress"]
+        cols = ["isin", "trade_date", "sigma", "sigma_20", "beta_wig", "surprise", "regime_stress"]
         cols += ["liquidity_tier", "median_turnover", "cost", "signal_effect"]
         state = (
             pl.scan_parquet(state_path).select(cols).filter(pl.col("trade_date") <= day).collect()
@@ -196,6 +216,7 @@ def _read(work: Path, day: date) -> dict[str, Any]:
         "cal": cal,
         "prices": prices,
         "indices": indices,
+        "sectors": sector_idx,
         "events": events,
         "names": names,
         "facts": facts,
@@ -372,11 +393,13 @@ def build(
         stt = state_by.get(isin)
         cols = {"s20": np.full(len(pos), np.nan), "beta": np.full(len(pos), np.nan)}
         cols["z"] = np.full(len(pos), np.nan)
+        cols["sigma"] = np.full(len(pos), np.nan)
         last_state: dict[str, Any] = {}
         if stt is not None and stt.height:
             row_of = {d: i for i, d in enumerate(dates)}
-            for d, s20, b, z in zip(
+            for d, s1, s20, b, z in zip(
                 stt["trade_date"].to_list(),
+                stt["sigma"].to_list(),
                 stt["sigma_20"].to_list(),
                 stt["beta_wig"].to_list(),
                 stt["surprise"].to_list(),
@@ -384,6 +407,7 @@ def build(
             ):
                 i = row_of.get(d)
                 if i is not None:
+                    cols["sigma"][i] = np.nan if s1 is None else s1
                     cols["s20"][i] = np.nan if s20 is None else s20
                     cols["beta"][i] = np.nan if b is None else b
                     cols["z"][i] = np.nan if z is None else z
@@ -415,6 +439,10 @@ def build(
                     insider_net += sign * float(r["insider_value"])
 
         kinds = sorted({e[1] for e in ev_rows})
+        tv = g["value_pln"].fill_null(0.0).to_numpy().astype(np.float64)
+        rk = risk.profile(ret, cols["sigma"], adj, sseg) if listed else None
+        if rk is not None:
+            tool.risk[isin] = rk
         fc = forecast.get(isin)
         fu = fund.get(isin)
         tier = last_state.get("liquidity_tier")
@@ -463,6 +491,7 @@ def build(
                 if fc is None
                 else {k: _r(fc.get(k)) for k in ("expected", "band_lo", "band_hi")}
                 | {"rank": fc.get("rank"), "universe": fc.get("universe")},
+                "risk": _risk_json(rk),
                 "fund": None
                 if fu is None
                 else {
@@ -482,6 +511,10 @@ def build(
             continue
         p = int(pos[-1])
         day_ret = ret[-1] if p == last_pos and math.isfinite(ret[-1]) else None
+        in_state, _ = setups.states(h * f, lo * f, adj, tv, sseg)
+        presets = [k for k, v in setups.PRESET_SETUP.items() if in_state[v][-1]]
+        rvol = ta.relative(tv, ta.RVOL_N, sseg)[-1]
+        adx = ta.adx(ind["h"], ind["l"], adj, ta.ADX_N, sseg)[0][-1]
         tool.screener.append(
             {
                 **meta,
@@ -509,10 +542,20 @@ def build(
                 "prof": _r(fu["profitability"]) if fu else None,
                 "ag": _r(fu["asset_growth"]) if fu else None,
                 "acc": _r(fu["accruals"]) if fu else None,
+                "presets": presets,
+                "rvol": _r(rvol, 3),
+                "adx": _r(adx, 3),
+                "var95": _r(rk["var95"]) if rk else None,
+                "es975": _r(rk["es975"]) if rk else None,
+                "dd": _r(rk["drawdown"]) if rk else None,
+                "vol_pct": _r(rk["vol_percentile"], 3) if rk else None,
             }
         )
 
     tool.market = _market_summary(tool, cal, idx_close, regime)
+    tool.market["sectors"] = sectors.rotation(
+        sectors.sector_closes(src["sectors"], idx, n_cal), wig, seg
+    )
     series = {
         "format": FORMAT,
         "as_of": day.isoformat(),

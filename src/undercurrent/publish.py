@@ -25,7 +25,7 @@ import httpx
 import polars as pl
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from undercurrent import i18n, lake, pages, xtb
+from undercurrent import i18n, lake, pages, sectors, xtb
 
 log = logging.getLogger(__name__)
 WARSAW = ZoneInfo("Europe/Warsaw")
@@ -1246,6 +1246,23 @@ def _env(lang: str = "en") -> Environment:
         "lang": lang,
         "plural": lambda n, key: i18n.plural(lang, n, key),
         "ring": lambda rank, universe: pages.ring_svg(rank, universe, lang),
+        "rrg": lambda rows: sectors.rrg_svg(
+            rows,
+            lang,
+            {
+                k: _(t)
+                for k, t in (
+                    ("leading", "Leading"),
+                    ("weakening", "Weakening"),
+                    ("lagging", "Lagging"),
+                    ("improving", "Improving"),
+                    ("trend", "Relative trend"),
+                    ("momentum", "Momentum"),
+                    ("chart", "Sector rotation against WIG"),
+                )
+            },
+        ),
+        "sector_label": lambda k: sectors.LABELS[lang].get(k, k),
     }
     return env
 
@@ -1290,6 +1307,7 @@ def _render_lang(ctx: SiteContext, out: Path, lang: str) -> list[Path]:
                 page="stock",
                 s=st,
                 row=rows.get(st["isin"]),
+                rk=tool.risk.get(st["isin"]),
                 kinds=kinds,
             )
     for h in ctx.stats:

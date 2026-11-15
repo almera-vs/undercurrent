@@ -638,6 +638,32 @@ it costs. Method details (event study, walk-forward, verdicts) are in
   result next to it. On the current lake none holds up after costs; the 52-week high is
   significant in sample and positive out of sample, but not significantly.
 
+## From the Model Finance app: presets, risk, sectors (2026-11-15)
+
+The author's desktop app (Model Finance, built on Yahoo Finance) was read for what could be
+carried over. Only methods that work on the exchange's own daily data were taken; valuation
+(DCF, multiples) needs share counts and cash-flow lines the lake does not have, the macro and
+options models need US yields and option prices, VPIN needs intraday trades, and its
+"conviction score" is an untested points system.
+
+- **Five presets from its screener**, each a tested setup like the others: pullback,
+  squeeze, breakout, oversold, healthy trend (METHODOLOGY § 11). Its sixth, an Isolation
+  Forest "anomaly", has no rule a test could hold to and was left out. The preset
+  definitions moved from the browser to Python (`setups.states`), so the screener and the
+  test read one definition.
+- **A risk panel instead of its VaR card.** The app's VaR multiplied the GARCH σ by a plain
+  Student-t quantile although `arch` fits a unit-variance t; that overstates the VaR by
+  √(ν / (ν − 2)), 29 % at ν = 5. Here the quantile is scaled, ν is fitted to the stock's own
+  standardised returns, and each page shows a one-year out-of-sample backtest. A
+  likelihood-fitted t was kept over filtered historical simulation because across all
+  out-of-sample years it breached the 99 % VaR closer to 1 % (0.9–1.1 % against 1.1–1.2 %).
+- **Sector rotation from the exchange's sector indices**, not from stocks' sectors, which
+  the lake does not have. Descriptive only.
+- **Not taken, though portable:** a monthly returns calendar, a market-correlation gauge
+  (the share of variance on the first principal component), a daily volume profile, the
+  Hurst exponent, and a GJR leverage term for the GARCH, which would be adopted only if
+  its out-of-sample QLIKE improved.
+
 ## Known limitations
 
 - Insider trade details (side, volume, price) are missing for reports that no portal

@@ -87,6 +87,19 @@ def work(tmp_path):
     for name, df in (
         ("sessions", sessions),
         ("index_returns", idx),
+        (
+            "bronze_indices_gpw",
+            pl.concat(
+                [
+                    idx.with_columns(pl.lit(datetime(2026, 1, 1, tzinfo=UTC)).alias("ingested_at")),
+                    idx.with_columns(
+                        pl.lit("WIG-banki").alias("name"),
+                        (pl.col("close") * np.linspace(1, 1.2, len(cal))).alias("close"),
+                        pl.lit(datetime(2026, 1, 1, tzinfo=UTC)).alias("ingested_at"),
+                    ),
+                ]
+            ),
+        ),
         ("events", events),
         ("reports", reports),
     ):
@@ -99,6 +112,7 @@ def work(tmp_path):
         {
             "isin": [A, B],
             "trade_date": [cal[-1], cal[-1]],
+            "sigma": [0.018, 0.045],
             "sigma_20": [0.08, 0.2],
             "beta_wig": [1.1, 0.4],
             "surprise": [3.5, -0.2],
@@ -165,3 +179,17 @@ def test_slugs_are_unique() -> None:
     assert stock_export.slugify("PKN Orlen", "PL1", taken) == "pkn-orlen"
     assert stock_export.slugify("PKN-ORLEN", "PL2", taken) == "pkn-orlen-pl2"
     assert stock_export.slugify(None, "PL3", taken) == "pl3"
+
+
+def test_screener_presets_risk_and_sectors(work) -> None:
+    w, cal, _ = work
+    tool = stock_export.build(w, cal[-1])
+    a = next(r for r in tool.screener if r["isin"] == A)
+    assert isinstance(a["presets"], list)
+    # σ on one session only: too little history for ν, so the normal quantile is used
+    assert a["var95"] == pytest.approx(0.018 * 1.6449, rel=1e-3)
+    sec = tool.market["sectors"]
+    assert [r["key"] for r in sec] == ["BANKI"]  # "WIG-banki" is matched case-blind
+    assert sec[0]["x20"] is not None and sec[0]["x20"] > 0  # it rose against WIG
+    s = json.loads((tool.staging / "stocks" / f"{A}.json").read_text())
+    assert "risk" in s["last"]

@@ -104,6 +104,32 @@
     return out;
   }
 
+  function adx1(h, l, c, n) {
+    var len = c.length, out = [nans(len), nans(len), nans(len)];
+    if (len <= 2 * n) return out;
+    var pdm = [], mdm = [], tr = [];
+    for (var i = 1; i < len; i++) {
+      var up = h[i] - h[i - 1], down = l[i - 1] - l[i];
+      pdm.push(up > down && up > 0 ? up : 0);
+      mdm.push(down > up && down > 0 ? down : 0);
+      tr.push(Math.max(h[i] - l[i], Math.abs(h[i] - c[i - 1]), Math.abs(l[i] - c[i - 1])));
+    }
+    var a = 1 / n, st = smooth(tr, n, a), sp = smooth(pdm, n, a), sm = smooth(mdm, n, a);
+    var pdi = [], mdi = [], dx = [];
+    for (var k = 0; k < st.length; k++) {
+      var p = st[k] > 0 ? 100 * sp[k] / st[k] : 0, m = st[k] > 0 ? 100 * sm[k] / st[k] : 0;
+      if (isNaN(st[k])) { p = NaN; m = NaN; }
+      pdi.push(p); mdi.push(m);
+      dx.push(p + m > 0 ? 100 * Math.abs(p - m) / (p + m) : 0);
+    }
+    var first = n - 1, ad = smooth(dx.slice(first), n, a);
+    for (var j = 0; j < st.length; j++) {
+      out[0][j + 1] = j >= first ? ad[j - first] : NaN;
+      out[1][j + 1] = pdi[j]; out[2][j + 1] = mdi[j];
+    }
+    return out;
+  }
+
   var I = {
     YEAR: 250, RSI_N: 14, ATR_N: 14, MACD: [12, 26, 9], BB: [20, 2],
     sma: function (c, n, seg) { return perSegment(function (x) { return sma1(x, n); }, seg, [c]); },
@@ -129,6 +155,12 @@
       n = n || 250;
       return [perSegment(function (x) { return rolling(x, n, Math.max); }, seg, [h]),
               perSegment(function (x) { return rolling(x, n, Math.min); }, seg, [l])];
+    },
+    adx: function (h, l, c, n, seg) {
+      n = n || 14;
+      return [0, 1, 2].map(function (k) {
+        return perSegment(function (a, b, x) { return adx1(a, b, x, n)[k]; }, seg, [h, l, c]);
+      });
     },
     fillRange: function (h, l, c) {
       var hh = c.map(function (x, i) { var v = h[i] > 0 ? h[i] : x; return Math.max(v, x); });

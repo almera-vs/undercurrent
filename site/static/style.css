@@ -519,6 +519,7 @@ details.weights summary { cursor: pointer; color: var(--up); font-weight: 600; m
 .tiles.three { grid-template-columns: repeat(3, 1fr); }
 .market-split { grid-template-columns: 2fr 1fr; }
 .split.halves { grid-template-columns: 1fr 1fr; margin-top: 1.2rem; }
+#stock-events li { grid-template-columns: 6.2rem 1fr; }
 #stock-events time { white-space: nowrap; }
 .side-stack { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
 .side-stack .card { margin: 0; }
@@ -635,3 +636,41 @@ details.weights summary { cursor: pointer; color: var(--up); font-weight: 600; m
 .scr-setup { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 0.6rem 0.9rem; margin: 0 0 0.6rem; }
 .side-stack .kv-tight { grid-template-columns: 1fr auto; }
 .side-stack .kv-tight dd { text-align: right; white-space: nowrap; }
+
+/* ------------------------------------------------------------------ sectors and risk */
+.sectors { margin-top: 1.6rem; }
+.sectors-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 1.4rem; align-items: start; }
+.rrg-fig { margin: 0; }
+.rrg { width: 100%; height: auto; display: block; font-family: var(--sans); }
+.rrg .q-leading { fill: rgba(108, 182, 255, 0.08); }
+.rrg .q-weakening { fill: rgba(229, 192, 123, 0.07); }
+.rrg .q-lagging { fill: rgba(240, 163, 94, 0.08); }
+.rrg .q-improving { fill: rgba(196, 167, 245, 0.07); }
+.rrg .axis { stroke: var(--line); stroke-width: 1; }
+.rrg .qt { fill: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+.rrg .ax { fill: var(--muted); font-size: 12px; }
+.rrg .lbl { fill: var(--text); font-size: 12px; }
+.rrg .tail { fill: none; stroke-width: 1.2; opacity: 0.45; }
+.rrg .tail-leading, .rrg .dot-leading { stroke: var(--up); fill: var(--up); }
+.rrg .tail-weakening, .rrg .dot-weakening { stroke: var(--amber); fill: var(--amber); }
+.rrg .tail-lagging, .rrg .dot-lagging { stroke: var(--down); fill: var(--down); }
+.rrg .tail-improving, .rrg .dot-improving { stroke: var(--violet); fill: var(--violet); }
+.rrg polyline.tail { fill: none; }
+.sector-table { font-size: 0.9rem; }
+.sector-note { margin: 0 0 0.4rem; }
+.sector-table th, .sector-table td { white-space: nowrap; }
+.phase { font-size: 0.78rem; font-weight: 600; padding: 0.1rem 0.5rem; border-radius: 999px; white-space: nowrap; }
+.phase-leading { background: rgba(108, 182, 255, 0.15); color: var(--up); }
+.phase-weakening { background: rgba(229, 192, 123, 0.15); color: var(--amber); }
+.phase-lagging { background: rgba(240, 163, 94, 0.15); color: var(--down); }
+.phase-improving { background: rgba(196, 167, 245, 0.15); color: var(--violet); }
+.risk-panel { margin-bottom: 1.2rem; }
+.risk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 2rem; }
+.risk-grid .kv-tight { grid-template-columns: minmax(10rem, auto) 1fr; }
+@media (max-width: 1000px) {
+  .sectors-split, .risk-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .risk-grid .kv-tight { grid-template-columns: 1fr; gap: 0.15rem; }
+  .risk-grid .kv-tight dd { margin-bottom: 0.6rem; }
+}

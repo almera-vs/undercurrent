@@ -35,6 +35,8 @@ log = logging.getLogger(__name__)
 FloatArray = npt.NDArray[np.float64]
 
 REFRACTORY = 20
+SQUEEZE_SESSIONS = 126  # six months: the Bollinger width at its lowest of these is a squeeze
+SLOPE_SESSIONS = 10  # an average "rises" when it is above its value this many sessions ago
 SETUPS = (
     "new_high",
     "new_low",
@@ -42,53 +44,127 @@ SETUPS = (
     "rsi_above_70",
     "above_both_averages",
     "golden_cross",
+    "pullback",
+    "squeeze",
+    "breakout",
+    "oversold",
+    "trend_health",
 )
-# screener preset → setup (site/static/js/screener.js)
+# screener preset → setup. The screener's presets are these states, computed here, so a
+# preset and the setup tested on the Signals page can never differ.
 PRESET_SETUP = {
     "new_hi": "new_high",
     "new_lo": "new_low",
     "rsi_low": "rsi_below_30",
     "rsi_high": "rsi_above_70",
     "above200": "above_both_averages",
+    "pullback": "pullback",
+    "squeeze": "squeeze",
+    "breakout": "breakout",
+    "oversold": "oversold",
+    "trend": "trend_health",
 }
+# 52-week highs and lows are events every time they happen (the refractory spaces them);
+# every other setup is an event when its state begins
+EVERY_TIME = ("new_high", "new_low")
 
 
-def triggers(
-    high: FloatArray, low: FloatArray, close: FloatArray, seg: npt.NDArray[np.int64]
-) -> dict[str, npt.NDArray[np.bool_]]:
-    """For one stock's sessions: where each setup's state begins (before the refractory)."""
+def _lag(x: FloatArray, k: int, seg: npt.NDArray[np.int64]) -> FloatArray:
+    """``x`` ``k`` sessions earlier in the same segment (NaN otherwise)."""
+    out = np.full(len(x), np.nan)
+    if len(x) > k:
+        out[k:] = np.where(seg[k:] == seg[:-k], x[:-k], np.nan)
+    return out
+
+
+def states(
+    high: FloatArray,
+    low: FloatArray,
+    close: FloatArray,
+    turnover: FloatArray,
+    seg: npt.NDArray[np.int64],
+) -> tuple[dict[str, npt.NDArray[np.bool_]], dict[str, npt.NDArray[np.bool_]]]:
+    """For one stock's sessions: whether it is in each setup's state, and whether it can tell.
+
+    The second dict says where every input of a state is defined: a state that cannot be
+    judged yet (too little history) is not the same as being out of it.
+
+    * ``new_high`` / ``new_low``: today's high (low) is the highest (lowest) of 250 sessions;
+    * ``rsi_below_30`` / ``rsi_above_70``: Wilder's RSI 14;
+    * ``above_both_averages``: close above SMA50 and SMA200; ``golden_cross``: SMA50 > SMA200;
+    * ``pullback``: close above SMA200 with RSI between 30 and 50;
+    * ``squeeze``: Bollinger width at its lowest of ``SQUEEZE_SESSIONS``, RSI 45–55;
+    * ``breakout``: close within 3 % of the 52-week high, turnover 1.5× its 20-session mean,
+      RSI above 55;
+    * ``oversold``: RSI below 30, close within 10 % of the 52-week low, turnover 1.5× normal;
+    * ``trend_health``: close > SMA50 > SMA200, both averages rising over ``SLOPE_SESSIONS``,
+      ADX above 25.
+    """
     hh, ll = ta.fill_range(high, low, close)
     hi52, lo52 = ta.high_low(hh, ll, seg)
     rsi = ta.rsi(close, ta.RSI_N, seg)
     s50, s200 = ta.sma(close, 50, seg), ta.sma(close, 200, seg)
+    bbw = ta.bollinger_width(close, seg)
+    bbw_min = ta.rolling_min(bbw, SQUEEZE_SESSIONS, seg)
+    rvol = ta.relative(turnover, ta.RVOL_N, seg)
+    adx, _, _ = ta.adx(hh, ll, close, ta.ADX_N, seg)
+    s50_ago, s200_ago = _lag(s50, SLOPE_SESSIONS, seg), _lag(s200, SLOPE_SESSIONS, seg)
+    f = np.isfinite
     with np.errstate(invalid="ignore"):
         state = {
-            "new_high": np.isfinite(hi52) & (hh >= hi52),
-            "new_low": np.isfinite(lo52) & (ll <= lo52),
-            "rsi_below_30": np.isfinite(rsi) & (rsi < 30),
-            "rsi_above_70": np.isfinite(rsi) & (rsi > 70),
-            "above_both_averages": np.isfinite(s200) & (close > s50) & (close > s200),
-            "golden_cross": np.isfinite(s200) & (s50 > s200),
+            "new_high": hh >= hi52,
+            "new_low": ll <= lo52,
+            "rsi_below_30": rsi < 30,
+            "rsi_above_70": rsi > 70,
+            "above_both_averages": (close > s50) & (close > s200),
+            "golden_cross": s50 > s200,
+            "pullback": (close > s200) & (rsi >= 30) & (rsi <= 50),
+            "squeeze": (bbw <= bbw_min) & (rsi >= 45) & (rsi <= 55),
+            "breakout": (close >= 0.97 * hi52) & (rvol > 1.5) & (rsi > 55),
+            "oversold": (rsi < 30) & (close <= 1.10 * lo52) & (rvol > 1.5),
+            "trend_health": (close > s50)
+            & (s50 > s200)
+            & (s50 > s50_ago)
+            & (s200 > s200_ago)
+            & (adx > 25),
         }
+        defined = {
+            "new_high": f(hi52),
+            "new_low": f(lo52),
+            "rsi_below_30": f(rsi),
+            "rsi_above_70": f(rsi),
+            "above_both_averages": f(s200),
+            "golden_cross": f(s200),
+            "pullback": f(s200) & f(rsi),
+            "squeeze": f(bbw_min) & f(rsi),
+            "breakout": f(hi52) & f(rvol) & f(rsi),
+            "oversold": f(lo52) & f(rvol) & f(rsi),
+            "trend_health": f(s200_ago) & f(adx),
+        }
+    return {k: v & defined[k] for k, v in state.items()}, defined
+
+
+def triggers(
+    high: FloatArray,
+    low: FloatArray,
+    close: FloatArray,
+    turnover: FloatArray,
+    seg: npt.NDArray[np.int64],
+) -> dict[str, npt.NDArray[np.bool_]]:
+    """For one stock's sessions: where each setup's state begins (before the refractory).
+
+    A state begins where the stock is in it and was not the session before, in the same
+    segment, with the state defined then too (the start of the data is not an entry).
+    """
+    state, defined = states(high, low, close, turnover, seg)
     same = np.concatenate([[False], seg[1:] == seg[:-1]])
     out = {}
     for k, st in state.items():
         prev = np.concatenate([[False], st[:-1]])
-        # the state begins: not in it the session before (in the same segment), in it now;
-        # a 52-week high is an event every time, the refractory spaces them out
-        begins = st & ~(prev & same) if k not in ("new_high", "new_low") else st.copy()
-        # the session before must be defined, or the start of the data looks like an entry
-        defined_before = np.concatenate([[False], np.isfinite(_level(k, rsi, s200, hi52))[:-1]])
+        defined_before = np.concatenate([[False], defined[k][:-1]])
+        begins = st.copy() if k in EVERY_TIME else st & ~prev
         out[k] = begins & defined_before & same
     return out
-
-
-def _level(k: str, rsi: FloatArray, s200: FloatArray, hi52: FloatArray) -> FloatArray:
-    if k.startswith("rsi"):
-        return rsi
-    if k in ("above_both_averages", "golden_cross"):
-        return s200
-    return hi52
 
 
 def _refractory(hit: npt.NDArray[np.bool_], gap: int = REFRACTORY) -> list[int]:
@@ -102,8 +178,8 @@ def _refractory(hit: npt.NDArray[np.bool_], gap: int = REFRACTORY) -> list[int]:
 def setup_events(prices: pl.DataFrame, segment: dict[date, int]) -> pl.DataFrame:
     """Every setup event in ``prices``, as study events (signal type ``setup``).
 
-    ``prices``: isin, trade_date, market, close, adj_close, high, low, known_at; the setup is
-    the event's subtype. ``segment``: each session's calendar segment (it goes up after
+    ``prices``: isin, trade_date, market, close, adj_close, high, low, value_pln, known_at;
+    the setup is the event's subtype. ``segment``: each session's calendar segment (it goes up after
     every hole in the lake).
     """
     rows: list[dict[str, object]] = []
@@ -115,9 +191,10 @@ def setup_events(prices: pl.DataFrame, segment: dict[date, int]) -> pl.DataFrame
         f = np.where(np.isfinite(f) & (f > 0), f, 1.0)
         h = g["high"].fill_null(np.nan).to_numpy().astype(np.float64) * f
         lo = g["low"].fill_null(np.nan).to_numpy().astype(np.float64) * f
+        tv = g["value_pln"].fill_null(0.0).to_numpy().astype(np.float64)
         known = g["known_at"].to_list()
         market = g["market"].to_list()
-        for k, hit in triggers(h, lo, c * f, seg).items():
+        for k, hit in triggers(h, lo, c * f, tv, seg).items():
             for i in _refractory(hit):
                 rows.append(
                     {
@@ -153,7 +230,8 @@ def run_setups(duckdb_file: Path, work: Path, day: date) -> Path:
     try:
         prices = con.sql(
             "select a.isin, a.trade_date, a.market, a.close, a.adj_close, p.high, p.low, "
-            "a.known_at from adjusted_prices a left join prices_daily p using (isin, trade_date) "
+            "a.value_pln, a.known_at from adjusted_prices a "
+            "left join prices_daily p using (isin, trade_date) "
             "where a.trade_date <= ?",
             params=[day],
         ).pl()

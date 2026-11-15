@@ -161,7 +161,7 @@
   function stock(el, opts) {
     var labels = opts.labels || {}, t = theme();
     var state = { adjusted: true, overlays: { sma20: false, sma50: true, sma200: true, bb: false, band: false },
-                  panes: { rsi: true, macd: false, atr: false, z: true, beta: false } };
+                  panes: { rsi: true, macd: false, atr: false, adx: false, z: true, beta: false } };
     var controls = el.querySelector('.chart-controls');
     var host = el.querySelector('.chart-host');
     var legend = el.querySelector('.chart-legend');
@@ -258,6 +258,15 @@
         var ar = addLine(chart, LW.LineSeries, Object.assign({ color: t.text }, thin), pa,
                          a.map(function (v, i) { return v / d.c[i] * 100; }), d.times, d.seg);
         paneSeries.push(['ATR %', ar]);
+      }
+      if (state.panes.adx) {
+        var px = addPane(), ax = I.adx(d.h, d.l, d.c, 14, d.seg);
+        var adxs = addLine(chart, LW.LineSeries, Object.assign({ color: t.ink }, thin, { lineWidth: 2 }), px,
+                           ax[0], d.times, d.seg);
+        addLine(chart, LW.LineSeries, Object.assign({ color: t.up }, thin), px, ax[1], d.times, d.seg);
+        addLine(chart, LW.LineSeries, Object.assign({ color: t.down }, thin), px, ax[2], d.times, d.seg);
+        adxs.createPriceLine({ price: 25, color: t.grid, lineStyle: 2, axisLabelVisible: false });
+        paneSeries.push(['ADX 14', adxs]);
       }
       if (state.panes.z) {
         var pz = addPane();

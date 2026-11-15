@@ -23,6 +23,8 @@ Conventions, the same in both implementations:
   first session; the first ATR is the mean of the first n true ranges.
 * **52-week** high and low: the highest high and lowest low of the last 250 sessions,
   including today; NaN with fewer than 250 sessions in the segment.
+* **ADX** n (Wilder): see ``adx``. **Bollinger width**: (upper − lower) / middle.
+* **Relative turnover** n: today's turnover against the mean of the n sessions before it.
 """
 
 from __future__ import annotations
@@ -42,6 +44,8 @@ RSI_N = 14
 ATR_N = 14
 MACD_FAST, MACD_SLOW, MACD_SIGNAL = 12, 26, 9
 BB_N, BB_K = 20, 2.0
+ADX_N = 14
+RVOL_N = 20
 
 
 def _segments(seg: IntArray | None, n: int) -> list[slice]:
@@ -198,3 +202,77 @@ def fill_range(
     h = np.where(np.isfinite(high) & (high > 0), high, close)
     lo = np.where(np.isfinite(low) & (low > 0), low, close)
     return np.maximum(h, close), np.minimum(lo, close)
+
+
+def _adx(h: FloatArray, lo: FloatArray, c: FloatArray, n: int) -> list[FloatArray]:
+    out = [np.full(len(c), np.nan) for _ in range(3)]
+    if len(c) <= 2 * n:
+        return out
+    up, down = np.diff(h), -np.diff(lo)
+    plus_dm = np.where((up > down) & (up > 0), up, 0.0)
+    minus_dm = np.where((down > up) & (down > 0), down, 0.0)
+    tr = np.maximum.reduce([h[1:] - lo[1:], np.abs(h[1:] - c[:-1]), np.abs(lo[1:] - c[:-1])])
+    a = 1.0 / n
+    s_tr, s_p, s_m = _smooth(tr, n, a), _smooth(plus_dm, n, a), _smooth(minus_dm, n, a)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        pdi = np.where(s_tr > 0, 100 * s_p / s_tr, 0.0)
+        mdi = np.where(s_tr > 0, 100 * s_m / s_tr, 0.0)
+        dx = np.where(pdi + mdi > 0, 100 * np.abs(pdi - mdi) / (pdi + mdi), 0.0)
+    pdi = np.where(np.isfinite(s_tr), pdi, np.nan)
+    mdi = np.where(np.isfinite(s_tr), mdi, np.nan)
+    first = n - 1  # the first smoothed value, in the changes' positions
+    adx = np.full(len(dx), np.nan)
+    adx[first:] = _smooth(dx[first:], n, a)
+    for arr, v in zip(out, (adx, pdi, mdi), strict=True):
+        arr[1:] = v
+    return out
+
+
+def adx(
+    high: FloatArray,
+    low: FloatArray,
+    close: FloatArray,
+    n: int = ADX_N,
+    seg: IntArray | None = None,
+) -> tuple[FloatArray, FloatArray, FloatArray]:
+    """Wilder's ADX with +DI and −DI.
+
+    +DM is today's rise of the high when it beats the fall of the low (else 0), −DM the
+    reverse; true range, +DM and −DM are smoothed like the ATR; DI = 100 · smoothed DM /
+    smoothed TR; DX = 100 · |+DI − −DI| / (+DI + −DI); ADX is DX smoothed the same way,
+    started from the mean of its first n values.
+    """
+    parts = [
+        _per_segment(lambda h, lo, c, k=k: _adx(h, lo, c, n)[k], seg, high, low, close)
+        for k in range(3)
+    ]
+    return parts[0], parts[1], parts[2]
+
+
+def bollinger_width(
+    close: FloatArray, seg: IntArray | None = None, n: int = BB_N, k: float = BB_K
+) -> FloatArray:
+    """Width of the Bollinger bands as a share of their middle: (upper − lower) / SMA."""
+    lo, mid, hi = bollinger(close, seg, n, k)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return np.asarray((hi - lo) / mid, dtype=np.float64)
+
+
+def rolling_min(x: FloatArray, n: int, seg: IntArray | None = None) -> FloatArray:
+    """The lowest value of the last ``n`` sessions, NaN until n defined values in a row."""
+    return _per_segment(lambda v: _rolling(v, n, np.min), seg, x)
+
+
+def relative(x: FloatArray, n: int = RVOL_N, seg: IntArray | None = None) -> FloatArray:
+    """Today's value against the mean of the ``n`` sessions before it (relative turnover)."""
+
+    def one(v: FloatArray) -> FloatArray:
+        out = np.full(len(v), np.nan)
+        if len(v) <= n:
+            return out
+        prior = _sma(v, n)[n - 1 : -1]
+        with np.errstate(invalid="ignore", divide="ignore"):
+            out[n:] = np.where(prior > 0, v[n:] / prior, np.nan)
+        return out
+
+    return _per_segment(one, seg, x)

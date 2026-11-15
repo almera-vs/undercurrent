@@ -23,6 +23,7 @@
     <label class="check"><input type="checkbox" data-pane="rsi"> RSI 14</label>
     <label class="check"><input type="checkbox" data-pane="macd"> MACD 12, 26, 9</label>
     <label class="check"><input type="checkbox" data-pane="atr"> ATR 14</label>
+    <label class="check" title="{{ _('t_adx') }}"><input type="checkbox" data-pane="adx"> ADX 14</label>
     <label class="check" title="{{ _('t_z') }}"><input type="checkbox" data-pane="z"> {{ _('Surprise (σ)') }}</label>
     <label class="check" title="{{ _('t_beta') }}"><input type="checkbox" data-pane="beta"> {{ _('Beta to WIG') }}</label>
   </fieldset>
@@ -90,6 +91,31 @@
     {% if s.xtb_url %}<p><a class="ext" href="{{ s.xtb_url }}" rel="noopener nofollow">{{ _('{t} on XTB ↗', t=s.ticker) }}</a><br><small class="muted">{{ _('xtb_note') }}</small></p>{% endif %}
   </section>
 </div>
+
+{% if rk %}
+{% set bt = rk.backtest %}
+<section class="panel risk-panel">
+  <h2>{{ _('Risk: what a bad session looks like') }}</h2>
+  <div class="risk-grid">
+    <dl class="kv kv-tight">
+      <dt>{{ _('Value at risk, one session') }}</dt><dd class="mono">95%: <b>{{ rk.var95|share }}</b> · 99%: <b>{{ rk.var99|share }}</b></dd>
+      <dt>{{ _('Expected shortfall (97.5%)') }}</dt><dd class="mono"><b>{{ rk.es975|share }}</b> <small class="muted">{{ _('the mean loss on the worst 2.5% of sessions') }}</small></dd>
+      <dt>{{ _('Tails') }}</dt><dd>{% if rk.nu %}<span class="mono">Student-t, ν = {{ rk.nu|int }}</span> <small class="muted">{{ _('fatter than normal the lower ν is') }}</small>{% else %}<span class="muted">{{ _('normal: too little history to fit the tails') }}</span>{% endif %}</dd>
+      <dt>{{ _('Calm or not') }}</dt><dd>{% if rk.vol_percentile is not none %}<span class="mono">{{ rk.vol_percentile|share }}</span> <small class="muted">{{ _('of the last year’s sessions had a lower σ than tonight') }}</small>{% else %}—{% endif %}</dd>
+    </dl>
+    <dl class="kv kv-tight">
+      <dt>{{ _('Below its high') }}</dt><dd class="mono {{ rk.drawdown|tone }}">{{ rk.drawdown|pct }}</dd>
+      <dt>{{ _('Deepest fall, last year') }}</dt><dd class="mono {{ rk.max_drawdown_year|tone }}">{{ rk.max_drawdown_year|pct }}</dd>
+      <dt>{{ _('Backtest, last year') }}</dt><dd>{% if bt.p95 is not none %}
+        <span class="mono">95%: {{ bt.x95 }} {{ _('of') }} {{ bt.n }}</span> <small class="muted">({{ _('expected about {e}', e=(bt.n * 0.05)|round|int) }}, p {{ bt.p95|decimal }})</small><br>
+        <span class="mono">99%: {{ bt.x99 }} {{ _('of') }} {{ bt.n }}</span> <small class="muted">({{ _('expected about {e}', e=(bt.n * 0.01)|round|int) }}, p {{ bt.p99|decimal }})</small><br>
+        {% if bt.p95 >= 0.05 and bt.p99 >= 0.05 %}<span class="badge badge-ok">{{ _('consistent with the model') }}</span>{% else %}<span class="badge badge-thin">{{ _('more or fewer breaches than the model expects') }}</span>{% endif %}
+        {% else %}<span class="muted">{{ _('not enough history yet') }}</span>{% endif %}</dd>
+    </dl>
+  </div>
+  <p class="muted small">{{ _('risk_note') }}</p>
+</section>
+{% endif %}
 
 <section class="panel">
   <h2>{{ _('Reports of this company') }}</h2>

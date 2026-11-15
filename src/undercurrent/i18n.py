@@ -620,6 +620,99 @@ PL: dict[str, str] = {
     "Signals · Undercurrent": "Sygnały · Undercurrent",
     "Pipeline · Undercurrent": "Proces · Undercurrent",
     # analysis pages: market, screener, stock
+    "Pullback in an uptrend": "Korekta w trendzie wzrostowym",
+    "Volatility squeeze": "Ściśnięcie zmienności",
+    "Breakout on heavy turnover": "Wybicie przy dużym obrocie",
+    "Oversold near the 52-week low": "Wyprzedanie blisko minimum 52-tygodniowego",
+    "Healthy trend (ADX above 25)": "Zdrowy trend (ADX powyżej 25)",
+    "Rel. turnover": "Wzgl. obrót",
+    "Drawdown": "Spadek od szczytu",
+    "σ percentile": "Percentyl σ",
+    "t_rvol": "Dzisiejszy obrót względem średniej z 20 poprzednich sesji.",
+    "t_adx": (
+        "ADX Wildera z 14 sesji: siła trendu niezależnie od kierunku; powyżej 25 trend jest "
+        "wyraźny."
+    ),
+    "t_var": (
+        "Wartość zagrożona na jedną sesję: strata, której kurs nie powinien przekroczyć w "
+        "95% sesji."
+    ),
+    "t_es": "Średnia strata w 2,5% najgorszych sesji (oczekiwany niedobór).",
+    "t_dd": "Kurs względem najwyższego od ostatniej luki w danych.",
+    "t_volpct": "Jaka część sesji z ostatniego roku miała σ niższą niż dziś.",
+    "Risk: what a bad session looks like": "Ryzyko: jak wygląda zła sesja",
+    "Value at risk, one session": "Wartość zagrożona, jedna sesja",
+    "Expected shortfall (97.5%)": "Oczekiwany niedobór (97,5%)",
+    "the mean loss on the worst 2.5% of sessions": "średnia strata w 2,5% najgorszych sesji",
+    "Tails": "Ogony rozkładu",
+    "fatter than normal the lower ν is": "tym grubsze od normalnych, im niższe ν",
+    "normal: too little history to fit the tails": (
+        "normalne: za krótka historia, by dopasować ogony"
+    ),
+    "Calm or not": "Spokój czy nie",
+    "of the last year’s sessions had a lower σ than tonight": (
+        "sesji z ostatniego roku miało σ niższą niż dziś"
+    ),
+    "Below its high": "Poniżej szczytu",
+    "Deepest fall, last year": "Największy spadek, ostatni rok",
+    "Backtest, last year": "Test wsteczny, ostatni rok",
+    "expected about {e}": "oczekiwano około {e}",
+    "consistent with the model": "zgodne z modelem",
+    "more or fewer breaches than the model expects": (
+        "więcej lub mniej przekroczeń, niż zakłada model"
+    ),
+    "not enough history yet": "jeszcze za krótka historia",
+    "risk_note": (
+        "Z prognozy σ na kolejną sesję (GARCH z zakresem dnia) i rozkładu t-Studenta o "
+        "jednostkowej wariancji, dopasowanego do historii spółki. Test wsteczny używa σ "
+        "znanej wieczór wcześniej i ν dopasowanego przed badanym rokiem. Test Kupca: p "
+        "poniżej 0,05 oznacza, że liczba przekroczeń nie pasuje do modelu. To nie jest "
+        "rekomendacja inwestycyjna."
+    ),
+    "Sector rotation": "Rotacja sektorów",
+    "The GPW sector indices against WIG": "Indeksy sektorowe GPW względem WIG",
+    "Sector": "Sektor",
+    "Against WIG, except today: the index’s own change.": (
+        "Względem WIG, z wyjątkiem dziś: zmiana samego indeksu."
+    ),
+    "Phase": "Faza",
+    "vs WIG, 5 s.": "wzgl. WIG, 5 ses.",
+    "Leading": "Liderzy",
+    "Weakening": "Słabnący",
+    "Lagging": "Maruderzy",
+    "Improving": "Poprawiający się",
+    "Relative trend": "Trend względny",
+    "Momentum": "Impet",
+    "Sector rotation against WIG": "Rotacja sektorów względem WIG",
+    "rrg_note": (
+        "W prawo: sektor ostatnio bije WIG (kurs względem WIG ponad jego średnią z 50 "
+        "sesji). W górę: ta przewaga rośnie (wobec stanu sprzed 10 sesji). Ogon to ostatnie "
+        "cztery tygodnie; sektory zwykle krążą zgodnie z ruchem wskazówek zegara. To opis, nie "
+        "prognoza."
+    ),
+    "ADX and relative turnover": "ADX i obrót względny",
+    "g_adx": (
+        "ADX 14 (Wildera) mierzy siłę trendu bez względu na kierunek: wygładzone wzrosty "
+        "maksimów i spadki minimów względem rzeczywistego zakresu. Powyżej 25 trend jest "
+        "wyraźny. Obrót względny to dzisiejszy obrót wobec średniej z 20 poprzednich sesji; "
+        "1,5 i więcej to wyraźnie więcej handlu niż zwykle. Szerokość wstęg Bollingera to "
+        "(górna − dolna) / środkowa; najniższa od pół roku oznacza ściśnięcie zmienności."
+    ),
+    "Value at risk and expected shortfall": "Wartość zagrożona i oczekiwany niedobór",
+    "g_var": (
+        "VaR 95% to strata na jednej sesji, której kurs nie powinien przekroczyć w 95 "
+        "sesjach na 100; oczekiwany niedobór 97,5% to średnia strata w 2,5% najgorszych "
+        "sesji. Oba z prognozy σ na jutro i rozkładu t-Studenta przeskalowanego do "
+        "jednostkowej wariancji, bo zwykły rozkład t ma większe odchylenie niż 1 i zawyżałby "
+        "ryzyko. Test wsteczny porównuje liczbę przekroczeń w ostatnim roku z oczekiwaną "
+        "(test Kupca)."
+    ),
+    "g_rotation": (
+        "Indeks sektora dzielony przez WIG to siła względna. Trend to ta siła wobec jej "
+        "średniej z 50 sesji, impet to zmiana trendu w 10 sesji; oba wynoszą 100, gdy nic "
+        "się nie zmienia. Liderzy: oba powyżej 100; słabnący: trend powyżej, impet poniżej; "
+        "maruderzy: oba poniżej; poprawiający się: trend poniżej, impet powyżej."
+    ),
     "Chart setups": "Układy na wykresie",
     "Do the screener’s presets pay off?": "Czy zestawy ze skanera się opłacają?",
     "setups_lede": (
@@ -857,6 +950,51 @@ PL: dict[str, str] = {
 }
 
 EN_OVERRIDES: dict[str, str] = {
+    "t_rvol": "Today's turnover against the mean of the 20 sessions before.",
+    "t_adx": (
+        "Wilder's ADX over 14 sessions: the strength of a trend whichever way it goes; above "
+        "25 the trend is clear."
+    ),
+    "t_var": (
+        "Value at risk over one session: a loss the price should not exceed on 95% of sessions."
+    ),
+    "t_es": "The mean loss on the worst 2.5% of sessions (expected shortfall).",
+    "t_dd": "Close against its highest since the last hole in the data.",
+    "t_volpct": "The share of the last year's sessions with a lower σ than tonight.",
+    "risk_note": (
+        "From the σ forecast for the next session (GARCH with the day's range) and a "
+        "Student-t with unit variance, fitted to the stock's history. The backtest uses the "
+        "σ known the evening before and a ν fitted before the year it tests. Kupiec's test: "
+        "p below 0.05 means the number of breaches does not fit the model. Not investment "
+        "advice."
+    ),
+    "rrg_note": (
+        "Right: the sector has been beating WIG lately (its ratio to WIG above its "
+        "50-session mean). Up: that lead is growing (against ten sessions earlier). The tail "
+        "is the last four weeks; sectors usually turn clockwise. This describes; it does "
+        "not forecast."
+    ),
+    "g_adx": (
+        "ADX 14 (Wilder) measures how strong a trend is, whichever way: the smoothed rises "
+        "of the highs and falls of the lows against the true range. Above 25 the trend is "
+        "clear. Relative turnover is today's turnover against the mean of the 20 sessions "
+        "before; 1.5 or more is clearly more trading than usual. Bollinger width is (upper − "
+        "lower) / middle; its lowest in half a year marks a volatility squeeze."
+    ),
+    "g_var": (
+        "VaR 95% is the loss over one session that the price should not exceed on 95 "
+        "sessions in 100; expected shortfall at 97.5% is the mean loss on the worst 2.5% of "
+        "sessions. Both come from tomorrow's σ forecast and a Student-t scaled to unit "
+        "variance, because a plain t has a standard deviation above 1 and would overstate "
+        "the risk. The backtest compares the last year's breaches with the expected number "
+        "(Kupiec's test)."
+    ),
+    "g_rotation": (
+        "A sector index divided by WIG is its relative strength. The trend is that strength "
+        "against its 50-session mean, the momentum the trend's change over 10 sessions; both "
+        "are 100 when nothing changes. Leading: both above 100; weakening: trend above, "
+        "momentum below; lagging: both below; improving: trend below, momentum above."
+    ),
     "setups_lede": (
         "Each screener preset tested like the reports: the event is the session a stock "
         "enters the preset's state (RSI falling below 30, say). Entry at the next session's "
@@ -1207,6 +1345,11 @@ SIGNAL_LABELS: dict[str, dict[str, str]] = {
         "setup:rsi_above_70": "RSI rises above 70",
         "setup:above_both_averages": "Close moves above SMA50 and SMA200",
         "setup:golden_cross": "SMA50 crosses above SMA200 (golden cross)",
+        "setup:pullback": "Pullback in an uptrend",
+        "setup:squeeze": "Volatility squeeze",
+        "setup:breakout": "Breakout on heavy turnover",
+        "setup:oversold": "Oversold near the 52-week low",
+        "setup:trend_health": "Healthy trend (ADX above 25)",
     },
     "pl": {
         "insider_tx:buy": "Zakup przez insidera",
@@ -1231,6 +1374,11 @@ SIGNAL_LABELS: dict[str, dict[str, str]] = {
         "setup:rsi_above_70": "RSI rośnie powyżej 70",
         "setup:above_both_averages": "Kurs przechodzi nad SMA50 i SMA200",
         "setup:golden_cross": "SMA50 przecina SMA200 od dołu (złoty krzyż)",
+        "setup:pullback": "Korekta w trendzie wzrostowym",
+        "setup:squeeze": "Ściśnięcie zmienności",
+        "setup:breakout": "Wybicie przy dużym obrocie",
+        "setup:oversold": "Wyprzedanie blisko minimum 52-tygodniowego",
+        "setup:trend_health": "Zdrowy trend (ADX powyżej 25)",
     },
 }
 BASIS_LABELS: dict[str, dict[str, str]] = {

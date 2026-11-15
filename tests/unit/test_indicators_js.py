@@ -21,7 +21,9 @@ const [hh, ll] = I.fillRange(d.h, d.l, d.c);
 const [bl, bm, bu] = I.bollinger(d.c, d.seg);
 const [ml, ms, mh] = I.macd(d.c, d.seg);
 const [hi, lo] = I.highLow(hh, ll, d.seg, 60);
+const [ax, pdi, mdi] = I.adx(hh, ll, d.c, 14, d.seg);
 const out = {
+  adx: ax, pdi: pdi, mdi: mdi,
   sma: I.sma(d.c, 20, d.seg), ema: I.ema(d.c, 20, d.seg), rsi: I.rsi(d.c, 14, d.seg),
   macd: ml, macd_signal: ms, macd_hist: mh, bb_lo: bl, bb_mid: bm, bb_hi: bu,
   atr: I.atr(hh, ll, d.c, 14, d.seg), hi: hi, lo: lo,
@@ -47,7 +49,11 @@ def _python(d: dict[str, list[float | None]]) -> dict[str, np.ndarray]:
     bl, bm, bu = ta.bollinger(c, seg)
     ml, ms, mh = ta.macd(c, seg)
     hi, lo = ta.high_low(hh, ll, seg, 60)
+    ax, pdi, mdi = ta.adx(hh, ll, c, 14, seg)
     return {
+        "adx": ax,
+        "pdi": pdi,
+        "mdi": mdi,
         "sma": ta.sma(c, 20, seg),
         "ema": ta.ema(c, 20, seg),
         "rsi": ta.rsi(c, 14, seg),

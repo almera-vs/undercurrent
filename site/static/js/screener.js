@@ -11,26 +11,30 @@
     ['ticker', 'text', 'base'], ['close', 'num', 'base'], ['ret', 'pct', 'base'],
     ['x5', 'pct', 'trend'], ['x20', 'pct', 'trend'], ['x60', 'pct', 'trend'], ['x250', 'pct', 'trend'],
     ['rsi', 'int', 'tech'], ['d50', 'pct', 'tech'], ['d200', 'pct', 'tech'], ['dhi', 'pct', 'tech'],
-    ['atr', 'pct', 'tech'],
+    ['atr', 'pct', 'tech'], ['rvol', 'num', 'tech'], ['adx', 'int', 'tech'],
     ['s20', 'pct', 'risk'], ['beta', 'num', 'risk'], ['z', 'sigma', 'risk'],
+    ['var95', 'pct', 'risk'], ['es975', 'pct', 'risk'], ['dd', 'pct', 'risk'],
+    ['vol_pct', 'pct', 'risk'],
     ['turnover', 'money', 'liq'], ['cost', 'pct', 'liq'],
     ['fc', 'pct', 'model'], ['fc_rank', 'int', 'model'], ['insider_net', 'money', 'model'],
     ['ey', 'pct', 'fund'], ['prof', 'pct', 'fund'], ['ag', 'pct', 'fund'], ['acc', 'pct', 'fund']
   ];
 
+  // Presets that are chart setups are computed in Python (setups.states), the same
+  // definition the Signals page tests; the row lists the ones the stock is in tonight.
+  function inPreset(key) { return function (r) { return (r.presets || []).indexOf(key) >= 0; }; }
   var PRESETS = {
     all: function () { return true; },
-    new_hi: function (r) { return r.new_hi; },
-    new_lo: function (r) { return r.new_lo; },
-    rsi_low: function (r) { return r.rsi !== null && r.rsi < 30; },
-    rsi_high: function (r) { return r.rsi !== null && r.rsi > 70; },
-    above200: function (r) { return r.d200 !== null && r.d200 > 0 && r.d50 !== null && r.d50 > 0; },
     surprise: function (r) { return r.z !== null && Math.abs(r.z) >= 3; },
     insider: function (r) { return r.insider_net !== null && r.insider_net > 0; },
     forecast: function (r) { return r.fc !== null; }
   };
+  ['new_hi', 'new_lo', 'rsi_low', 'rsi_high', 'above200', 'pullback', 'squeeze', 'breakout',
+   'oversold', 'trend'].forEach(function (k) { PRESETS[k] = inPreset(k); });
   var PRESET_SORT = { new_hi: ['x250', -1], new_lo: ['x250', 1], rsi_low: ['rsi', 1], rsi_high: ['rsi', -1],
-    above200: ['x60', -1], surprise: ['z', -1], insider: ['insider_net', -1], forecast: ['fc', -1] };
+    above200: ['x60', -1], surprise: ['z', -1], insider: ['insider_net', -1], forecast: ['fc', -1],
+    pullback: ['x250', -1], squeeze: ['atr', 1], breakout: ['rvol', -1], oversold: ['rsi', 1],
+    trend: ['adx', -1] };
 
   function money(x) {
     if (x === null || !isFinite(x)) return '—';
