@@ -528,7 +528,7 @@ it costs. Method details (event study, walk-forward, verdicts) are in
 - **Fundamentals: the start** (`esef.py`). The exchange's copies of annual reports are
   behind bot protection and the periodic-report pages hold no figures, so ESEF filings come
   from XBRL International's repository and LEIs are mapped with GLEIF (SOURCES § 11–12).
-  - Only consolidated headline facts are kept (revenue, gross and operating profit, net
+  - Only headline facts without dimensions are kept (revenue, gross and operating profit, net
     profit, assets, liabilities, equity, cash, operating cash flow, EPS), for every period a
     filing reports, so the prior year's comparatives come along.
   - `known_at` is when the repository added the filing. It is later than the issuer's own
@@ -580,6 +580,35 @@ it costs. Method details (event study, walk-forward, verdicts) are in
     2019–2025, which is also when the fundamentals first meet prices.
   - Live, the fundamentals lapse: the repository's Polish filings end with fiscal 2023/2024,
     so in 2026 every stock is neutral on those terms until a live source is found.
+
+## Review fixes: one filing per ratio, missing days, the pick's entry (2026-11-15)
+
+- **One filing and one currency per ratio** (`esef.snapshots`). Polish issuers often file
+  both a consolidated and a standalone annual report, and some tag every figure in two
+  currencies. The first version took each figure from whichever fact came first, so one
+  ratio could mix them: Asseco Poland's asset growth came out at +1234 % on one ISIN and
+  −91 % on another (group assets against the parent company's), and Astarta's operating
+  profit ÷ assets at 707 % (UAH over EUR). Now each snapshot reads one filing: of the year's
+  filings, those within 1.5× of the largest assets are the consolidated report and its
+  re-filings, and the latest of them wins; the standalone report is never read when the
+  consolidated one is there. Its currency is PLN when it has PLN figures, else the one with
+  the most facts. The prior year-end's assets come from that filing's comparatives, so a
+  growth rate never compares two scopes. On the 779 filings read so far, 20 issuer-years
+  have more than one filing; the remaining extremes are real (losses above total assets).
+- **A missing day is a hole** (`sessions.sql`, `study.calendar_segments`). The calendar is
+  the lake's own WIG dates, and only steps longer than a week counted as holes, so a
+  single day the lake lacked (2026-11-13 until its prices arrive, or a failed backfill day)
+  turned the next session's return into a two-session one, for stocks and WIG, and that fed
+  the event windows, GARCH, the Kalman betas and the surprises. Now a step that skips a
+  session of `gpw_calendar` is a hole as well. dbt reads the calendar from
+  `silver/gpw_sessions.parquet`, which `transform.build` writes from the same Python rule.
+- **The pick is bought at the close after the digest** (`pick_features.ENTRY_LAG`). The
+  event study already entered at the first close after the digest, but the stock of the
+  week and the basket booked their results from the rebalance close itself, the close the
+  features are computed on, which no reader could trade at: the pick is published after
+  18:30. The target, holding results, basket, live record and band coverage now run from
+  the next session's close, and the purge waits one session longer. The live record keeps
+  its picks; only their measured results move by one session.
 
 ## Known limitations
 

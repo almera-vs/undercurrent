@@ -1,6 +1,7 @@
 """Stock of the week: features, model, walk-forward, verdict and live record."""
 
 import hashlib
+import math
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -155,3 +156,43 @@ def test_live_record_is_written_once_per_week(tmp_path, planted):
         assert mid is not None and mid.height == 1
     res = pick.live_results(panel, first)
     assert res.height == 1 and res["net"][0] == pytest.approx(res["gross"][0] - pick.COST)
+
+
+def _toy_panel(stock: list[float], wig: list[float]):
+    """Just what ``forward_excess`` and ``hold_excess`` read: log-return prefix sums."""
+    from types import SimpleNamespace
+
+    lr = np.log1p(np.array([stock]))
+    cum = np.zeros((1, len(stock) + 1))
+    cum[:, 1:] = np.cumsum(lr, axis=1)
+    cum_mkt = np.concatenate([[0.0], np.cumsum(np.log1p(np.array(wig)))])
+    n_ret = np.zeros((1, len(stock) + 1), dtype=np.int64)
+    n_ret[:, 1:] = np.arange(1, len(stock) + 1)
+    return SimpleNamespace(
+        isins=["X"],
+        cal=sessions(len(stock)),
+        cum=cum,
+        cum_mkt=cum_mkt,
+        n_ret=n_ret,
+        seg=np.zeros(len(stock), dtype=np.int64),
+    )
+
+
+def test_a_pick_earns_from_the_close_after_the_digest():
+    """The pick made on t's close is published after it: t+1's move is not the reader's."""
+    t, t2 = 5, 10
+    stock = [0.0] * 40
+    stock[t + 1] = 0.10  # the session right after the rebalance close: not tradable
+    panel = _toy_panel(stock, [0.0] * 40)
+    assert pf.hold_excess(panel, 0, t, t2) == pytest.approx(0.0)
+    assert pf.forward_excess(panel, t, 5)[0] == pytest.approx(0.0)
+    stock[t + 1], stock[t + 2] = 0.0, 0.10  # the first session after the entry close
+    panel = _toy_panel(stock, [0.0] * 40)
+    assert pf.hold_excess(panel, 0, t, t2) == pytest.approx(0.10)
+    assert pf.forward_excess(panel, t, 5)[0] == pytest.approx(0.10)
+    # held until the next pick's entry close, t2 + 1, so t2 + 1's move still counts
+    stock[t + 2], stock[t2 + 1] = 0.0, 0.10
+    panel = _toy_panel(stock, [0.0] * 40)
+    assert pf.hold_excess(panel, 0, t, t2) == pytest.approx(0.10)
+    # a pick made on the last close is not bought yet
+    assert math.isnan(pf.hold_excess(panel, 0, 39, 39 + 1))

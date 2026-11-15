@@ -6,10 +6,11 @@ of the attachment sits behind bot protection (SOURCES § 4), so the filings come
 **filings.xbrl.org**, the public repository run by XBRL International, which converts each
 filing to xBRL-JSON. Its LEIs are mapped to ISINs with **GLEIF**'s public API.
 
-What is kept: a short list of consolidated headline facts (``CONCEPTS``): facts without
+What is kept: a short list of headline facts (``CONCEPTS``): facts without
 any extra dimension, in a currency (or per share), for every period the filing reports.
 Narrative text blocks, notes and dimensional breakdowns are dropped. The 2–3 MB document is
-read in memory and never cached on disk.
+read in memory and never cached on disk. An issuer's consolidated and standalone reports are
+both kept; ``snapshots`` reads one filing per year (the consolidated report).
 
 Point in time: a fact's ``known_at`` is the moment the repository added the filing. That is
 later than the issuer's own publication (an annual report is due within four months of the
@@ -266,31 +267,36 @@ SNAPSHOT_SCHEMA: dict[str, Any] = {
 }
 
 
-def _latest(
-    facts: list[dict[str, Any]], concept: str, end: date, *, duration: bool
+# Two filings of one fiscal year whose total assets differ by more than this factor cover
+# different scopes: the consolidated report (the group) and the standalone one (the parent
+# company alone). Within it they are the same report filed again or corrected.
+SCOPE_RATIO = 1.5
+
+
+def _value(
+    facts: list[dict[str, Any]], concept: str, end: date, unit: str, *, duration: bool
 ) -> float | None:
-    """The latest-known value of ``concept`` for the year (or instant) ending ``end``."""
-    best: dict[str, Any] | None = None
+    """The value of ``concept`` in ``unit`` for the year (or instant) ending ``end``."""
     for f in facts:
-        if f["concept"] != concept or f["period_end"] != end:
+        if f["concept"] != concept or f["period_end"] != end or f["unit"] != unit:
             continue
+        start = f["period_start"]
         if duration:
-            start = f["period_start"]
             if start is None or not _YEAR_DAYS[0] <= (end - start).days <= _YEAR_DAYS[1]:
                 continue
-        elif f["period_start"] is not None:
+        elif start is not None:
             continue
-        if best is None or f["known_at"] > best["known_at"]:
-            best = f
-    return None if best is None else float(best["value"])
+        return float(f["value"])
+    return None
 
 
-def _prior_end(facts: list[dict[str, Any]], end: date) -> date | None:
+def _prior_end(facts: list[dict[str, Any]], end: date, unit: str) -> date | None:
     """The balance-sheet date about a year before ``end`` that the facts report assets for."""
     ends = {
         f["period_end"]
         for f in facts
         if f["concept"] == "assets"
+        and f["unit"] == unit
         and f["period_start"] is None
         and _PRIOR_DAYS[0] <= (end - f["period_end"]).days <= _PRIOR_DAYS[1]
     }
@@ -301,14 +307,58 @@ def _ratio(a: float | None, b: float | None) -> float | None:
     return None if a is None or b is None or b <= 0 else a / b
 
 
+def _currency(facts: list[dict[str, Any]]) -> str | None:
+    """The one currency a filing's figures are read in.
+
+    PLN if it has PLN figures, else the currency with the most facts (a Ukrainian-Dutch filer
+    tags every figure in EUR and UAH).
+    """
+    counts: dict[str, int] = {}
+    for f in facts:
+        if "/" not in f["unit"]:
+            counts[f["unit"]] = counts.get(f["unit"], 0) + 1
+    if not counts:
+        return None
+    if "PLN" in counts:
+        return "PLN"
+    return min(counts, key=lambda u: (-counts[u], u))
+
+
+def _main_filing(by_filing: dict[str, list[dict[str, Any]]], fy: date) -> str:
+    """The filing of fiscal year ``fy`` the snapshot reads, among those known.
+
+    The consolidated report wins over the standalone one (its assets are larger by more than
+    ``SCOPE_RATIO``); among filings of the same scope the latest wins (a re-filing or a
+    correction). A filing without assets for the year counts only if no other has them.
+    """
+
+    def assets(fid: str) -> float | None:
+        facts = by_filing[fid]
+        cur = _currency(facts)
+        return None if cur is None else _value(facts, "assets", fy, cur, duration=False)
+
+    def arrived(fid: str) -> tuple[datetime, str]:
+        return max(f["known_at"] for f in by_filing[fid]), fid
+
+    with_assets = {fid: a for fid in by_filing if (a := assets(fid)) is not None and a > 0}
+    if not with_assets:
+        return max(by_filing, key=arrived)
+    largest = max(with_assets.values())
+    group = [fid for fid, a in with_assets.items() if a * SCOPE_RATIO >= largest]
+    return max(group, key=arrived)
+
+
 def snapshots(facts: pl.DataFrame) -> pl.DataFrame:
     """What the latest annual report said, as known at each moment a filing arrived.
 
-    One row per (ISIN, filing time): the fiscal year is the latest one with facts known by
-    then, and every value uses only facts known by then (a restatement in a later filing
-    replaces the figure from that filing on, never before).
+    One row per (ISIN, filing time). The fiscal year is the latest one with a filing known by
+    then; of its filings, one is read (``_main_filing``: the consolidated report, its latest
+    version), and every figure comes from that filing in one currency (``_currency``), the
+    prior year-end's assets from its own comparatives. Figures of two filings or two
+    currencies are never put in one ratio. A restatement in a later filing replaces a figure
+    from that filing on, never before.
 
-    * ``eps_pln``: basic EPS, PLN filers only (the price is in PLN);
+    * ``eps_pln``: basic EPS, PLN only (the price is in PLN);
     * ``profitability``: operating profit / total assets;
     * ``asset_growth``: total assets / the prior year-end's - 1 (the investment factor);
     * ``accruals``: (net profit - operating cash flow) / total assets.
@@ -321,16 +371,22 @@ def snapshots(facts: pl.DataFrame) -> pl.DataFrame:
         for when in sorted({r["known_at"] for r in recs}):
             known = [r for r in recs if r["known_at"] <= when]
             fy = max(r["fiscal_period_end"] for r in known)
-            mine = [r for r in known if r["fiscal_period_end"] <= fy]
-            assets = _latest(mine, "assets", fy, duration=False)
-            prior = _prior_end(mine, fy)
-            assets_prev = _latest(mine, "assets", prior, duration=False) if prior else None
-            op = _latest(mine, "operating_profit", fy, duration=True)
-            net = _latest(mine, "net_profit", fy, duration=True)
-            cfo = _latest(mine, "operating_cash_flow", fy, duration=True)
-            eps = _latest(
-                [r for r in mine if r["unit"] == "PLN/xbrli:shares"], "eps_basic", fy, duration=True
-            )
+            by_filing: dict[str, list[dict[str, Any]]] = {}
+            for r in known:
+                if r["fiscal_period_end"] == fy:
+                    by_filing.setdefault(r["filing_id"], []).append(r)
+            mine = by_filing[_main_filing(by_filing, fy)]
+            cur = _currency(mine)
+            if cur is None:
+                assets = assets_prev = op = net = cfo = None
+            else:
+                assets = _value(mine, "assets", fy, cur, duration=False)
+                prior = _prior_end(mine, fy, cur)
+                assets_prev = _value(mine, "assets", prior, cur, duration=False) if prior else None
+                op = _value(mine, "operating_profit", fy, cur, duration=True)
+                net = _value(mine, "net_profit", fy, cur, duration=True)
+                cfo = _value(mine, "operating_cash_flow", fy, cur, duration=True)
+            eps = _value(mine, "eps_basic", fy, "PLN/xbrli:shares", duration=True)
             growth = _ratio(assets, assets_prev)
             rows.append(
                 {

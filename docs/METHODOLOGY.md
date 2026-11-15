@@ -69,9 +69,12 @@ Code: `src/undercurrent/study.py` (event studies), `dbt/models/gold/adjusted_pri
 - Look-ahead note: back-adjusted *levels* use future factors, so the study uses only daily
   *returns*. A return on day t depends only on information known on day t.
 - **Holes in the lake are not adjacency.** While the backfill is incomplete the calendar has
-  holes (whole months, or years). Real sessions are never more than a week apart, so a longer
-  step is treated as a hole: there is no stock or WIG return across it, and no estimation
-  window, event window or trade may reach over it. A report whose day 0 would be more than a
+  holes (whole months, or years), and a single day can be missing when its files were not
+  read. A step is a hole when it skips a session of the exchange's own calendar
+  (`gpw_calendar.py`, which reproduces every closed day since 2015), or when it is longer
+  than a week: there is no stock or WIG return across it, and no estimation window, event
+  window or trade may reach over it. Without the calendar check, one missing Friday would
+  book Thursday-to-Monday as Monday's return. A report whose day 0 would be more than a
   week after its publication is skipped.
 - **A daily return exists only between consecutive sessions.** When a stock does not trade
   for a few sessions (common on NewConnect), the move across the gap spans several sessions
@@ -236,11 +239,14 @@ Code: `src/undercurrent/pick_features.py` (features), `src/undercurrent/pick.py`
   (winsorized) 20-session excess on the score turns scores into expected returns. The penalty
   (1, 10, 100 or 1,000) is chosen on the last year of the training history, by mean rank IC.
 - **Walk-forward.** Expanding yearly re-fits. The model for year Y sees only weeks whose
-  20-session target ended before Y began (the purge), and needs at least 40 such weeks.
+  20-session target (which ends 21 sessions after the rebalance, see the pick below) ended
+  before Y began (the purge), and needs at least 40 such weeks.
 - **The pick.** On the first session of each week the top expected excess is chosen. The
   current pick is kept unless the new leader beats it by more than the round-trip cost (2.0 %),
-  and every switch, the first purchase included, pays that cost. The holding result runs from
-  the rebalance close to the next one.
+  and every switch, the first purchase included, pays that cost. The pick is made on the
+  rebalance close and reaches readers in that evening's digest, so it is bought at the next
+  session's close: the target, the holding result, the basket and the live record all run
+  from that entry close to the next pick's entry close.
 - **Baselines.** The same rule on 12-1 momentum alone, the equal-weighted universe, and, as a
   diagnostic, the model's ten best scores equally weighted before costs.
 - **Verdict.** On the out-of-sample weeks:
@@ -272,9 +278,13 @@ Code: `src/undercurrent/pick_features.py` (features), `src/undercurrent/pick.py`
   - `state_fundamentals` adds four ratios from the latest ESEF annual report (`esef.snapshots`):
     earnings yield (basic EPS ÷ close, PLN filers only), operating profit ÷ assets, asset
     growth against the prior year-end and accruals ((net profit − operating cash flow) ÷
-    assets). Each filing's values apply from the first session whose close is after the
-    repository added it, using only facts known by then (a restatement counts from the filing
-    that made it), and lapse once the fiscal year ended more than 550 days earlier. There are
+    assets). Each ratio is read from one filing in one currency: of a year's filings the
+    consolidated report (assets more than 1.5× the standalone report's), its latest
+    version; PLN when it has PLN figures, else its most-used currency; the prior year-end's
+    assets from that filing's own comparatives. Each filing's values apply from the first
+    session whose close is after the repository added it, using only facts known by then (a
+    restatement counts from the filing that made it), and lapse once the fiscal year ended
+    more than 550 days earlier. There are
     no share counts, so no book-to-market, and the close is not adjusted for a split after
     the year end.
   - Each is adopted only if its out-of-sample rank IC beats the variant adopted so far, and

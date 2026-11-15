@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import sys
 from datetime import date, timedelta
+from functools import lru_cache
 
 # One-off closures announced by the exchange.
 EXTRA_CLOSED: dict[date, str] = {
@@ -40,8 +41,12 @@ def easter(year: int) -> date:
     return date(year, month, day + 1)
 
 
+@lru_cache(maxsize=64)
 def closures(year: int) -> dict[date, str]:
-    """Every day of ``year`` without a session for a reason other than the weekend."""
+    """Every day of ``year`` without a session for a reason other than the weekend.
+
+    Cached: callers must not change the dict.
+    """
     e = easter(year)
     days = {
         date(year, 1, 1): "New Year's Day",
@@ -76,6 +81,19 @@ def closed_reason(d: date) -> str | None:
 def is_session(d: date) -> bool:
     """Whether GPW holds a session on ``d``."""
     return d.weekday() < 5 and d not in closures(d.year)
+
+
+def sessions_between(a: date, b: date) -> int:
+    """Sessions strictly after ``a`` and strictly before ``b``.
+
+    Two consecutive sessions of a complete calendar have 0 between them; anything more is a
+    session the data is missing.
+    """
+    n, d = 0, a + timedelta(days=1)
+    while d < b:
+        n += is_session(d)
+        d += timedelta(days=1)
+    return n
 
 
 def last_session(d: date) -> date:

@@ -270,12 +270,12 @@ def test_pooled_band_would_miss_in_stress(regimes):
 
 
 def test_aci_moves_alpha_only_on_known_weeks():
-    h = pf.HORIZON
+    h = pf.ENTRY_LAG + pf.HORIZON  # the outcome ends this long after the rebalance
     assert pick.aci_alpha([], 100) == pick.ALPHA
     # a week that missed 30 % of its outcomes widens later bands (smaller α)...
     a = pick.aci_alpha([(10, 0.3)], 10 + h + 1)
     assert a == pytest.approx(pick.ALPHA + pick.ACI_GAMMA * (pick.ALPHA - 0.3))
-    # ...but only once its 20-session outcome is known
+    # ...but only once its 20-session outcome, from the entry close, is known
     assert pick.aci_alpha([(10, 0.3)], 10 + h) == pick.ALPHA
     # never missing narrows them; α stays within its bounds
     many = [(t, 0.0) for t in range(0, 5000, 5)]

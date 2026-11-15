@@ -84,6 +84,68 @@ def test_snapshots_use_only_what_each_filing_moment_knew() -> None:
     assert second["eps_pln"] is None and second["accruals"] is None
 
 
+def _year(filing: str, scale: float, unit: str = "PLN", known: datetime = K1) -> list[Any]:
+    """One FY2015 report: assets 1000 (800 a year before), operating profit 100,
+    net profit 80, operating cash flow 50, all times ``scale``."""
+    y0 = date(2015, 1, 1)
+    return [
+        _fact(filing, FY15, "assets", 1000.0 * scale, FY15, unit=unit, known=known),
+        _fact(filing, FY15, "assets", 800.0 * scale, FY14, unit=unit, known=known),
+        _fact(filing, FY15, "operating_profit", 100.0 * scale, FY15, y0, unit=unit, known=known),
+        _fact(filing, FY15, "net_profit", 80.0 * scale, FY15, y0, unit=unit, known=known),
+        _fact(filing, FY15, "operating_cash_flow", 50.0 * scale, FY15, y0, unit=unit, known=known),
+    ]
+
+
+def _frame(rows: list[Any]) -> pl.DataFrame:
+    return pl.DataFrame(rows, schema={**esef.FACT_SCHEMA, "isin": pl.String})
+
+
+def _check_plain_year(snap: dict[str, Any]) -> None:
+    assert snap["profitability"] == pytest.approx(0.1)
+    assert snap["asset_growth"] == pytest.approx(0.25)
+    assert snap["accruals"] == pytest.approx(0.03)
+
+
+def test_a_filing_in_two_currencies_is_read_in_one() -> None:
+    # every figure tagged twice, in EUR and in UAH (about 30 UAH to the euro); the EUR
+    # figures are the more numerous, so EUR is the filing's currency
+    rows = _year("1", 1.0, "EUR") + _year("1", 30.0, "UAH")[:3]
+    snaps = esef.snapshots(_frame(rows))
+    assert snaps.height == 1
+    _check_plain_year(snaps.to_dicts()[0])
+
+
+def test_pln_figures_win_over_another_currency() -> None:
+    rows = _year("1", 1.0, "PLN")[:2] + _year("1", 0.25, "EUR")
+    snap = esef.snapshots(_frame(rows)).to_dicts()[0]
+    assert snap["asset_growth"] == pytest.approx(0.25)
+    assert snap["profitability"] is None  # no operating profit in PLN: not mixed with EUR
+
+
+def test_consolidated_report_wins_over_the_standalone_one() -> None:
+    # the group (assets 1000) and the parent company alone (assets 80), filed together:
+    # mixing them would give assets 1000 against 64 a year before
+    standalone = _year("2", 0.08)
+    snaps = esef.snapshots(_frame(_year("1", 1.0) + standalone))
+    assert snaps.height == 1
+    _check_plain_year(snaps.to_dicts()[0])
+    # the order the filings arrive in does not matter
+    later = [{**r, "known_at": K2} for r in standalone]
+    snaps = esef.snapshots(_frame(_year("1", 1.0) + later))
+    assert snaps.height == 2
+    for snap in snaps.to_dicts():
+        _check_plain_year(snap)
+
+
+def test_a_corrected_report_replaces_the_first_from_its_arrival() -> None:
+    corrected = _year("2", 1.1, known=K2)  # 10 % different: the same scope, filed again
+    first, second = esef.snapshots(_frame(_year("1", 1.0) + corrected)).to_dicts()
+    assert first["known_at"] == K1 and first["profitability"] == pytest.approx(0.1)
+    assert second["known_at"] == K2
+    assert second["accruals"] == pytest.approx(0.03)  # (88 - 55) / 1100
+
+
 def test_no_facts_no_snapshots() -> None:
     empty = pl.DataFrame(schema={**esef.FACT_SCHEMA, "isin": pl.String})
     assert esef.snapshots(empty).height == 0

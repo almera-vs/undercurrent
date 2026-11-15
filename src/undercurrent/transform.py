@@ -9,9 +9,12 @@ from __future__ import annotations
 import json
 import logging
 import os
+from datetime import date, timedelta
 from pathlib import Path
 
-from undercurrent import esef, parse, resolve
+import polars as pl
+
+from undercurrent import esef, gpw_calendar, parse, resolve
 
 log = logging.getLogger(__name__)
 
@@ -65,10 +68,30 @@ def run_dbt(
     log.info("dbt %s ok (as_of=%s)", command, as_of or "none")
 
 
+CALENDAR_START = date(2010, 1, 1)
+
+
+def write_calendar(work: Path, until: date | None = None) -> Path:
+    """Every GPW session day (``gpw_calendar``) from 2010 to two years ahead, for dbt.
+
+    ``sessions.sql`` reads it to tell a closed day from a day the lake is missing.
+    """
+    until = until or date(date.today().year + 2, 12, 31)
+    days = [CALENDAR_START + timedelta(days=i) for i in range((until - CALENDAR_START).days + 1)]
+    out = work / "silver" / "gpw_sessions.parquet"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    pl.DataFrame(
+        {"trade_date": [d for d in days if gpw_calendar.is_session(d)]},
+        schema={"trade_date": pl.Date},
+    ).write_parquet(out)
+    return out
+
+
 def build(data_dir: Path, work: Path, *, as_of: str | None = None, dbt: bool = True) -> None:
     """Rebuild silver from bronze, then run dbt (unless ``dbt=False``)."""
     parse.build_silver_reports(data_dir, work)
     resolve.resolve_reports(data_dir, work)
     esef.write_silver(data_dir, work)
+    write_calendar(work)
     if dbt:
         run_dbt(data_dir, work, as_of=as_of)

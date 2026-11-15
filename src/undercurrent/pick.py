@@ -73,6 +73,7 @@ from scipy import stats as sps
 from undercurrent import basket, lake, study
 from undercurrent.pick_features import (
     ALL_FEATURES,
+    ENTRY_LAG,
     EVENT_FEATURES,
     FEATURES,
     FUNDAMENTAL_FEATURES,
@@ -333,7 +334,7 @@ def rank_ic(score: FloatArray, y: FloatArray) -> float:
 
 def _known_before(weeks: list[Week], panel: Panel, t_cut: int) -> list[Week]:
     """Weeks whose 20-session target ended before calendar position ``t_cut`` (the purge)."""
-    return [w for w in weeks if w.t + HORIZON < t_cut and panel.seg[w.t] == panel.seg[w.t]]
+    return [w for w in weeks if w.t + ENTRY_LAG + HORIZON < t_cut]
 
 
 def choose_model(weeks: list[Week], panel: Panel, variant: Variant = BASE) -> Model | None:
@@ -413,7 +414,7 @@ def aci_alpha(misses: list[tuple[int, float]], t_now: int) -> float:
     """
     alpha = ALPHA
     for t, miss in sorted(misses):
-        if t + HORIZON >= t_now:
+        if t + ENTRY_LAG + HORIZON >= t_now:
             break
         if math.isfinite(miss):
             alpha = min(max(alpha + ACI_GAMMA * (ALPHA - miss), ALPHA_BOUNDS[0]), ALPHA_BOUNDS[1])

@@ -166,12 +166,12 @@ def test_no_window_reaches_across_a_hole_in_the_calendar() -> None:
     import polars as pl
 
     ev, rt, bench, cal = synthetic(seed=3, effect=0.0, n_events=300)
-    cut = cal[1000]  # everything from here on happens ten years later
+    cut = cal[1000]  # everything from here on happens ten years (520 weeks) later
 
     def shift(col: str) -> pl.Expr:
         return (
             pl.when(pl.col(col).dt.date() >= cut if col == "known_at" else pl.col(col) >= cut)
-            .then(pl.col(col) + timedelta(days=3650))
+            .then(pl.col(col) + timedelta(weeks=520))
             .otherwise(pl.col(col))
         )
 
@@ -225,3 +225,14 @@ def test_buyable_thresholds() -> None:
     # mostly idle: the median session has no turnover at all
     assert not study.buyable(ok_price, np.r_[np.zeros(30), np.full(20, 1e6)])
     assert not study.buyable(np.full(50, np.nan), ok_turn)
+
+
+def test_one_missing_session_is_a_hole_too() -> None:
+    """A day the lake lacks splits the calendar: the next return would span two sessions."""
+    full = [date(2026, 11, d) for d in (6, 9, 10, 12, 13, 16, 17)]  # the 11th is a holiday
+    assert study.calendar_segments(full).tolist() == [0] * 7
+    missing = [d for d in full if d != date(2026, 11, 13)]
+    assert study.calendar_segments(missing).tolist() == [0, 0, 0, 0, 1, 1]
+    # closed days are not missing: Christmas Eve to Boxing Day, New Year's Eve and Day
+    xmas = [date(2025, 12, d) for d in (22, 23, 29, 30)] + [date(2026, 1, 2)]
+    assert study.calendar_segments(xmas).tolist() == [0] * 5

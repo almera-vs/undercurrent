@@ -40,7 +40,7 @@ import numpy.typing as npt
 import polars as pl
 from scipy import stats as sps
 
-from undercurrent import lake
+from undercurrent import gpw_calendar, lake
 
 log = logging.getLogger(__name__)
 
@@ -87,7 +87,8 @@ DIGEST_CUTOFF_LOCAL = time(18, 30)
 # Events whose entry would be more than this many sessions after day 0 are not traded.
 MAX_ENTRY_LAG = 5
 # Real sessions are never more than a week apart. A longer step in the calendar is a hole in
-# the data (months not backfilled yet): no window may reach across it.
+# the data (months not backfilled yet): no window may reach across it. A shorter step that
+# skips a GPW session (``gpw_calendar``) is a hole too: one day the lake misses.
 MAX_SESSION_GAP_DAYS = 7
 
 FloatArray = npt.NDArray[np.float64]
@@ -268,11 +269,21 @@ def entry_offset(known_at: datetime, event_date: date, sessions: list[date]) -> 
     return entry - day0
 
 
+def is_hole(prev: date, day: date) -> bool:
+    """Whether the data lacks a session between two consecutive calendar dates.
+
+    A step of more than ``MAX_SESSION_GAP_DAYS``, or one that skips a session of the GPW
+    calendar: the move from ``prev`` to ``day`` then spans several sessions, not one.
+    """
+    gap = (day - prev).days
+    return gap > MAX_SESSION_GAP_DAYS or (gap > 1 and gpw_calendar.sessions_between(prev, day) > 0)
+
+
 def calendar_segments(cal: list[date]) -> npt.NDArray[np.int64]:
     """Segment number of each session: it goes up by one after every hole in the calendar."""
     seg = np.zeros(len(cal), dtype=np.int64)
     for i in range(1, len(cal)):
-        seg[i] = seg[i - 1] + ((cal[i] - cal[i - 1]).days > MAX_SESSION_GAP_DAYS)
+        seg[i] = seg[i - 1] + is_hole(cal[i - 1], cal[i])
     return seg
 
 

@@ -105,3 +105,13 @@ def test_gate_on_a_session_day_is_unchanged():
     assert _gate("schedule", "2026-11-12 18:00", digest_out=False)["go"] == "false"
     by_hand = _gate("workflow_dispatch", "2026-11-11 18:47", digest_out=True)
     assert (by_hand["date"], by_hand["go"]) == ("2026-11-11", "true")
+
+
+def test_sessions_between_counts_only_missing_sessions():
+    # Friday to Monday: the weekend is not a session
+    assert gpw_calendar.sessions_between(date(2026, 11, 6), date(2026, 11, 9)) == 0
+    # Tuesday 10 November to Thursday 12: Independence Day on the 11th is closed
+    assert gpw_calendar.sessions_between(date(2026, 11, 10), date(2026, 11, 12)) == 0
+    # Thursday 12 to Monday 16 November: Friday 13 is a session the data lacks
+    assert gpw_calendar.sessions_between(date(2026, 11, 12), date(2026, 11, 16)) == 1
+    assert gpw_calendar.sessions_between(date(2026, 11, 12), date(2026, 11, 13)) == 0

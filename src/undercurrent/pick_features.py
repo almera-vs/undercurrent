@@ -2,8 +2,11 @@
 
 The panel is a stocks × sessions grid of daily returns, closes and turnover on the main
 market, with WIG and the signal events. Features for a rebalance session ``t`` use only
-sessions up to and including ``t`` (its close); the 20-session target uses ``t+1 … t+20``.
-Nothing reaches across a hole in the calendar (``study.calendar_segments``).
+sessions up to and including ``t`` (its close). The pick made on that close reaches readers
+in the evening digest, after the session, so the first close anyone can buy at is ``t+1``'s
+(``ENTRY_LAG``): the 20-session target and every holding result run from that close, the
+target over ``t+2 … t+21``. Nothing reaches across a hole in the calendar
+(``study.calendar_segments``).
 
 Features, all measured against WIG where they are returns:
 
@@ -65,6 +68,9 @@ WARSAW = ZoneInfo("Europe/Warsaw")
 BoolArray = npt.NDArray[np.bool_]
 
 HORIZON = 20  # sessions the target looks ahead
+# Sessions from the rebalance close to the entry close: the pick is published in that
+# evening's digest (study.DIGEST_CUTOFF_LOCAL, after the 17:05 close) and bought at the next.
+ENTRY_LAG = 1
 HISTORY = 260  # continuous sessions a stock needs before it can be scored
 YEAR = 252
 MIN_RETURNS = 200  # of the last YEAR sessions, at least this many with a return
@@ -615,23 +621,33 @@ def rank_normal(x: FloatArray) -> FloatArray:
 
 
 def forward_excess(panel: Panel, t: int, h: int = HORIZON) -> FloatArray:
-    """Compounded stock minus WIG return over sessions t+1..t+h; NaN if not all known."""
+    """Compounded stock minus WIG return over the ``h`` sessions after the entry close.
+
+    The entry is ``ENTRY_LAG`` sessions after the rebalance ``t``, so the return runs over
+    sessions ``t+ENTRY_LAG+1 .. t+ENTRY_LAG+h``. NaN if not all of them are known.
+    """
     n = len(panel.isins)
-    if t + h >= len(panel.cal) or panel.seg[t + h] != panel.seg[t]:
+    a, b = t + ENTRY_LAG, t + ENTRY_LAG + h
+    if b >= len(panel.cal) or panel.seg[b] != panel.seg[t]:
         return np.full(n, np.nan)
-    known = panel.n_ret[:, t + h + 1] - panel.n_ret[:, t + 1]
-    stock = np.exp(panel.cum[:, t + h + 1] - panel.cum[:, t + 1]) - 1
-    market = math.exp(panel.cum_mkt[t + h + 1] - panel.cum_mkt[t + 1]) - 1
+    known = panel.n_ret[:, b + 1] - panel.n_ret[:, a + 1]
+    stock = np.exp(panel.cum[:, b + 1] - panel.cum[:, a + 1]) - 1
+    market = math.exp(panel.cum_mkt[b + 1] - panel.cum_mkt[a + 1]) - 1
     return np.where(known == h, stock - market, np.nan)
 
 
 def hold_excess(panel: Panel, i: int, t: int, t2: int) -> float:
-    """Stock ``i`` minus WIG, compounded, from the close of ``t`` to the close of ``t2``.
+    """Stock ``i`` minus WIG, compounded, while held for the picks made on ``t`` and ``t2``.
 
-    A session without a trade counts as an unchanged price.
+    A pick made on the close of ``t`` is bought at the entry close ``ENTRY_LAG`` sessions
+    later and sold at the entry close of the next pick, made on ``t2`` (or at the last close
+    known, for a holding still open). NaN before the entry. A session without a trade counts
+    as an unchanged price.
     """
-    if t2 <= t or panel.seg[t2] != panel.seg[t]:
+    last = len(panel.cal) - 1
+    a, b = t + ENTRY_LAG, min(t2 + ENTRY_LAG, last)
+    if t2 <= t or b <= a or panel.seg[b] != panel.seg[t]:
         return math.nan
-    stock = math.exp(panel.cum[i, t2 + 1] - panel.cum[i, t + 1]) - 1
-    market = math.exp(panel.cum_mkt[t2 + 1] - panel.cum_mkt[t + 1]) - 1
+    stock = math.exp(panel.cum[i, b + 1] - panel.cum[i, a + 1]) - 1
+    market = math.exp(panel.cum_mkt[b + 1] - panel.cum_mkt[a + 1]) - 1
     return float(stock - market)
