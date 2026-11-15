@@ -89,12 +89,14 @@ class PoliteClient:
         min_interval_s: float = MIN_INTERVAL_S,
         max_jitter_s: float = MAX_JITTER_S,
         timeout_s: float = 60.0,
+        retry_pauses_s: tuple[float, ...] = RETRY_PAUSES_S,
         transport: httpx.BaseTransport | None = None,
         sleep: Any = time.sleep,
     ) -> None:
         self.cache_dir = cache_dir
         self.min_interval_s = min_interval_s
         self.max_jitter_s = max_jitter_s
+        self.retry_pauses_s = retry_pauses_s
         self._sleep = sleep
         self._last_request = 0.0
         self._rng = random.Random()
@@ -126,7 +128,7 @@ class PoliteClient:
         self, method: str, url: str, content: bytes | None, headers: dict[str, str]
     ) -> httpx.Response:
         """One request, retried on transport errors (timeouts, resets), never on HTTP status."""
-        for pause in (*RETRY_PAUSES_S, None):
+        for pause in (*self.retry_pauses_s, None):
             try:
                 return self._client.request(method, url, content=content, headers=headers)
             except httpx.TransportError as exc:

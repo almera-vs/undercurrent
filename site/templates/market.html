@@ -51,7 +51,7 @@
     {% if k and k.ready and k.pick %}
     <a class="card pick-card" href="pick.html">
       <span class="eyebrow">★ {{ _('Stock of the week') }}</span>
-      <span class="pick-line"><span class="tick-sym">{{ k.pick.ticker }}</span> <span class="muted">{{ k.pick.name|company }}</span></span>
+      <span class="pick-line">{{ icon(k.pick.isin, k.pick.ticker, assets) }}<span class="tick-sym">{{ k.pick.ticker }}</span> <span class="muted">{{ k.pick.name|company }}</span></span>
       <span class="small">{{ _('See the full analysis') }} →</span>
     </a>
     {% endif %}
@@ -69,7 +69,7 @@
   <ol class="movers">
     {% for r in rows %}
     <li>
-      <a href="stock/{{ r.slug }}.html"><span class="tick-sym">{{ r.ticker }}</span></a>
+      <a href="stock/{{ r.slug }}.html" class="sym-link">{{ icon(r.isin, r.ticker, assets) }}<span class="tick-sym">{{ r.ticker }}</span></a>
       <span class="muted mv-name">{{ r.name|company }}{{ ' · NC' if r.market == 'NC' else '' }}</span>
       {% if kind == 'z' %}<b class="mono {{ r.z|tone }}">{{ r.z|decimal(1) }}σ</b> <small class="mono {{ r.ret|tone }}">{{ r.ret|pct }}</small>
       {% else %}<b class="mono {{ r.ret|tone }}">{{ r.ret|pct }}</b>{% if r.z is not none %} <small class="mono muted">{{ r.z|decimal(1) }}σ</small>{% endif %}{% endif %}

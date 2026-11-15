@@ -36,7 +36,7 @@
 <p class="crumbs"><a href="../index.html">{{ _('Market') }}</a> · <a href="../screener.html">{{ _('Screener') }}</a> / {{ s.ticker }}</p>
 <section class="stock-head">
   <div>
-    <h1><span class="tick-sym big">{{ s.ticker }}</span> <span class="stock-name">{{ s.name|company }}</span></h1>
+    <h1>{{ icon(s.isin, s.ticker, assets, big=True) }}<span class="tick-sym big">{{ s.ticker }}</span> <span class="stock-name">{{ s.name|company }}</span></h1>
     <p class="tags">
       <span class="chip">{{ 'NewConnect' if s.market == 'NC' else 'GPW' }}</span>
       {% if s.tier %}<span class="badge {{ 'badge-thin' if s.tier == 'thin' else 'badge-ok' }}">{{ {'thin': _('Too thin to trade'), 'tradable': _('Tradable'), 'liquid': _('Liquid')}.get(s.tier, s.tier) }}</span>{% endif %}

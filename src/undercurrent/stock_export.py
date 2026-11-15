@@ -39,6 +39,7 @@ import numpy as np
 import numpy.typing as npt
 import polars as pl
 
+from undercurrent import pages as page_text
 from undercurrent import risk, sectors, setups, ta, valuation
 
 log = logging.getLogger(__name__)
@@ -413,15 +414,18 @@ def build(
     pages: set[str] | None = None,
     forecast: dict[str, dict[str, Any]] | None = None,
     indicators: pl.DataFrame | None = None,
+    logos: dict[str, str] | None = None,
 ) -> ToolData:
     """Write the analysis pages' JSON into ``work/site_data`` and return what pages need.
 
     ``pages``: report IDs that have an event page (their markers link to it); ``forecast``:
     the forecast per ISIN (``publish._forecast_rows``); ``indicators``: GPW's latest
-    indicators per ISIN (``indicators.latest``) for the valuation.
+    indicators per ISIN (``indicators.latest``) for the valuation; ``logos``: each ISIN's
+    icon file under the site's ``logos/`` (``logos.read_logos``).
     """
     pages = pages or set()
     forecast = forecast or {}
+    logos = logos or {}
     src = _read(work, day)
     staging = work / STAGING
     stocks_dir = staging / "stocks"
@@ -560,7 +564,10 @@ def build(
             "last": dates[-1],
             "listed": listed,
             "tier": tier,
+            "logo": logos.get(isin),
         }
+        if not meta["logo"]:  # a coloured monogram instead
+            meta["hue"] = page_text.monogram(ticker)[1]
         tool.stocks.append(meta)
 
         payload = {

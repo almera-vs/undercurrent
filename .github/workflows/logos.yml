@@ -1,0 +1,44 @@
+name: logos
+
+# Stock icons for the site (logos.py): XTB's logo for each listed stock's exchange code, else
+# the company website's own icon, normalised and kept in state/logos/ on the data branch.
+# Weekly: new listings get theirs, a stock with an icon is checked again after 90 days, one
+# without after 30. About two requests a stock, one a second.
+on:
+  schedule:
+    - cron: "30 6 * * 0"  # Sunday morning, no session that day
+  workflow_dispatch:
+    inputs:
+      max:
+        description: "at most this many stocks to check"
+        required: true
+        default: "800"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily  # one writer to the data branch at a time, as for the nightly run
+  cancel-in-progress: false
+
+jobs:
+  logos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          ref: data
+          path: data
+          fetch-depth: 1
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --locked --no-dev
+      - name: find icons
+        run: uv run undercurrent --data-dir data logos --max "${{ inputs.max || '300' }}"
+      - name: commit
+        if: always()
+        run: scripts/commit_data.sh "stock icons $(date -u +%F)"

@@ -5,7 +5,7 @@
 {% set c = e.company %}
 {% set insider = e.signal_type == 'insider_tx' %}
 <p class="crumbs"><a href="../index.html">{{ _('Today') }}</a> · <a href="../archive.html">{{ _('Archive') }}</a> / {{ e.ticker }} · {{ e.issuer_name|company }} / {{ e.label_key|label }}, {{ e.pub_date }}</p>
-<p class="tags">{% if e.stock_slug %}<a href="../stock/{{ e.stock_slug }}.html" title="{{ _('Chart and indicators of {t}', t=e.ticker) }}"><span class="tick-sym">{{ e.ticker }}</span></a>{% else %}<span class="tick-sym">{{ e.ticker }}</span>{% endif %} <span class="chip chip-{{ e.filter }}">{{ e.label_key|label }}</span> <span class="muted" lang="pl">{{ e.legal_basis or '' }} · {{ e.system }} {{ e.report_number }}</span></p>
+<p class="tags">{% if e.stock_slug %}<a href="../stock/{{ e.stock_slug }}.html" title="{{ _('Chart and indicators of {t}', t=e.ticker) }}" class="sym-link">{{ icon(e.isin, e.ticker, assets) }}<span class="tick-sym">{{ e.ticker }}</span></a>{% else %}{{ icon(e.isin, e.ticker, assets) }}<span class="tick-sym">{{ e.ticker }}</span>{% endif %} <span class="chip chip-{{ e.filter }}">{{ e.label_key|label }}</span> <span class="muted" lang="pl">{{ e.legal_basis or '' }} · {{ e.system }} {{ e.report_number }}</span></p>
 <h1 lang="pl">{{ e.title or e.subject }}</h1>
 
 <section class="verdict-box v-box-{{ s.verdict if s else 'too_few' }}">

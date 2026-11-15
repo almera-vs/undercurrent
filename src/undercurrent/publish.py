@@ -24,8 +24,9 @@ import duckdb
 import httpx
 import polars as pl
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from markupsafe import Markup
 
-from undercurrent import i18n, lake, pages, sectors, xtb
+from undercurrent import i18n, lake, logos, pages, sectors, xtb
 
 log = logging.getLogger(__name__)
 WARSAW = ZoneInfo("Europe/Warsaw")
@@ -239,6 +240,8 @@ class SiteContext:
     setups: dict[int, list[dict[str, Any]]] = field(default_factory=dict)
     # screener preset → its setup's row at the headline horizon
     preset_setups: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # ISIN → its icon file (logos.py), copied to the site's logos/
+    logos: dict[str, Path] = field(default_factory=dict)
 
 
 def headline_horizon(key: str, by_key_h: dict[tuple[str, int], dict[str, Any]]) -> int:
@@ -544,12 +547,14 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
     pick_ctx = _pick_context(work, data_dir, day, reports, by_key_h, events)
     from undercurrent import indicators, stock_export
 
+    logo_files = logos.read_logos(data_dir)
     tool = stock_export.build(
         work,
         day,
         pages={e["report_id"] for e in events},
         forecast=_forecast_rows(work, day),
         indicators=indicators.latest(data_dir, day),
+        logos={isin: p.name for isin, p in logo_files.items()},
     )
     links = xtb.read_links(data_dir)
     for meta in tool.stocks:
@@ -646,6 +651,7 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
         tool=tool,
         setups=setups_by_h,
         preset_setups=preset_setups,
+        logos=logo_files,
     )
 
 
@@ -863,7 +869,7 @@ def _pick_context(
         "rank": pick_row["rank"] if pick_row else None,
         "universe": scores.height,
         "xtb_url": xtb.read_links(data_dir).get(isin),
-        "logo": xtb.read_logos(data_dir).get(isin),
+        "logo": getattr(logos.read_logos(data_dir).get(isin), "name", None),
     }
     ctx["pick"]["initials"], ctx["pick"]["hue"] = pages.monogram(ctx["pick"]["ticker"])
     # the adopted model's own features (pick_model.parquet), not a list of the page's own
@@ -1197,6 +1203,10 @@ def _env(lang: str = "en") -> Environment:
         lstrip_blocks=True,
     )
     _ = i18n.tr(lang)
+    # monograms only; _render_lang swaps in the site's icon files
+    env.globals["icon"] = lambda isin, ticker, assets, big=False: icon_html(
+        None, ticker, assets, big=big
+    )
 
     def lookup(table: dict[str, dict[str, str]]) -> Any:
         return lambda k: table[lang].get(k or "", k or "—") if k else "—"
@@ -1271,12 +1281,32 @@ def _env(lang: str = "en") -> Environment:
     return env
 
 
+def icon_html(
+    file: Path | str | None, ticker: str | None, assets: str, *, big: bool = False
+) -> Markup:
+    """A stock's icon (its file under ``logos/``), or a coloured monogram without one."""
+    cls = "tlogo tlogo-l" if big else "tlogo"
+    if file:
+        name = file.name if isinstance(file, Path) else file
+        kind = " tlogo-png" if name.endswith(".png") else ""
+        return Markup(
+            '<img class="{}{}" src="{}logos/{}" alt="" loading="lazy" decoding="async">'
+        ).format(cls, kind, assets, name)
+    initials, hue = pages.monogram(ticker)
+    return Markup('<span class="{} tmono" style="--h: {}" aria-hidden="true">{}</span>').format(
+        cls, hue, initials
+    )
+
+
 def _render_lang(ctx: SiteContext, out: Path, lang: str) -> list[Path]:
     """Render every page of one language. Polish lives at the root, others in ``<lang>/``."""
     default = lang == i18n.DEFAULT_LANG
     base = out if default else out / lang
     (base / "event").mkdir(parents=True, exist_ok=True)
     env = _env(lang)
+    env.globals["icon"] = lambda isin, ticker, assets, big=False: icon_html(
+        ctx.logos.get(isin or ""), ticker, assets, big=big
+    )
     up = "" if default else "../"  # from a top-level page of this language to the site root
     written: list[Path] = []
 
@@ -1334,6 +1364,10 @@ def render_site(ctx: SiteContext, out: Path) -> list[Path]:
     shutil.copytree(SITE_DIR / "static", out / "static")
     if ctx.tool is not None and ctx.tool.staging.exists():
         shutil.copytree(ctx.tool.staging, out / "data")
+    if ctx.logos:
+        (out / "logos").mkdir()
+        for src in ctx.logos.values():
+            shutil.copy(src, out / "logos" / src.name)
     written = [p for lang in i18n.LANGS for p in _render_lang(ctx, out, lang)]
     (out / ".nojekyll").write_text("", encoding="utf-8")
     return written

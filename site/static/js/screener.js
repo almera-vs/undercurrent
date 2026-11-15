@@ -47,6 +47,16 @@
     return s + C.fmt(a, 0);
   }
 
+  // the stock's icon (logos/), or the same coloured monogram the pages draw without one
+  function icon(r, base) {
+    if (r.logo) {
+      return '<img class="tlogo' + (/\.png$/.test(r.logo) ? ' tlogo-png' : '') + '" src="' +
+        base + C.esc(r.logo) + '" alt="" loading="lazy" decoding="async">';
+    }
+    var t = (r.ticker || '?').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 2) || '?';
+    return '<span class="tlogo tmono" style="--h: ' + (+r.hue || 0) + '" aria-hidden="true">' + C.esc(t) + '</span>';
+  }
+
   function cell(kind, v) {
     if (v === null || v === undefined || (typeof v === 'number' && !isFinite(v))) return ['—', ''];
     switch (kind) {
@@ -119,7 +129,8 @@
       body.innerHTML = list.slice(0, 400).map(function (r) {
         return '<tr>' + cols.map(function (c) {
           if (c[0] === 'ticker') {
-            return '<td class="sym"><a href="' + opts.stockBase + r.slug + '.html"><span class="tick-sym">' +
+            return '<td class="sym"><a href="' + opts.stockBase + r.slug + '.html" class="sym-link">' + icon(r, opts.logoBase) +
+              '<span class="tick-sym">' +
               C.esc(r.ticker) + '</span></a><small class="muted">' + C.esc(r.name || '') +
               (r.market === 'NC' ? ' · NC' : '') + '</small></td>';
           }

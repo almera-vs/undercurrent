@@ -72,7 +72,9 @@ flowchart LR
 6. **Publish** (`publish.py`, `pages.py`, `i18n.py`): Jinja2 site in Polish and English with
    inline SVG charts, plain-language summaries, the report's own text, the stock's price and
    liquidity, a glossary, and a Telegram digest via the Bot API. Event pages link to the
-   company on XTB only when XTB's page shows the same ISIN (`xtb.py`).
+   company on XTB only when XTB's page shows the same ISIN (`xtb.py`). Each stock's icon is
+   XTB's logo for its exchange code or the company website's own icon, kept on the data
+   branch and served from the site (`logos.py`).
 7. **Commit**: new partitions to the `data` branch, digest archive to `main`.
 
 Details: [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md) · sources and their verification:
@@ -103,7 +105,8 @@ Everything runs in GitHub Actions: `daily.yml` (weekdays, soon after the 18:30 W
 (`start`/`end`, one month per job, sequential; `gaps: true` re-runs only the sessions the lake
 lacks), `compact.yml` (monthly), `watchdog.yml`
 (freshness alert), `ci.yml` (lint, types, tests, dbt data tests against the real lake),
-`probe.yml` (source reachability).
+`probe.yml` (source reachability), `logos.yml` (weekly stock icons), `esef.yml` (ESEF
+reports, manual).
 
 Locally (optional):
 

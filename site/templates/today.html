@@ -17,7 +17,7 @@
 {% if k and k.ready and k.pick %}
 <a class="card pick-card" href="pick.html">
   <span class="eyebrow">{{ _('Stock of the week: {t}', t='') }}</span>
-  <span class="pick-line"><span class="tick-sym">{{ k.pick.ticker }}</span> <span class="muted">{{ k.pick.name|company }}</span>
+  <span class="pick-line">{{ icon(k.pick.isin, k.pick.ticker, assets) }}<span class="tick-sym">{{ k.pick.ticker }}</span> <span class="muted">{{ k.pick.name|company }}</span>
   <span class="verdict v-{{ 'holds_up' if k.summary.verdict == 'beats_wig' else ('eaten_by_costs' if k.summary.verdict == 'no_edge' else 'untested') }}">{{ _('the model: {v}', v=k.summary.verdict|pickverdict) }}</span></span>
   <span class="small">{{ _('See the full analysis') }} →</span>
 </a>
@@ -40,7 +40,7 @@
           {% if r.stat %}<span class="verdict v-{{ r.stat.verdict }}" title="{{ r.stat.verdict|explain }}">{{ r.stat.verdict|verdict }}</span>{% endif %}
           {% if c and c.buyable == false %}<span class="badge badge-thin" title="{{ _('thin_title') }}">{{ _('Too thin to trade') }}</span>{% endif %}
         </div>
-        <p class="s-title">{% if r.stock_slug %}<a href="stock/{{ r.stock_slug }}.html" class="sym-link"><span class="tick-sym">{{ r.ticker }}</span></a>{% else %}<span class="tick-sym">{{ r.ticker }}</span>{% endif %}
+        <p class="s-title">{% if r.stock_slug %}<a href="stock/{{ r.stock_slug }}.html" class="sym-link">{{ icon(r.isin, r.ticker, assets) }}<span class="tick-sym">{{ r.ticker }}</span></a>{% else %}{{ icon(r.isin, r.ticker, assets) }}<span class="tick-sym">{{ r.ticker }}</span>{% endif %}
           {% if r.is_event %}<a href="event/{{ r.slug }}.html" lang="{{ 'pl' if r.signal_type != 'insider_tx' else lang }}">{{ r|fact }}</a>{% else %}<a href="{{ r.source_url }}" rel="noopener" lang="pl">{{ r|fact }}</a>{% endif %}</p>
         <small class="muted">{{ r.issuer_name|company }}</small>
       </div>

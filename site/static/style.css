@@ -701,3 +701,20 @@ details.weights summary { cursor: pointer; color: var(--up); font-weight: 600; m
 .pager .gap { color: var(--muted); padding: 0 0.2rem; }
 .pager .range { margin-left: auto; }
 @media (max-width: 640px) { .pager .range { margin-left: 0; flex-basis: 100%; } .pager .lbl { display: none; } }
+
+/* ------------------------------------------------------------------ stock icons */
+/* logos/: XTB's tiles or the company's own icon on the same light tile; a monogram without one */
+.tlogo { display: inline-grid; place-items: center; flex: none; width: 1.4rem; height: 1.4rem; border-radius: 6px;
+  background: #f6f7f8; object-fit: contain; vertical-align: middle; margin-right: 0.4rem; }
+.tlogo-png { padding: 2px; box-sizing: border-box; }
+.tmono { font: 700 0.62rem/1 var(--mono); color: #fff; letter-spacing: -0.02em;
+  background: linear-gradient(135deg, hsl(var(--h) 55% 46%), hsl(calc(var(--h) + 40) 60% 32%)); }
+.tlogo-l { width: 2.6rem; height: 2.6rem; border-radius: 10px; margin-right: 0.2rem; align-self: center; }
+.tlogo-l.tlogo-png { padding: 4px; }
+.tmono.tlogo-l { font-size: 1.05rem; }
+.sym-link { display: inline-flex; align-items: center; text-decoration: none; }
+.stock-head h1 { align-items: center; }
+.board-name { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 0.1rem; align-items: center; }
+.board-name .tlogo { grid-row: span 2; }
+.scr-table td.sym small { padding-left: 1.8rem; }
+.s-title .sym-link .tick-sym { margin-right: 0.35rem; }

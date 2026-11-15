@@ -421,8 +421,8 @@ PL: dict[str, str] = {
     "Stock of the week": "Spółka tygodnia",
     "the model’s estimate, not a promise": "szacunek modelu, nie obietnica",
     "week of {d}": "tydzień od {d}",
-    "Logo from XTB’s server; it is the company’s trademark.": (
-        "Logo z serwera XTB; jest znakiem towarowym spółki."
+    "The logo is the company’s trademark, shown only to identify the stock.": (
+        "Logo jest znakiem towarowym spółki i służy tylko do jej rozpoznania."
     ),
     "How the model chose it": "Jak model ją wybrał",
     "rank among liquid WIG stocks": "miejsce wśród płynnych spółek z WIG",

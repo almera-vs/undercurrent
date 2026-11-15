@@ -27,6 +27,8 @@ requests where the server sends validators, on-disk cache in `.cache/http`.
 | 10 | xtb.com stock pages | optional link to the company on XTB | 200 | — | ✅ used, links only |
 | 11 | filings.xbrl.org (ESEF, xBRL-JSON) | company fundamentals, fiscal 2020–2024 | 200 | — | ✅ used, manual |
 | 12 | api.gleif.org | LEI → ISIN for those filings | 200 | — | ✅ used, manual |
+| 13 | gpw.pl/wskazniki | shares, book value, earnings, sector | 200 | — | ✅ used |
+| 14 | logos.xtb.com, exchange company cards, company websites | stock icons | 200 | — | ✅ used, weekly |
 
 ¹ The NewConnect listing uses the same `ajaxindex.php` handler on the same infrastructure as
 row 1; confirmed from the runner in the same probe run, along with a NewConnect report page.
@@ -247,11 +249,8 @@ except whether the page exists and which ISIN it shows. Checked on 2026-11-11:
   Results are in `state/xtb_links.parquet`; `undercurrent xtb-links` checks a backlog.
 - **Logos** (since 2026-11-11). Each verified page's title names XTB's symbol (`PKO.PL`), and
   XTB serves the company's logo at `https://logos.xtb.com/<code>_pl.svg` (403 when it has
-  none). It is fetched once to check it exists, then the stock-of-the-week page shows it
-  straight from XTB's server, with a generated monogram as the fallback. The logos are the
-  companies' trademarks, and XTB's terms for reusing these files are not stated. The page
-  says where the logo comes from. If XTB objects, drop the `logo` column and the page falls
-  back to the monogram.
+  none). Since 2026-11-15 the icons are fetched for every listed stock and served from the
+  site itself (§ 14).
 - **Slug matching** ignores hyphens (`PKOBP` finds `pko-bp`) and also tries the first word
   of the company name (`santander`). Every guess is still accepted only on the ISIN.
 - Undercurrent is not affiliated with XTB; the site says so next to every link.
@@ -305,3 +304,32 @@ quote archive uses).
 - One request a night, like the price files. Before relying on it beyond these figures,
   the exchange's terms for its information services (*Regulamin świadczenia usług
   informacyjnych*) should be checked; the site shows derived ratios, not the table.
+
+## 14. Stock icons (logos.xtb.com, exchange company cards, company websites)
+
+Every page that names a stock shows its icon: the stock page, the screener, the market
+page's movers, the report feed, event pages and the stock of the week (`logos.py`). Checked
+on 2026-11-15:
+
+- **The exchange code.** The quote archive names main-market stocks by their short name
+  (`11BIT`), not their code (`11B`). GPW's company card answers with both, and the company's
+  website, at `https://www.gpw.pl/ajaxindex.php?start=infoTab&format=html&action=GPWListaSp&gls_isin=<ISIN>&lang=PL`
+  (2.6 kB, plain HTML: "Skrót: 11B", "Strona www: www.11bitstudios.pl"). NewConnect's card,
+  `https://newconnect.pl/spolka?isin=<ISIN>`, shows "Nazwa … (MLM)" and "Strona WWW", and
+  writes some links as `http://https://…`; the NewConnect price file has the code already.
+- **XTB's logo** for that code, `https://logos.xtb.com/<code>_pl.svg`: a 40×40 SVG tile on a
+  light grey square, 403 when XTB has none. Where `xtb.py` verified XTB's page, its symbol
+  is tried first. A few tiles embed a bitmap with hundreds of kilobytes of metadata
+  (`dnp_pl.svg`, 823 kB); the bitmap is re-encoded (4 kB).
+- **Else the company's own icon**: the home page's `apple-touch-icon`, else its largest
+  `icon` link, else `/favicon.ico`; at least 32 px, scaled to a 64 px PNG. Company sites get
+  15 seconds and no retries.
+- **Kept:** SVGs without scripts, event handlers or foreign objects, at most 60 kB; PNGs.
+  Files in `state/logos/<ISIN>.<svg|png>`, with `state/logos.parquet` (code, website, source,
+  source URL, SHA-256, checked at). The site copies them to `logos/`, so no page loads
+  anything from another server. A stock without an icon gets a coloured monogram.
+- **Load:** the `logos` workflow, weekly on Sunday morning: new listings, stocks with an
+  icon after 90 days and without one after 30; about two requests a stock, one a second.
+- The logos are the companies' trademarks, shown only to identify the stock; the stock of
+  the week page says so. XTB's terms for reusing its files are not stated; if XTB objects,
+  dropping the first source leaves the companies' own icons and monograms.

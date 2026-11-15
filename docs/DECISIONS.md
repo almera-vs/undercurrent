@@ -697,6 +697,20 @@ options models need US yields and option prices, VPIN needs intraday trades, and
   intangible and other non-current assets instead of the fixed-asset line; reading it
   raised the reports with a usable capital expenditure from 305 to 729 of 779.
 
+## Stock icons (2026-11-15)
+
+- **Self-hosted, not hot-linked.** The stock-of-the-week page used to load XTB's logo from
+  XTB's server, and only for stocks whose XTB page had been verified, so most stocks had
+  none and the page depended on another server. Icons are now fetched once, cleaned and
+  served from the site, for every listed stock.
+- **XTB first, then the company's own site.** XTB's tiles look alike (same size, same
+  background), which reads better in a table than a mix of favicons; the company's own
+  icon fills the gaps, on the same light tile. The exchange code that XTB's file names use
+  comes from the exchange's own company card, not from a guess.
+- **No logo services.** Logo APIs keyed by ISIN cover few Polish stocks (one checked had
+  11BIT and PKO BP but neither NewConnect sample) and would add a dependency.
+- **Weekly, apart from the nightly run**, so the nightly run stays as fast as before.
+
 ## Known limitations
 
 - Insider trade details (side, volume, price) are missing for reports that no portal

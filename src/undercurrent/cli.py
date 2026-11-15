@@ -121,6 +121,9 @@ def _build_parser() -> argparse.ArgumentParser:
     xl.add_argument("--days", type=int, default=45, help="stocks with events in this many days")
     xl.add_argument("--max", type=int, default=400, help="at most this many stocks per run")
 
+    lg = sub.add_parser("logos", help="find each listed stock's icon (XTB, else its website)")
+    lg.add_argument("--max", type=int, default=120, help="at most this many stocks per run")
+
     pr = sub.add_parser("probe", help="check reachability of every official source")
     pr.add_argument("--date", type=_parse_date, default=date(2026, 11, 6))
     pr.add_argument("--geru-id", type=int, default=500131)
@@ -309,6 +312,20 @@ def cmd_xtb_links(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_logos(args: argparse.Namespace) -> int:
+    """Fetch icons for listed stocks that have none yet or are due again (``logos.py``)."""
+    from undercurrent import logos
+    from undercurrent.fetch import PoliteClient
+
+    stocks = logos.listed(args.data_dir)
+    with PoliteClient() as client, logos.site_client() as sites:
+        checked, found = logos.refresh(
+            client, args.data_dir, stocks, max_checks=args.max, sites=sites
+        )
+    print(f"logos: {len(stocks)} listed, {checked} checked, {found} with an icon")
+    return 0
+
+
 def cmd_probe(args: argparse.Namespace) -> int:
     """Probe sources and print a Markdown table (and to the Actions step summary)."""
     from undercurrent.probe import run_probe, to_json, to_markdown
@@ -344,6 +361,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "compact": cmd_compact,
         "forms": cmd_forms,
         "xtb-links": cmd_xtb_links,
+        "logos": cmd_logos,
         "pick": cmd_pick,
         "market-state": cmd_market_state,
         "esef": cmd_esef,
