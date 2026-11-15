@@ -37,7 +37,7 @@ def test_digest_message_lists_worth_and_disclaimer():
     assert text.count("KDX") == 5  # at most 5 items
     assert "+3.1% / 20d after entry · n=146 · ✓ holds up" in text
     assert "Not investment advice. Historical statistics only." in text
-    assert markup["inline_keyboard"][0][0]["url"] == "https://example.test/"
+    assert markup["inline_keyboard"][0][0]["url"] == "https://example.test/reports.html"
     assert markup["inline_keyboard"][0][1]["url"].endswith("event/gpw-1.html")
 
 

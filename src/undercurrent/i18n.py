@@ -619,9 +619,353 @@ PL: dict[str, str] = {
     "Today · Undercurrent": "Dziś · Undercurrent",
     "Signals · Undercurrent": "Sygnały · Undercurrent",
     "Pipeline · Undercurrent": "Proces · Undercurrent",
+    # analysis pages: market, screener, stock
+    "Chart setups": "Układy na wykresie",
+    "Do the screener’s presets pay off?": "Czy zestawy ze skanera się opłacają?",
+    "setups_lede": (
+        "Każdy zestaw ze skanera sprawdzony jak raporty: zdarzeniem jest sesja, na której "
+        "spółka wchodzi w dany stan (na przykład RSI spada poniżej 30). Wejście na "
+        "zamknięciu następnej sesji, koszty transakcyjne, tylko spółki, którymi da się "
+        "handlować, ta sama korekta na wielokrotne testy i ten sam test na nowych danych."
+    ),
+    "setups_footnote": (
+        "Ta sama spółka liczy się ponownie dopiero po 20 sesjach. Wskaźniki na cenach "
+        "skorygowanych, liczone od nowa po luce w danych. Układy są osobną rodziną testów: "
+        "nie zmieniają statystyk raportów."
+    ),
+    "setup_line": (
+        "Spółki wchodzące w ten zestaw ({n} przypadków): średnio {mean} względem WIG w ciągu 20 "
+        "sesji, na nowych danych po kosztach {oos} na transakcję. Werdykt: {verdict}."
+    ),
+    "Chart indicators": ("Wskaźniki na wykresie"),
+    "g_indicators": (
+        "Liczone na cenach skorygowanych o dywidendy i splity, każdy od nowa po luce w "
+        "danych. SMA n: średnia z n ostatnich kursów. RSI 14 (Wildera): średni wzrost wobec "
+        "średniego spadku z 14 sesji, od 0 do 100; powyżej 70 spółka ostatnio głównie rosła, "
+        "poniżej 30 głównie spadała. MACD 12, 26, 9: różnica średnich wykładniczych z 12 i "
+        "26 sesji, jej średnia z 9 sesji i histogram różnicy. Bollinger 20, 2: SMA 20 ± 2 "
+        "odchylenia standardowe. ATR 14: średni rzeczywisty zakres sesji. Maksimum i minimum "
+        "52-tygodniowe: z 250 ostatnich sesji. To opisy przeszłości, nie prognozy."
+    ),
+    "g_surprise": (
+        "Ruch dnia, którego nie tłumaczą WIG i obligacje (betą spółki), podzielony przez "
+        "odchylenie standardowe prognozowane wieczór wcześniej. Wartość 3 lub więcej zdarza "
+        "się rzadko: coś się wydarzyło."
+    ),
+    "g_beta": (
+        "O ile procent zwykle zmienia się kurs, gdy WIG zmienia się o 1%. Liczona filtrem "
+        "Kalmana, więc może zmieniać się z czasem."
+    ),
+    "Expected volatility (σ)": ("Oczekiwana zmienność (σ)"),
+    "g_sigma": (
+        "Prognoza GARCH odchylenia standardowego stopy zwrotu w kolejnych 20 sesjach. Pasmo "
+        "σ na wykresie pokazuje, w jakim przedziale model widział kurs 20 sesji wcześniej."
+    ),
+    "Stress regime": ("Reżim stresu"),
+    "g_regime": (
+        "Prawdopodobieństwo, że rynek jest w stanie wysokiej zmienności, z modelu dwóch "
+        "stanów dziennych stóp zwrotu WIG. Liczone tylko z sesji do danego dnia włącznie."
+    ),
+    "Breadth": ("Szerokość rynku"),
+    "g_breadth": (
+        "Ile spółek rynku głównego rośnie, a ile spada, ile jest powyżej swojej średniej z "
+        "200 sesji i ile wyznacza nowe maksima lub minima 52-tygodniowe. Pokazuje, czy ruch "
+        "WIG niesie większość spółek, czy kilka dużych."
+    ),
+    "Screener presets": ("Zestawy w skanerze"),
+    "g_presets": (
+        "Gotowe filtry, na przykład RSI poniżej 30 albo nowe maksimum. To nie są sygnały "
+        "kupna ani sprzedaży: czy takie układy opłacały się na GPW po kosztach, sprawdza "
+        "strona Sygnały, tą samą metodą co raporty."
+    ),
+    "Market": "Rynek",
+    "Screener": "Skaner",
+    "Reports": "Raporty",
+    "More": "Więcej",
+    "Main": "Główna nawigacja",
+    "Find a stock": "Szukaj spółki",
+    "GPW + NewConnect: charts, screener and a nightly report radar. Not investment advice.": (
+        "GPW i NewConnect: wykresy, skaner i wieczorny radar raportów. To nie jest "
+        "rekomendacja inwestycyjna."
+    ),
+    "Market · Undercurrent": "Rynek · Undercurrent",
+    "Screener · Undercurrent": "Skaner · Undercurrent",
+    "Reports · Undercurrent": "Raporty · Undercurrent",
+    "Charts": "Wykresy",
+    "Chart data could not be loaded.": "Nie udało się wczytać danych wykresu.",
+    "Loading…": "Wczytywanie…",
+    "The market tonight": "Rynek po sesji",
+    "market_lede": (
+        "WIG i jego reżim, szerokość rynku, największe ruchy i niespodzianki dnia. Wszystko liczone"
+        " po zamknięciu sesji, na cenach skorygowanych o dywidendy i splity."
+    ),
+    "Indices": "Indeksy",
+    "5 s.": "5 ses.",
+    "20 s.": "20 ses.",
+    "60 s.": "60 ses.",
+    "1 y.": "1 r.",
+    "Stress regime: {p}": "Reżim stresu: {p}",
+    "regime_title": (
+        "Prawdopodobieństwo, że rynek jest w stanie wysokiej zmienności (model dwóch stanów "
+        "dziennych stóp zwrotu WIG, tylko z sesji do dziś włącznie)."
+    ),
+    "WIG, the stress probability and the share of stocks above their 200-session average": (
+        "WIG, prawdopodobieństwo stresu i odsetek spółek powyżej średniej z 200 sesji"
+    ),
+    "Breadth, main market": "Szerokość rynku, rynek główny",
+    "Up / down today": "Wzrosty / spadki dziś",
+    "Above their 200-session average": "Powyżej średniej z 200 sesji",
+    "of": "z",
+    "New 52-week highs / lows": "Nowe maksima / minima 52-tygodniowe",
+    "Reports tonight": "Raporty dziś",
+    "insider": "insiderzy",
+    "inside info": "inf. poufne",
+    "holdings": "stany posiadania",
+    "Open the report feed": "Otwórz listę raportów",
+    "Biggest rises": "Największe wzrosty",
+    "Biggest falls": "Największe spadki",
+    "Biggest surprises": "Największe niespodzianki",
+    "movers_note": (
+        "Tylko spółki, którymi da się handlować (mediana obrotu co najmniej 10 000 zł dziennie). "
+        "Niespodzianka: ruch dnia ponad to, co tłumaczą WIG i obligacje, w odchyleniach "
+        "standardowych prognozy dla tej spółki."
+    ),
+    "All {n} listed stocks": "Wszystkie notowane spółki: {n}",
+    "stress probability": "prawdopodobieństwo stresu",
+    "share above the 200-session average": "odsetek powyżej średniej z 200 sesji",
+    "All stocks": "Wszystkie spółki",
+    "New 52-week high": "Nowe maksimum 52-tygodniowe",
+    "New 52-week low": "Nowe minimum 52-tygodniowe",
+    "RSI below 30": "RSI poniżej 30",
+    "RSI above 70": "RSI powyżej 70",
+    "Above both averages": "Powyżej obu średnich",
+    "Surprise beyond 3σ today": "Niespodzianka ponad 3σ dziś",
+    "Insider buying, last 20 sessions": "Zakupy insiderów, ostatnie 20 sesji",
+    "Model forecast, liquid WIG": "Prognoza modelu, płynne spółki WIG",
+    "screener_lede": (
+        "Wszystkie notowane spółki na dzisiejszym zamknięciu. Sortuj po dowolnej kolumnie, filtruj "
+        "albo zacznij od gotowego zestawu. Stopy zwrotu liczone względem WIG, wskaźniki na cenach "
+        "skorygowanych."
+    ),
+    "What the columns mean": "Co znaczą kolumny",
+    "Preset": "Zestaw",
+    "Both": "Oba",
+    "All, thin included": "Wszystkie, także niepłynne",
+    "Tradable (≥ 10,000 zł a day)": "Handlowalne (≥ 10 000 zł dziennie)",
+    "Liquid (≥ 100,000 zł a day)": "Płynne (≥ 100 000 zł dziennie)",
+    "Search": "Szukaj",
+    "Ticker or company": "Ticker lub spółka",
+    "Columns": "Kolumny",
+    "Technical": "Techniczne",
+    "Risk": "Ryzyko",
+    "Model": "Model",
+    "Fundamentals": "Fundamenty",
+    "screener_note": (
+        "To nie jest rekomendacja inwestycyjna. Zestaw to filtr, a nie sygnał: czy takie układy "
+        "opłacały się na GPW, mierzy strona Sygnały. Spółki niepłynne są ukryte, chyba że je "
+        "wybierzesz."
+    ),
+    "Stock": "Spółka",
+    "Close": "Kurs",
+    "vs SMA50": "wzgl. SMA50",
+    "vs SMA200": "wzgl. SMA200",
+    "vs 52w high": "wzgl. maks. 52 tyg.",
+    "Surprise": "Niespodzianka",
+    "Turnover": "Obrót",
+    "Cost": "Koszt",
+    "Forecast": "Prognoza",
+    "Insiders 20 s.": "Insiderzy 20 ses.",
+    "EBIT/assets": "EBIT/aktywa",
+    "Asset growth": "Wzrost aktywów",
+    "Accruals": "Memoriały",
+    "No stock matches.": "Żadna spółka nie pasuje.",
+    "{n} more: narrow the filters to see them.": "Jeszcze {n}: zawęź filtry, żeby je zobaczyć.",
+    "{n} of {t} listed stocks": "{n} z {t} notowanych spółek",
+    "The screener data could not be loaded.": "Nie udało się wczytać danych skanera.",
+    "t_ret": "Zmiana dzisiaj, skorygowana o dywidendy i splity.",
+    "t_x": "Stopa zwrotu minus stopa WIG w ostatnich N sesjach.",
+    "t_rsi": (
+        "RSI Wildera z 14 sesji: powyżej 70 spółka ostatnio głównie rosła, poniżej 30 głównie "
+        "spadała."
+    ),
+    "t_dma": "Kurs względem prostej średniej kroczącej.",
+    "t_dhi": "Kurs względem najwyższego maksimum z ostatnich 250 sesji.",
+    "t_atr": "Średni rzeczywisty zakres z 14 sesji jako ułamek ceny.",
+    "t_s20": "Oczekiwana zmienność w kolejnych 20 sesjach (prognoza GARCH).",
+    "t_beta": "Jak mocno spółka porusza się razem z WIG (filtr Kalmana, zmienia się w czasie).",
+    "t_z": (
+        "Ruch dnia ponad to, co tłumaczą WIG i obligacje, w odchyleniach standardowych prognozy."
+    ),
+    "t_turnover": "Mediana dziennego obrotu z ostatnich 60 sesji.",
+    "t_cost": "Szacowany koszt kupna i sprzedaży za 10 000 zł: spread, prowizja i wpływ na cenę.",
+    "t_fc": (
+        "Oczekiwany wynik względem WIG w 20 sesjach według modelu spółki tygodnia i miejsce w "
+        "rankingu (tylko płynne spółki WIG)."
+    ),
+    "t_insider": "Wartość zakupów insiderów minus sprzedaży zgłoszonych w ostatnich 20 sesjach.",
+    "t_fund": (
+        "Z ostatniego raportu rocznego (ESEF): stopa zysku, zysk operacyjny / aktywa, wzrost "
+        "aktywów, memoriały."
+    ),
+    "Chart settings": "Ustawienia wykresu",
+    "Indicators": "Wskaźniki",
+    "Range": "Zakres",
+    "On the price": "Na cenie",
+    "band_title": (
+        "Dla każdej sesji przedział ±1σ kursu, który model stanu rynku prognozował 20 sesji "
+        "wcześniej. Mniej więcej dwa kursy na trzy powinny w nim leżeć."
+    ),
+    "σ band, forecast 20 sessions earlier": "pasmo σ, prognoza sprzed 20 sesji",
+    "Adjusted for dividends and splits": "Skorygowane o dywidendy i splity",
+    "Panes": "Panele",
+    "Surprise (σ)": "Niespodzianka (σ)",
+    "Beta to WIG": "Beta do WIG",
+    "No session since {d}": "Brak sesji od {d}",
+    "Liquid": "Płynna",
+    "vs WIG, 20 s.": "wzgl. WIG, 20 ses.",
+    "vs WIG, 1 y.": "wzgl. WIG, 1 r.",
+    "vs WIG, 5 / 60 s.": "wzgl. WIG, 5 / 60 ses.",
+    "Price chart of {t}": "Wykres kursu {t}",
+    "insider selling": "sprzedaż insiderów",
+    "chart_note": (
+        "Kropki to raporty-sygnały; kliknij, aby otworzyć stronę raportu. Najedź na wykres, aby "
+        "odczytać sesję."
+    ),
+    "Indicators tonight": "Wskaźniki na dziś",
+    "vs SMA50 / SMA200": "wzgl. SMA50 / SMA200",
+    "vs 52-week high / low": "wzgl. maks. / min. 52-tygodniowego",
+    "new high": "nowe maksimum",
+    "new low": "nowe minimum",
+    "of the price, a typical day’s range": "ceny, typowy zakres dnia",
+    "Not listed any more, or no recent session: the chart shows its history.": (
+        "Nie jest już notowana albo dawno nie miała sesji: wykres pokazuje jej historię."
+    ),
+    "Risk, cost and the model": "Ryzyko, koszt i model",
+    "Surprise today": "Niespodzianka dziś",
+    "Round trip costs about": "Kupno i sprzedaż kosztują około",
+    "rank {r} among liquid WIG stocks": "miejsce {r} wśród płynnych spółek WIG",
+    "Insiders, last 20 sessions": "Insiderzy, ostatnie 20 sesji",
+    "bought minus sold": "kupione minus sprzedane",
+    "Last annual report (ESEF)": "Ostatni raport roczny (ESEF)",
+    "asset growth": "wzrost aktywów",
+    "accruals": "memoriały",
+    "Reports of this company": "Raporty tej spółki",
+    "No signal reports in the lake yet.": "Brak raportów-sygnałów w danych.",
+    "Chart and indicators of {t}": "Wykres i wskaźniki {t}",
+    "{t} around this report": "{t} wokół tego raportu",
+    "Full chart and indicators": "Pełny wykres i wskaźniki",
 }
 
 EN_OVERRIDES: dict[str, str] = {
+    "setups_lede": (
+        "Each screener preset tested like the reports: the event is the session a stock "
+        "enters the preset's state (RSI falling below 30, say). Entry at the next session's "
+        "close, trading costs, tradable stocks only, the same correction for many tests and "
+        "the same test on new data."
+    ),
+    "setups_footnote": (
+        "A stock counts again only after 20 sessions. Indicators on adjusted prices, "
+        "restarting after a hole in the data. The setups are their own family of tests: they "
+        "do not change the reports' statistics."
+    ),
+    "setup_line": (
+        "Stocks entering this preset ({n} cases): {mean} against WIG over 20 sessions on "
+        "average; on new data after costs {oos} a trade. Verdict: {verdict}."
+    ),
+    "g_indicators": (
+        "Computed on prices adjusted for dividends and splits, each restarting after a hole "
+        "in the data. SMA n: the mean of the last n closes. RSI 14 (Wilder): average gain "
+        "against average loss over 14 sessions, from 0 to 100; above 70 the stock has mostly "
+        "risen lately, below 30 mostly fallen. MACD 12, 26, 9: the difference of the 12- and "
+        "26-session exponential averages, its 9-session average and the histogram of the "
+        "difference. Bollinger 20, 2: SMA 20 ± 2 standard deviations. ATR 14: the average "
+        "true range of a session. 52-week high and low: over the last 250 sessions. They "
+        "describe the past; they are not forecasts."
+    ),
+    "g_surprise": (
+        "The day's move that WIG and bonds (through the stock's betas) do not explain, "
+        "divided by the standard deviation forecast the evening before. 3 or more is rare: "
+        "something happened."
+    ),
+    "g_beta": (
+        "By how many percent the price usually moves when WIG moves 1%. Estimated with a "
+        "Kalman filter, so it can change over time."
+    ),
+    "g_sigma": (
+        "The GARCH forecast of the standard deviation of the next 20 sessions' return. The σ "
+        "band on the chart shows the range the model expected for the close 20 sessions "
+        "earlier."
+    ),
+    "g_regime": (
+        "The probability that the market is in its high-volatility state, from a two-state "
+        "model of WIG's daily returns. Uses only sessions up to that day."
+    ),
+    "g_breadth": (
+        "How many main-market stocks rise and fall, how many are above their 200-session "
+        "average, and how many set new 52-week highs or lows. It shows whether WIG's move is "
+        "carried by most stocks or by a few large ones."
+    ),
+    "g_presets": (
+        "Ready-made filters such as RSI below 30 or a new high. They are not buy or sell "
+        "signals: whether such setups have paid off on GPW after costs is tested on the "
+        "Signals page, the same way as the reports."
+    ),
+    "market_lede": (
+        "WIG and its regime, the market's breadth, the day's biggest moves and surprises. All "
+        "measured after the session's close, on prices adjusted for dividends and splits."
+    ),
+    "regime_title": (
+        "The filtered probability that the market is in its high-volatility state (a two-state "
+        "model of WIG's daily returns, using only sessions up to tonight)."
+    ),
+    "movers_note": (
+        "Tradable stocks only (median turnover at least 10,000 zł a day). Surprise: the day's move "
+        "beyond what WIG and bonds explain, in standard deviations of the stock's own forecast."
+    ),
+    "screener_lede": (
+        "Every listed stock at tonight's close. Sort by any column, filter, or start from a preset."
+        " Returns are against WIG; indicators are on adjusted prices."
+    ),
+    "screener_note": (
+        "Not investment advice. A preset is a filter, not a signal: whether such setups have paid "
+        "off on GPW is measured on the Signals page. Thin stocks are hidden unless you ask for "
+        "them."
+    ),
+    "t_ret": "Today's change, adjusted for dividends and splits.",
+    "t_x": "Return minus WIG's over the last N sessions.",
+    "t_rsi": (
+        "Wilder's RSI over 14 sessions: above 70 the stock has mostly risen lately, below 30 mostly"
+        " fallen."
+    ),
+    "t_dma": "Close against its simple moving average.",
+    "t_dhi": "Close against the highest high of the last 250 sessions.",
+    "t_atr": "Average true range over 14 sessions, as a share of the price.",
+    "t_s20": "Expected volatility of the next 20 sessions (GARCH forecast).",
+    "t_beta": "How much the stock moves with WIG (Kalman filter, it changes over time).",
+    "t_z": (
+        "The day's move beyond what WIG and bonds explain, in standard deviations of its forecast."
+    ),
+    "t_turnover": "Median daily turnover over the last 60 sessions.",
+    "t_cost": (
+        "Estimated round-trip cost of a 10,000 zł order: spread, commission and market impact."
+    ),
+    "t_fc": (
+        "The stock-of-the-week model's expected result against WIG over 20 sessions, and its rank "
+        "(liquid WIG stocks only)."
+    ),
+    "t_insider": "Value of insider purchases minus sales reported in the last 20 sessions.",
+    "t_fund": (
+        "From the last annual report (ESEF): earnings yield, operating profit / assets, asset "
+        "growth, accruals."
+    ),
+    "band_title": (
+        "For each session, the ±1σ range of the close that the market state forecast 20 sessions "
+        "earlier. About two closes in three should fall inside."
+    ),
+    "chart_note": (
+        "Dots mark signal reports; click one to open its page. Move over the chart to read a "
+        "session."
+    ),
     "archive_lede": (
         "Events from earlier digests, newest first, with how each has done against WIG since "
         "entry. The statistics on the event pages are today's, not those of the day the "
@@ -857,6 +1201,12 @@ SIGNAL_LABELS: dict[str, dict[str, str]] = {
         "inside_info:other": "Other inside information",
         "other": "Other",
         "periodic": "Periodic",
+        "setup:new_high": "New 52-week high",
+        "setup:new_low": "New 52-week low",
+        "setup:rsi_below_30": "RSI falls below 30",
+        "setup:rsi_above_70": "RSI rises above 70",
+        "setup:above_both_averages": "Close moves above SMA50 and SMA200",
+        "setup:golden_cross": "SMA50 crosses above SMA200 (golden cross)",
     },
     "pl": {
         "insider_tx:buy": "Zakup przez insidera",
@@ -875,6 +1225,12 @@ SIGNAL_LABELS: dict[str, dict[str, str]] = {
         "inside_info:other": "Inne informacje poufne",
         "other": "Inne",
         "periodic": "Okresowy",
+        "setup:new_high": "Nowe maksimum 52-tygodniowe",
+        "setup:new_low": "Nowe minimum 52-tygodniowe",
+        "setup:rsi_below_30": "RSI spada poniżej 30",
+        "setup:rsi_above_70": "RSI rośnie powyżej 70",
+        "setup:above_both_averages": "Kurs przechodzi nad SMA50 i SMA200",
+        "setup:golden_cross": "SMA50 przecina SMA200 od dołu (złoty krzyż)",
     },
 }
 BASIS_LABELS: dict[str, dict[str, str]] = {
@@ -882,11 +1238,13 @@ BASIS_LABELS: dict[str, dict[str, str]] = {
         "insider_tx": "Art. 19 MAR",
         "holder_threshold": "Art. 69 POA",
         "inside_info": "Art. 17 MAR",
+        "setup": "Chart setup",
     },
     "pl": {
         "insider_tx": "Art. 19 MAR",
         "holder_threshold": "Art. 69 ustawy o ofercie",
         "inside_info": "Art. 17 MAR",
+        "setup": "Układ na wykresie",
     },
 }
 VERDICT_LABELS: dict[str, dict[str, str]] = {

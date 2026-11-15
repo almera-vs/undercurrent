@@ -2,20 +2,22 @@
 
 > **Undercurrent — what moves beneath the tape.**
 
-A nightly radar for the Warsaw Stock Exchange (GPW + NewConnect). Every trading evening it
-reads every ESPI/EBI current report, picks out the events that matter (insider transactions,
-holder threshold crossings, price-sensitive inside information), and shows how that kind of
-event has moved prices in the past, measured honestly and after costs. One Telegram message
-and a static dashboard, rebuilt every night by GitHub Actions.
+A nightly analysis site for the Warsaw Stock Exchange (GPW + NewConnect). Every trading
+evening it reads every ESPI/EBI current report, picks out the events that matter (insider
+transactions, holder threshold crossings, price-sensitive inside information), and shows how
+that kind of event has moved prices in the past, measured honestly and after costs. Every
+stock has a chart with classic indicators and the pipeline's own measures (volatility, beta,
+the day's surprise), and a screener lists them all, with each preset tested like the reports.
+One Telegram message and a static site, rebuilt every night by GitHub Actions.
 
 **Not investment advice. Historical statistics only.**
 
-![Design mock-up of the Today page](assets/design/today.png)
+![The market page](assets/design/market.jpg)
 
-*Design mock-up (sample data). The live site is at https://almera-vs.github.io/undercurrent/
-in Polish, with an English version at https://almera-vs.github.io/undercurrent/en/. Report
-titles are always shown as published, in Polish. Its numbers come from the real pipeline and
-will look different.*
+*The market page, built from the lake on 12 November 2026. The live site is at
+https://almera-vs.github.io/undercurrent/ in Polish, with an English version at
+https://almera-vs.github.io/undercurrent/en/. Report titles are always shown as published,
+in Polish.*
 
 ## How it works
 
@@ -58,11 +60,16 @@ flowchart LR
    page reads one set of numbers. The stock of the week reads it, puts a self-correcting 90 %
    band on every forecast, keeps an append-only ledger of them, and builds a weekly basket
    weighted by hierarchical risk parity (`basket.py`); event pages show the same forecast.
-5. **Publish** (`publish.py`, `pages.py`, `i18n.py`): Jinja2 site in Polish and English with
+5. **Analysis pages** (`ta.py`, `stock_export.py`, `setups.py`, `site/static/js/`): the market
+   page, the screener and one chart page per stock, from JSON written each night; charts
+   with TradingView's Lightweight Charts (vendored). Indicators are computed in Python and,
+   for changed parameters, by the same formulas in the browser. Each screener preset is
+   tested as a chart setup with the event study.
+6. **Publish** (`publish.py`, `pages.py`, `i18n.py`): Jinja2 site in Polish and English with
    inline SVG charts, plain-language summaries, the report's own text, the stock's price and
    liquidity, a glossary, and a Telegram digest via the Bot API. Event pages link to the
    company on XTB only when XTB's page shows the same ISIN (`xtb.py`).
-6. **Commit**: new partitions to the `data` branch, digest archive to `main`.
+7. **Commit**: new partitions to the `data` branch, digest archive to `main`.
 
 Details: [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md) · sources and their verification:
 [`docs/SOURCES.md`](docs/SOURCES.md) · every judgment call: [`docs/DECISIONS.md`](docs/DECISIONS.md)

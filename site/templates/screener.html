@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Screener · Undercurrent') }}{% endblock %}
+{% block main %}
+{% set t = ctx.tool %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">{{ ctx.day|longdate }} · GPW + NewConnect</p>
+    <h1>{{ _('Screener') }}</h1>
+  </div>
+  <p class="lede">{{ _('screener_lede') }} <a href="glossary.html#indicators">{{ _('What the columns mean') }}</a></p>
+</section>
+
+<section class="panel screener" id="screener">
+  <form class="scr-filters" onsubmit="return false">
+    <label>{{ _('Preset') }}
+      <select data-field="preset">
+        {% for key, label in [('all', 'All stocks'), ('new_hi', 'New 52-week high'), ('new_lo', 'New 52-week low'), ('rsi_low', 'RSI below 30'), ('rsi_high', 'RSI above 70'), ('above200', 'Above both averages'), ('surprise', 'Surprise beyond 3σ today'), ('insider', 'Insider buying, last 20 sessions'), ('forecast', 'Model forecast, liquid WIG')] %}
+        <option value="{{ key }}">{{ _(label) }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>{{ _('Market') }}
+      <select data-field="market">
+        <option value="all">{{ _('Both') }}</option><option value="GPW">GPW</option><option value="NC">NewConnect</option>
+      </select>
+    </label>
+    <label>{{ _('Liquidity') }}
+      <select data-field="tier">
+        <option value="all">{{ _('All, thin included') }}</option>
+        <option value="tradable">{{ _('Tradable (≥ 10,000 zł a day)') }}</option>
+        <option value="liquid">{{ _('Liquid (≥ 100,000 zł a day)') }}</option>
+      </select>
+    </label>
+    <label class="grow">{{ _('Search') }}
+      <input type="search" data-field="q" placeholder="{{ _('Ticker or company') }}" autocomplete="off">
+    </label>
+    <fieldset class="groups">
+      <legend>{{ _('Columns') }}</legend>
+      {% for g, label in [('trend', 'vs WIG'), ('tech', 'Technical'), ('risk', 'Risk'), ('liq', 'Liquidity'), ('model', 'Model'), ('fund', 'Fundamentals')] %}
+      <label class="check"><input type="checkbox" data-field="groups" value="{{ g }}"> {{ _(label) }}</label>
+      {% endfor %}
+    </fieldset>
+  </form>
+  <p class="scr-setup small" aria-live="polite" hidden></p>
+  <p class="muted small scr-count" aria-live="polite"></p>
+  <div class="scroll"><table class="scr-table"><thead><tr></tr></thead><tbody><tr><td class="muted">{{ _('Loading…') }}</td></tr></tbody></table></div>
+  <p class="muted small scroll-hint">{{ _('Scroll sideways for all columns.') }}</p>
+  <p class="muted small">{{ _('screener_note') }}</p>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="{{ assets }}static/js/indicators.js?v={{ ctx.day }}"></script>
+<script src="{{ assets }}static/js/chart.js?v={{ ctx.day }}"></script>
+<script src="{{ assets }}static/js/screener.js?v={{ ctx.day }}"></script>
+<script>
+UCScreener.mount(document.getElementById('screener'), {
+  url: '{{ assets }}data/screener.json?v={{ ctx.day }}',
+  stockBase: 'stock/',
+  labels: {{ {
+    'cols': {'ticker': _('Stock'), 'close': _('Close'), 'ret': _('Today'), 'x5': _('5 s.'), 'x20': _('20 s.'), 'x60': _('60 s.'), 'x250': _('1 y.'), 'rsi': 'RSI', 'd50': _('vs SMA50'), 'd200': _('vs SMA200'), 'dhi': _('vs 52w high'), 'atr': 'ATR', 's20': 'σ 20', 'beta': 'β', 'z': _('Surprise'), 'turnover': _('Turnover'), 'cost': _('Cost'), 'fc': _('Forecast'), 'fc_rank': _('Rank'), 'insider_net': _('Insiders 20 s.'), 'ey': 'E/P', 'prof': _('EBIT/assets'), 'ag': _('Asset growth'), 'acc': _('Accruals')},
+    'titles': {'ret': _('t_ret'), 'x5': _('t_x'), 'x20': _('t_x'), 'x60': _('t_x'), 'x250': _('t_x'), 'rsi': _('t_rsi'), 'd50': _('t_dma'), 'd200': _('t_dma'), 'dhi': _('t_dhi'), 'atr': _('t_atr'), 's20': _('t_s20'), 'beta': _('t_beta'), 'z': _('t_z'), 'turnover': _('t_turnover'), 'cost': _('t_cost'), 'fc': _('t_fc'), 'fc_rank': _('t_fc'), 'insider_net': _('t_insider'), 'ey': _('t_fund'), 'prof': _('t_fund'), 'ag': _('t_fund'), 'acc': _('t_fund')},
+    'setups': ctx.preset_setups|setup_lines,
+    'count': _('{n} of {t} listed stocks'), 'none': _('No stock matches.'), 'more': _('{n} more: narrow the filters to see them.'), 'loadError': _('The screener data could not be loaded.')
+  }|tojson }}
+});
+</script>
+{% endblock %}

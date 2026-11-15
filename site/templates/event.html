@@ -5,7 +5,7 @@
 {% set c = e.company %}
 {% set insider = e.signal_type == 'insider_tx' %}
 <p class="crumbs"><a href="../index.html">{{ _('Today') }}</a> · <a href="../archive.html">{{ _('Archive') }}</a> / {{ e.ticker }} · {{ e.issuer_name|company }} / {{ e.label_key|label }}, {{ e.pub_date }}</p>
-<p class="tags"><span class="tick-sym">{{ e.ticker }}</span> <span class="chip chip-{{ e.filter }}">{{ e.label_key|label }}</span> <span class="muted" lang="pl">{{ e.legal_basis or '' }} · {{ e.system }} {{ e.report_number }}</span></p>
+<p class="tags">{% if e.stock_slug %}<a href="../stock/{{ e.stock_slug }}.html" title="{{ _('Chart and indicators of {t}', t=e.ticker) }}"><span class="tick-sym">{{ e.ticker }}</span></a>{% else %}<span class="tick-sym">{{ e.ticker }}</span>{% endif %} <span class="chip chip-{{ e.filter }}">{{ e.label_key|label }}</span> <span class="muted" lang="pl">{{ e.legal_basis or '' }} · {{ e.system }} {{ e.report_number }}</span></p>
 <h1 lang="pl">{{ e.title or e.subject }}</h1>
 
 <section class="verdict-box v-box-{{ s.verdict if s else 'too_few' }}">
@@ -78,6 +78,15 @@
   </section>
 </div>
 
+{% if e.stock_slug and e.isin %}
+<section class="panel chart-panel stock-chart" id="event-chart">
+  <div class="card-head"><h2>{{ _('{t} around this report', t=e.ticker) }}</h2><a href="../stock/{{ e.stock_slug }}.html">{{ _('Full chart and indicators') }} →</a></div>
+  <div class="chart-controls" hidden><button type="button" data-range="all" aria-pressed="false"></button></div>
+  <div class="chart-legend small" aria-live="off"></div>
+  <div class="lw-host chart-host chart-short"></div>
+</section>
+{% endif %}
+
 <div class="event-stats">
 <section class="panel chart-panel">
   <h2>{{ _('What happened after {n} similar events', n=e.path_n|num) if e.path_n else _('What happened after similar events') }}</h2>
@@ -108,3 +117,21 @@
   </table></div>
 </section>
 {% endblock %}
+{% block scripts %}
+{% if e.stock_slug and e.isin %}
+<script src="{{ assets }}static/vendor/lightweight-charts-5.2.1/lightweight-charts.standalone.production.js?v={{ ctx.day }}"></script>
+<script src="{{ assets }}static/js/indicators.js?v={{ ctx.day }}"></script>
+<script src="{{ assets }}static/js/chart.js?v={{ ctx.day }}"></script>
+<script>
+UCChart.stock(document.getElementById('event-chart'), {
+  marketUrl: '{{ assets }}data/market.json?v={{ ctx.day }}',
+  stockUrl: '{{ assets }}data/stocks/{{ e.isin }}.json?v={{ ctx.day }}',
+  eventBase: '',
+  focus: '{{ e.day0 or e.pub_date }}',
+  height: 380,
+  labels: {{ {'surprise': _('Surprise'), 'beta': _('Beta to WIG'), 'turnover': _('Turnover'), 'loadError': _('Chart data could not be loaded.'), 'kinds': kinds}|tojson }}
+});
+</script>
+{% endif %}
+{% endblock %}
+{% block footer_extra %}{% if e.stock_slug %}<p class="small">{{ _('Charts') }}: TradingView Lightweight Charts™, © TradingView, Inc. <a href="https://www.tradingview.com/" rel="noopener">tradingview.com</a>.</p>{% endif %}{% endblock %}

@@ -1,8 +1,9 @@
 """Render the static site (Jinja2 + inline SVG) and send the Telegram digest.
 
-The site is plain HTML/CSS with a few lines of vanilla JS for the report-type filter.
-No framework, no build step. Telegram is a plain HTTPS POST to the Bot API; the token is
-read from the environment and never logged.
+The site is plain HTML/CSS. The analysis pages (market, screener, one page per stock) draw
+their charts in the browser from JSON that ``stock_export`` writes, with vanilla JS and the
+vendored Lightweight Charts library. No framework, no build step. Telegram is a plain HTTPS
+POST to the Bot API; the token is read from the environment and never logged.
 """
 
 from __future__ import annotations
@@ -232,6 +233,12 @@ class SiteContext:
     record: list[dict[str, Any]] = field(default_factory=list)
     # stock of the week (pick.py): None until the pick has been computed
     pick: dict[str, Any] | None = None
+    # the analysis pages' data (stock_export.ToolData): None without a built work dir
+    tool: Any = None
+    # chart setups through the event study (setups.py), per horizon like ``stats``
+    setups: dict[int, list[dict[str, Any]]] = field(default_factory=dict)
+    # screener preset → its setup's row at the headline horizon
+    preset_setups: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 def headline_horizon(key: str, by_key_h: dict[tuple[str, int], dict[str, Any]]) -> int:
@@ -393,6 +400,7 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
         )
         by_h[h] = rows
     stat20 = {r["signal_key"]: r for r in by_h.get(HORIZON_DEFAULT, [])}
+    setups_by_h, preset_setups = _setup_rows(work)
     by_key_h = {(r["signal_key"], int(r["horizon"])): r for r in stats_rows}
     summary = {
         "tested": len(stat20),
@@ -534,6 +542,17 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
     tiers = _tiers(worth)
     record = _track_record([i for d in archive for i in d["events"]])
     pick_ctx = _pick_context(work, data_dir, day, reports, by_key_h, events)
+    from undercurrent import stock_export
+
+    tool = stock_export.build(
+        work, day, pages={e["report_id"] for e in events}, forecast=_forecast_rows(work, day)
+    )
+    links = xtb.read_links(data_dir)
+    for meta in tool.stocks:
+        meta["xtb_url"] = links.get(meta["isin"])
+    slugs = tool.slug_by_isin
+    for item in (*feed, *events):
+        item["stock_slug"] = slugs.get(item.get("isin") or "")
 
     runs_df = lake.read_state(data_dir, "runs")
     runs = runs_df.sort("started_at", descending=True).to_dicts() if runs_df is not None else []
@@ -620,6 +639,44 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
         tiers=tiers,
         record=record,
         pick=pick_ctx,
+        tool=tool,
+        setups=setups_by_h,
+        preset_setups=preset_setups,
+    )
+
+
+def _setup_rows(
+    work: Path,
+) -> tuple[dict[int, list[dict[str, Any]]], dict[str, dict[str, Any]]]:
+    """Chart setups' statistics per horizon (verdict order), and per screener preset."""
+    from undercurrent import setups
+
+    path = work / "gold" / "setup_stats.parquet"
+    if not path.exists():
+        return {}, {}
+    by_h: dict[int, list[dict[str, Any]]] = {}
+    for r in pl.read_parquet(path).to_dicts():
+        by_h.setdefault(int(r["horizon"]), []).append(r)
+    for rows in by_h.values():
+        rows.sort(key=lambda r: (VERDICT_ORDER.get(r["verdict"], 9), -(r["n"] or 0)))
+    head = {r["signal_key"]: r for r in by_h.get(HORIZON_DEFAULT, [])}
+    presets = {
+        p: head[f"setup:{k}"] for p, k in setups.PRESET_SETUP.items() if f"setup:{k}" in head
+    }
+    return dict(sorted(by_h.items())), presets
+
+
+def _setup_line(r: dict[str, Any], lang: str) -> str:
+    """One sentence (HTML) on how stocks entering a screener preset have done."""
+    _ = i18n.tr(lang)
+    v = html.escape(r["verdict"])
+    label = html.escape(i18n.VERDICT_LABELS[lang].get(r["verdict"], r["verdict"]))
+    return _(
+        "setup_line",
+        n=i18n.num(r["n"], lang),
+        mean=i18n.pct(r.get("mean_car"), lang),
+        oos=i18n.pct(r.get("oos_mean_net"), lang),
+        verdict=f'<span class="verdict v-{v}">{label}</span>',
     )
 
 
@@ -1165,13 +1222,14 @@ def _env(lang: str = "en") -> Environment:
         "period": lambda h: pages.horizon_words(h, lang),
         "explain": lambda v: i18n.VERDICT_EXPLAIN[lang].get(v or "", ""),
         "tier": lambda v: i18n.TIER_TITLES[lang].get(v or "", ""),
+        "setup_lines": lambda presets: {p: _setup_line(r, lang) for p, r in presets.items()},
         "dm": lambda d: f"{d:%d.%m}" if d else "",
         "longdate": lambda d: i18n.long_date(d, lang),
         "health": lambda bits: health_text(bits, lang),
         "decimal": lambda x, d=2: (
             "—"
             if not isinstance(x, int | float) or (isinstance(x, float) and math.isnan(x))
-            else i18n.group_digits(f"{x:.{d}f}", lang)
+            else i18n.group_digits(f"{x:,.{d}f}", lang)
         ),
         "pct2": lambda x: i18n.pct(x, lang, digits=2),
         "qval": lambda q: (
@@ -1216,7 +1274,24 @@ def _render_lang(ctx: SiteContext, out: Path, lang: str) -> list[Path]:
         (base / name).write_text(text, encoding="utf-8")
         written.append(base / name)
 
-    write("index.html", "today.html", page="today")
+    tool = ctx.tool
+    kinds = {k: label_for(k, lang) for k in i18n.SIGNAL_LABELS[lang]}
+    write("index.html", "market.html", page="market", kinds=kinds)
+    write("reports.html", "today.html", page="reports")
+    write("screener.html", "screener.html", page="screener")
+    if tool is not None:
+        (base / "stock").mkdir(parents=True, exist_ok=True)
+        rows = {r["isin"]: r for r in tool.screener}
+        for st in tool.stocks:
+            write(
+                f"stock/{st['slug']}.html",
+                "stock.html",
+                depth=1,
+                page="stock",
+                s=st,
+                row=rows.get(st["isin"]),
+                kinds=kinds,
+            )
     for h in ctx.stats:
         write(f"signals-{h}d.html", "signals.html", page="signals", horizon=h)
     shutil.copy(base / f"signals-{HORIZON_DEFAULT}d.html", base / "signals.html")
@@ -1225,7 +1300,7 @@ def _render_lang(ctx: SiteContext, out: Path, lang: str) -> list[Path]:
     write("glossary.html", "glossary.html", page="glossary")
     write("pick.html", "pick.html", page="pick")
     for e in ctx.events:
-        write(f"event/{e['slug']}.html", "event.html", depth=1, page="event", e=e)
+        write(f"event/{e['slug']}.html", "event.html", depth=1, page="event", e=e, kinds=kinds)
     return written
 
 
@@ -1234,6 +1309,8 @@ def render_site(ctx: SiteContext, out: Path) -> list[Path]:
     if out.exists():
         shutil.rmtree(out)
     shutil.copytree(SITE_DIR / "static", out / "static")
+    if ctx.tool is not None and ctx.tool.staging.exists():
+        shutil.copytree(ctx.tool.staging, out / "data")
     written = [p for lang in i18n.LANGS for p in _render_lang(ctx, out, lang)]
     (out / ".nojekyll").write_text("", encoding="utf-8")
     return written
@@ -1274,7 +1351,7 @@ def digest_message(ctx: SiteContext, max_items: int = 5) -> tuple[str, dict[str,
             f"Stock of the week: <b>{e(pk['pick']['ticker'] or '')}</b> · model: {verdict}",
         ]
     lines += ["", f"<i>{e(ctx.health)}</i>", "Not investment advice. Historical statistics only."]
-    buttons = [{"text": "Open dashboard", "url": ctx.site_url}]
+    buttons = [{"text": "Tonight's reports", "url": f"{ctx.site_url}reports.html"}]
     if ctx.worth:
         first = ctx.worth[0]
         buttons.append(

@@ -610,6 +610,34 @@ it costs. Method details (event study, walk-forward, verdicts) are in
   the next session's close, and the purge waits one session longer. The live record keeps
   its picks; only their measured results move by one session.
 
+## Analysis pages: market, screener, charts (2026-11-15)
+
+- **From a report feed to an analysis tool.** The home page was the day's report feed. The
+  pipeline already computes far more per stock (adjusted prices, σ, betas, surprises,
+  regime, liquidity, costs, forecasts) than the site showed, so the home page is now the
+  market, every stock has a chart page, and a screener lists them all. The feed is
+  `reports.html`; event URLs and the Telegram digest are unchanged.
+- **Both layers on one chart.** Classic indicators (moving averages, RSI, MACD, Bollinger,
+  ATR, 52-week range) and the market state (surprise, beta, the σ band) on the same chart,
+  so a reader can set a chart pattern against what the pipeline measured.
+- **Python computes, the browser draws.** Every number the screener and the pages show is
+  computed in Python. The browser only recomputes an indicator when a reader changes its
+  parameter, with the same formulas, checked against Python in the tests.
+- **Lightweight Charts, vendored.** TradingView's Lightweight Charts 5.2.1 (Apache-2.0,
+  about 200 kB, panes, markers), copied unchanged into `site/static/vendor/` with its licence
+  and the notice it asks for; the chart shows TradingView's link. No CDN, no build step.
+  Lines are drawn as one series per stretch of data, because the library joins a line across
+  blank points: a hole in the lake would otherwise show as a straight line across months.
+- **Every stock, whole history, one file each.** Delisted stocks keep their page so old event
+  pages still have a chart. To keep a file near 100 kB, volume bars use turnover in złoty
+  (also comparable across a split, which a share count is not), σ, beta and surprise keep
+  two significant digits, report kinds are an index into a short list, and only the latest
+  60 reports keep their titles (the page lists 40; older markers keep their kind and link).
+- **Presets are tested, not recommended.** A screener preset is a filter. Each one becomes a
+  chart setup run through the event study (METHODOLOGY § 11), and the screener shows that
+  result next to it. On the current lake none holds up after costs; the 52-week high is
+  significant in sample and positive out of sample, but not significantly.
+
 ## Known limitations
 
 - Insider trade details (side, volume, price) are missing for reports that no portal

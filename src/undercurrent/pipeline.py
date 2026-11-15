@@ -248,6 +248,7 @@ def run_day(
             transform.build(data_dir, work_dir)
             stats_path = study.run_study(transform.duckdb_path(work_dir), work_dir, day)
             snapshot_gold(data_dir, stats_path, day)
+            _run_setups(work_dir, transform.duckdb_path(work_dir), day)
             _run_market_state(work_dir, transform.duckdb_path(work_dir), day)
             _run_pick(work_dir, data_dir, transform.duckdb_path(work_dir), day)
             _refresh_xtb_links(client, data_dir, transform.duckdb_path(work_dir), clock())
@@ -320,6 +321,21 @@ def _report_price_cases(work_dir: Path) -> None:
     if summary:
         with open(summary, "a", encoding="utf-8") as fh:
             fh.write(text)
+
+
+def _run_setups(work_dir: Path, duckdb_file: Path, day: date) -> None:
+    """Chart setups through the event study (``setups.py``). A failure is logged, not fatal.
+
+    A table from an earlier run is removed first, so the site never shows yesterday's.
+    """
+    from undercurrent import setups
+
+    for name in ("setup_stats.parquet", "setup_paths.parquet"):
+        (work_dir / "gold" / name).unlink(missing_ok=True)
+    try:
+        setups.run_setups(duckdb_file, work_dir, day)
+    except Exception as exc:  # the digest must not wait on it
+        log.warning("chart setups not computed: %s: %s", type(exc).__name__, exc)
 
 
 def _run_market_state(work_dir: Path, duckdb_file: Path, day: date) -> None:

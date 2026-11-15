@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Market · Undercurrent') }}{% endblock %}
+{% block main %}
+{% set t = ctx.tool %}
+{% set m = t.market if t else {} %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">{{ (m.day or ctx.day)|longdate }} · GPW + NewConnect</p>
+    <h1>{{ _('The market tonight') }}</h1>
+  </div>
+  <p class="lede">{{ _('market_lede') }} <a href="glossary.html">{{ _('How to read this page') }}</a></p>
+</section>
+
+{% if m.indices %}
+<section class="tiles idx-tiles" aria-label="{{ _('Indices') }}">
+  {% for i in m.indices %}
+  <div class="tile">
+    <span>{{ {'MWIG40': 'mWIG40', 'SWIG80': 'sWIG80', 'TBSP.INDEX': 'TBSP'}.get(i.name, i.name) }}</span>
+    <b class="mono">{{ i.close|decimal(2) }} <span class="idx-day {{ i.r1|tone }}">{{ i.r1|pct }}</span></b>
+    <small class="mono idx-more"><span><span class="muted">{{ _('20 s.') }}</span> <span class="{{ i.r20|tone }}">{{ i.r20|pct }}</span></span> <span><span class="muted">{{ _('1 y.') }}</span> <span class="{{ i.r250|tone }}">{{ i.r250|pct }}</span></span></small>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+<div class="split market-split">
+  <section class="panel chart-panel">
+    <div class="card-head">
+      <h2>WIG</h2>
+      {% if m.regime is not none and m.regime is defined %}
+      <span class="badge {{ 'badge-thin' if m.regime > 0.5 else 'badge-ok' }}" title="{{ _('regime_title') }}">{{ _('Stress regime: {p}', p=m.regime|share) }}</span>
+      {% endif %}
+    </div>
+    <div class="lw-host market-chart" id="market-chart" aria-label="{{ _('WIG, the stress probability and the share of stocks above their 200-session average') }}"></div>
+    <p class="muted small chart-key" id="market-key"></p>
+  </section>
+
+  <aside class="side-stack">
+    {% if m.breadth %}
+    {% set b = m.breadth %}
+    <section class="panel">
+      <h2>{{ _('Breadth, main market') }}</h2>
+      <dl class="kv kv-tight">
+        <dt>{{ _('Up / down today') }}</dt><dd class="mono"><span class="up">{{ b.adv }}</span> / <span class="down">{{ b.dec }}</span></dd>
+        <dt>{{ _('Above their 200-session average') }}</dt><dd class="mono">{{ b.above200 }} {{ _('of') }} {{ b.n200 }}{% if b.n200 %} <small class="muted">({{ (b.above200 / b.n200)|share }})</small>{% endif %}</dd>
+        <dt>{{ _('New 52-week highs / lows') }}</dt><dd class="mono"><a href="screener.html#preset=new_hi&tier=all"><span class="up">{{ b.new_hi }}</span></a> / <a href="screener.html#preset=new_lo&tier=all"><span class="down">{{ b.new_lo }}</span></a></dd>
+      </dl>
+    </section>
+    {% endif %}
+    {% set k = ctx.pick %}
+    {% if k and k.ready and k.pick %}
+    <a class="card pick-card" href="pick.html">
+      <span class="eyebrow">★ {{ _('Stock of the week') }}</span>
+      <span class="pick-line"><span class="tick-sym">{{ k.pick.ticker }}</span> <span class="muted">{{ k.pick.name|company }}</span></span>
+      <span class="small">{{ _('See the full analysis') }} →</span>
+    </a>
+    {% endif %}
+    <a class="card report-card" href="reports.html">
+      <span class="eyebrow">{{ _('Reports tonight') }}</span>
+      <span class="report-counts mono"><b>{{ ctx.counts.reports }}</b> <span class="muted">·</span> {{ _('insider') }} {{ ctx.counts.insider }} · {{ _('inside info') }} {{ ctx.counts.inside }} · {{ _('holdings') }} {{ ctx.counts.holder }}</span>
+      <span class="small">{{ _('Open the report feed') }} →</span>
+    </a>
+  </aside>
+</div>
+
+{% macro movers(title, rows, kind) %}
+<section class="panel">
+  <h2>{{ title }}</h2>
+  <ol class="movers">
+    {% for r in rows %}
+    <li>
+      <a href="stock/{{ r.slug }}.html"><span class="tick-sym">{{ r.ticker }}</span></a>
+      <span class="muted mv-name">{{ r.name|company }}{{ ' · NC' if r.market == 'NC' else '' }}</span>
+      {% if kind == 'z' %}<b class="mono {{ r.z|tone }}">{{ r.z|decimal(1) }}σ</b> <small class="mono {{ r.ret|tone }}">{{ r.ret|pct }}</small>
+      {% else %}<b class="mono {{ r.ret|tone }}">{{ r.ret|pct }}</b>{% if r.z is not none %} <small class="mono muted">{{ r.z|decimal(1) }}σ</small>{% endif %}{% endif %}
+    </li>
+    {% else %}<li class="muted">—</li>{% endfor %}
+  </ol>
+</section>
+{% endmacro %}
+{% if m.up is defined %}
+<div class="tiles three movers-grid">
+  {{ movers(_('Biggest rises'), m.up, 'ret') }}
+  {{ movers(_('Biggest falls'), m.down, 'ret') }}
+  {{ movers(_('Biggest surprises'), m.surprised, 'z') }}
+</div>
+<p class="muted small">{{ _('movers_note') }}</p>
+{% endif %}
+
+<section class="panel presets">
+  <div class="card-head"><h2>{{ _('Screener') }}</h2><a href="screener.html">{{ _('All {n} listed stocks', n=m.listed or 0) }} →</a></div>
+  <ul class="preset-links">
+    {% for key, label in [('new_hi', 'New 52-week high'), ('rsi_low', 'RSI below 30'), ('rsi_high', 'RSI above 70'), ('above200', 'Above both averages'), ('surprise', 'Surprise beyond 3σ today'), ('insider', 'Insider buying, last 20 sessions'), ('forecast', 'Model forecast, liquid WIG')] %}
+    <li><a class="btn btn-ghost" href="screener.html#preset={{ key }}">{{ _(label) }}</a></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}
+{% block footer_extra %}<p class="small">{{ _('Charts') }}: TradingView Lightweight Charts™, © TradingView, Inc. <a href="https://www.tradingview.com/" rel="noopener">tradingview.com</a>.</p>{% endblock %}
+{% block scripts %}
+<script src="{{ assets }}static/vendor/lightweight-charts-5.2.1/lightweight-charts.standalone.production.js?v={{ ctx.day }}"></script>
+<script src="{{ assets }}static/js/indicators.js?v={{ ctx.day }}"></script>
+<script src="{{ assets }}static/js/chart.js?v={{ ctx.day }}"></script>
+<script>
+UCChart.market(document.getElementById('market-chart'), {
+  marketUrl: '{{ assets }}data/market.json?v={{ ctx.day }}',
+  legendEl: document.getElementById('market-key'),
+  labels: {{ {'stress': _('stress probability'), 'breadth': _('share above the 200-session average'), 'loadError': _('Chart data could not be loaded.')}|tojson }}
+});
+</script>
+{% endblock %}

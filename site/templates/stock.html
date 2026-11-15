@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}{{ s.ticker }} · {{ s.name|company }} · Undercurrent{% endblock %}
+{% macro chart_controls() %}
+<div class="chart-controls" role="group" aria-label="{{ _('Chart settings') }}">
+  <div class="seg-btns" role="group" aria-label="{{ _('Range') }}">
+    {% for r, label in [('1m', '1M'), ('3m', '3M'), ('6m', '6M'), ('1y', '1Y'), ('3y', '3Y'), ('all', _('All'))] %}
+    <button type="button" data-range="{{ r }}" aria-pressed="{{ 'true' if r == '1y' else 'false' }}">{{ label }}</button>
+    {% endfor %}
+  </div>
+  <details class="chart-opts" id="chart-opts">
+  <summary>{{ _('Indicators') }}</summary>
+  <fieldset class="checks">
+    <legend>{{ _('On the price') }}</legend>
+    <label class="check"><input type="checkbox" data-overlay="sma20"> <span class="sw sw-violet"></span>SMA 20</label>
+    <label class="check"><input type="checkbox" data-overlay="sma50"> <span class="sw sw-amber"></span>SMA 50</label>
+    <label class="check"><input type="checkbox" data-overlay="sma200"> <span class="sw sw-accent"></span>SMA 200</label>
+    <label class="check"><input type="checkbox" data-overlay="bb"> Bollinger 20, 2</label>
+    <label class="check" title="{{ _('band_title') }}"><input type="checkbox" data-overlay="band"> {{ _('σ band, forecast 20 sessions earlier') }}</label>
+    <label class="check"><input type="checkbox" data-adjusted checked> {{ _('Adjusted for dividends and splits') }}</label>
+  </fieldset>
+  <fieldset class="checks">
+    <legend>{{ _('Panes') }}</legend>
+    <label class="check"><input type="checkbox" data-pane="rsi"> RSI 14</label>
+    <label class="check"><input type="checkbox" data-pane="macd"> MACD 12, 26, 9</label>
+    <label class="check"><input type="checkbox" data-pane="atr"> ATR 14</label>
+    <label class="check" title="{{ _('t_z') }}"><input type="checkbox" data-pane="z"> {{ _('Surprise (σ)') }}</label>
+    <label class="check" title="{{ _('t_beta') }}"><input type="checkbox" data-pane="beta"> {{ _('Beta to WIG') }}</label>
+  </fieldset>
+  </details>
+</div>
+<script>if (window.matchMedia('(min-width: 900px)').matches) document.getElementById('chart-opts').open = true;</script>
+{% endmacro %}
+{% block main %}
+{% set r = row %}
+<p class="crumbs"><a href="../index.html">{{ _('Market') }}</a> · <a href="../screener.html">{{ _('Screener') }}</a> / {{ s.ticker }}</p>
+<section class="stock-head">
+  <div>
+    <h1><span class="tick-sym big">{{ s.ticker }}</span> <span class="stock-name">{{ s.name|company }}</span></h1>
+    <p class="tags">
+      <span class="chip">{{ 'NewConnect' if s.market == 'NC' else 'GPW' }}</span>
+      {% if s.tier %}<span class="badge {{ 'badge-thin' if s.tier == 'thin' else 'badge-ok' }}">{{ {'thin': _('Too thin to trade'), 'tradable': _('Tradable'), 'liquid': _('Liquid')}.get(s.tier, s.tier) }}</span>{% endif %}
+      {% if not s.listed %}<span class="badge badge-thin">{{ _('No session since {d}', d=s.last) }}</span>{% endif %}
+      <span class="muted mono small">ISIN {{ s.isin }}</span>
+    </p>
+  </div>
+  {% if r %}
+  <dl class="head-stats">
+    <div><dt>{{ _('Close') }} <small class="muted">{{ s.last|dm }}</small></dt><dd class="mono big">{{ r.close|decimal(2) }}</dd></div>
+    <div><dt>{{ _('Today') }}</dt><dd class="mono {{ r.ret|tone }}">{{ r.ret|pct }}</dd></div>
+    <div><dt>{{ _('vs WIG, 20 s.') }}</dt><dd class="mono {{ r.x20|tone }}">{{ r.x20|pct }}</dd></div>
+    <div><dt>{{ _('vs WIG, 1 y.') }}</dt><dd class="mono {{ r.x250|tone }}">{{ r.x250|pct }}</dd></div>
+  </dl>
+  {% endif %}
+</section>
+
+<section class="panel chart-panel stock-chart" id="stock-chart">
+  {{ chart_controls() }}
+  <div class="chart-legend small" aria-live="off"></div>
+  <div class="lw-host chart-host" aria-label="{{ _('Price chart of {t}', t=s.ticker) }}"></div>
+  <p class="muted small chart-key"><span class="dot dot-insider"></span>{{ _('insider') }} <span class="dot dot-sell"></span>{{ _('insider selling') }} <span class="dot dot-holder"></span>{{ _('holdings') }} <span class="dot dot-inside"></span>{{ _('inside info') }} · {{ _('chart_note') }}</p>
+</section>
+
+<div class="split halves">
+  <section class="panel">
+    <h2>{{ _('Indicators tonight') }}</h2>
+    {% if r %}
+    <dl class="kv kv-tight">
+      <dt>RSI 14</dt><dd class="mono">{{ r.rsi|decimal(0) }}</dd>
+      <dt>{{ _('vs SMA50 / SMA200') }}</dt><dd class="mono"><span class="{{ r.d50|tone }}">{{ r.d50|pct }}</span> / <span class="{{ r.d200|tone }}">{{ r.d200|pct }}</span></dd>
+      <dt>{{ _('vs 52-week high / low') }}</dt><dd class="mono"><span class="{{ r.dhi|tone }}">{{ r.dhi|pct }}</span> / <span class="{{ r.dlo|tone }}">{{ r.dlo|pct }}</span>{% if r.new_hi %} <span class="badge badge-ok">{{ _('new high') }}</span>{% elif r.new_lo %} <span class="badge badge-thin">{{ _('new low') }}</span>{% endif %}</dd>
+      <dt>ATR 14</dt><dd class="mono">{{ r.atr|share }} <small class="muted">{{ _('of the price, a typical day’s range') }}</small></dd>
+      <dt>{{ _('vs WIG, 5 / 60 s.') }}</dt><dd class="mono"><span class="{{ r.x5|tone }}">{{ r.x5|pct }}</span> / <span class="{{ r.x60|tone }}">{{ r.x60|pct }}</span></dd>
+    </dl>
+    {% else %}<p class="muted">{{ _('Not listed any more, or no recent session: the chart shows its history.') }}</p>{% endif %}
+  </section>
+  <section class="panel">
+    <h2>{{ _('Risk, cost and the model') }}</h2>
+    {% if r %}
+    <dl class="kv kv-tight">
+      <dt>{{ _('Expected volatility, next 20 sessions') }}</dt><dd class="mono">{{ r.s20|share }}</dd>
+      <dt>{{ _('Beta to WIG') }}</dt><dd class="mono">{{ r.beta|decimal(2) }}</dd>
+      <dt>{{ _('Surprise today') }}</dt><dd class="mono">{% if r.z is not none %}{{ r.z|decimal(1) }}σ{% else %}—{% endif %}</dd>
+      <dt>{{ _('Median daily turnover') }}</dt><dd class="mono">{{ r.turnover|short_pln }} PLN</dd>
+      <dt>{{ _('Round trip costs about') }}</dt><dd class="mono">{{ r.cost|share }}</dd>
+      <dt>{{ _('Forecast vs WIG, 20 sessions') }}</dt><dd>{% if r.fc is not none %}<b class="mono {{ r.fc|tone }}">{{ r.fc|pct }}</b> <small class="muted">{{ _('rank {r} among liquid WIG stocks', r=r.fc_rank) }} · <a href="../pick.html">{{ _('the model') }}</a></small>{% else %}<span class="muted">{{ _('none: the model scores only liquid WIG stocks with a year of history') }}</span>{% endif %}</dd>
+      {% if r.insider_net %}<dt>{{ _('Insiders, last 20 sessions') }}</dt><dd class="mono {{ r.insider_net|tone }}">{{ r.insider_net|short_pln }} PLN <small class="muted">{{ _('bought minus sold') }}</small></dd>{% endif %}
+      {% if r.prof is not none or r.ey is not none %}<dt>{{ _('Last annual report (ESEF)') }}</dt><dd class="mono small">E/P {{ r.ey|pct }} · {{ _('EBIT/assets') }} {{ r.prof|pct }} · {{ _('asset growth') }} {{ r.ag|pct }} · {{ _('accruals') }} {{ r.acc|pct }}</dd>{% endif %}
+    </dl>
+    {% else %}<p class="muted">—</p>{% endif %}
+    {% if s.xtb_url %}<p><a class="ext" href="{{ s.xtb_url }}" rel="noopener nofollow">{{ _('{t} on XTB ↗', t=s.ticker) }}</a><br><small class="muted">{{ _('xtb_note') }}</small></p>{% endif %}
+  </section>
+</div>
+
+<section class="panel">
+  <h2>{{ _('Reports of this company') }}</h2>
+  <ul class="feed wide compact" id="stock-events"><li class="muted">{{ _('Loading…') }}</li></ul>
+</section>
+{% endblock %}
+{% block footer_extra %}<p class="small">{{ _('Charts') }}: TradingView Lightweight Charts™, © TradingView, Inc. <a href="https://www.tradingview.com/" rel="noopener">tradingview.com</a>.</p>{% endblock %}
+{% block scripts %}
+<script src="{{ assets }}static/vendor/lightweight-charts-5.2.1/lightweight-charts.standalone.production.js?v={{ ctx.day }}"></script>
+<script src="{{ assets }}static/js/indicators.js?v={{ ctx.day }}"></script>
+<script src="{{ assets }}static/js/chart.js?v={{ ctx.day }}"></script>
+<script>
+UCChart.stock(document.getElementById('stock-chart'), {
+  marketUrl: '{{ assets }}data/market.json?v={{ ctx.day }}',
+  stockUrl: '{{ assets }}data/stocks/{{ s.isin }}.json?v={{ ctx.day }}',
+  eventBase: '../event/',
+  eventsEl: document.getElementById('stock-events'),
+  labels: {{ {'surprise': _('Surprise'), 'beta': _('Beta to WIG'), 'turnover': _('Turnover'), 'noEvents': _('No signal reports in the lake yet.'), 'loadError': _('Chart data could not be loaded.'), 'kinds': kinds}|tojson }}
+});
+</script>
+{% endblock %}

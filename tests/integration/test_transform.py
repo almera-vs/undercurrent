@@ -38,6 +38,16 @@ def test_run_day_with_transform_builds_gold(tmp_path):
     assert (tmp_path / "site" / "index.html").exists()
     assert (tmp_path / "site" / "en" / "index.html").exists()
     assert (tmp_path / "site" / "signals-20d.html").exists()
+    # the analysis pages: market home, screener, reports, one page and one data file per stock
+    site = tmp_path / "site"
+    for page in ("screener.html", "reports.html", "en/screener.html", "en/reports.html"):
+        assert (site / page).exists(), page
+    assert (site / "data" / "market.json").exists()
+    assert (site / "data" / "screener.json").exists()
+    stock_files = list((site / "data" / "stocks").glob("*.json"))
+    stock_pages = list((site / "stock").glob("*.html"))
+    assert stock_files and len(stock_pages) == len(stock_files)
+    assert (site / "static" / "vendor" / "lightweight-charts-5.2.1" / "NOTICE").exists()
     assert (
         (tmp_path / "digests" / "2026" / "11" / "06.md")
         .read_text("utf-8")

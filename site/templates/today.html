@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ _('Today · Undercurrent') }}{% endblock %}
+{% block title %}{{ _('Reports · Undercurrent') }}{% endblock %}
 {% block main %}
 {% set n = ctx.counts.reports %}
 <section class="hero">
@@ -40,7 +40,7 @@
           {% if r.stat %}<span class="verdict v-{{ r.stat.verdict }}" title="{{ r.stat.verdict|explain }}">{{ r.stat.verdict|verdict }}</span>{% endif %}
           {% if c and c.buyable == false %}<span class="badge badge-thin" title="{{ _('thin_title') }}">{{ _('Too thin to trade') }}</span>{% endif %}
         </div>
-        <p class="s-title"><span class="tick-sym">{{ r.ticker }}</span>
+        <p class="s-title">{% if r.stock_slug %}<a href="stock/{{ r.stock_slug }}.html" class="sym-link"><span class="tick-sym">{{ r.ticker }}</span></a>{% else %}<span class="tick-sym">{{ r.ticker }}</span>{% endif %}
           {% if r.is_event %}<a href="event/{{ r.slug }}.html" lang="{{ 'pl' if r.signal_type != 'insider_tx' else lang }}">{{ r|fact }}</a>{% else %}<a href="{{ r.source_url }}" rel="noopener" lang="pl">{{ r|fact }}</a>{% endif %}</p>
         <small class="muted">{{ r.issuer_name|company }}</small>
       </div>

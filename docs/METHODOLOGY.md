@@ -375,3 +375,53 @@ the forecast (DECISIONS, "One source of truth"); the stock of the week reads it 
   and −14.2 % for the whole liquid universe. No stress band exists yet: 2017,
   the history it would be calibrated on, had almost no stress weeks, and the 8 stress weeks
   of 2018 (November and December) have no 20-session outcome before the hole in the lake.
+
+## 11. Analysis pages and chart setups
+
+Code: `src/undercurrent/ta.py` (indicators), `stock_export.py` (data), `setups.py` (setups),
+`site/static/js/` (charts and the screener).
+
+- **Pages.** The home page is the market: WIG with the regime's stress probability and the
+  share of main-market stocks above their 200-session average, the indices, breadth, the
+  day's biggest moves and surprises. The screener lists every listed stock at the last
+  session; every stock has its own page with a chart; the report feed is on its own page.
+- **Data.** `stock_export.build` writes, into the site, `data/market.json` (the session
+  calendar, its segments, the indices, the stress probability, breadth each session),
+  `data/screener.json` (one row per listed stock) and `data/stocks/<ISIN>.json` (one
+  stock's whole history, loaded only by its page). Nothing after the run's session is read.
+- **Prices.** Candles are adjusted: the exchange's open, high, low and close times the
+  factor `adjusted_prices` applies for dividends, splits and rights issues (adjusted close ÷
+  close), so a split does not look like a crash. A switch shows the exchange's own prices.
+  Volume bars are turnover in złoty, which a split does not change.
+- **Indicators.** SMA n; EMA n started from the SMA of the first n closes; Wilder's RSI 14;
+  MACD 12, 26, 9; Bollinger 20 with 2 population standard deviations; Wilder's ATR 14; the
+  52-week high and low over 250 sessions. Each restarts after a hole in the lake and is
+  missing until its window is full. `ta.py` is the reference; the browser has the same
+  formulas (`indicators.js`), and a test runs both on one series and requires them to agree
+  to 1e-9.
+- **The market state on the chart.** Panes for the surprise (σ) and the Kalman beta to WIG;
+  an optional band shows, for each session, the ±1σ range of the close that the state
+  forecast 20 sessions earlier (σ of 20 sessions, `exp(±σ)` around the close then), so a
+  reader can see how often prices stayed inside it.
+- **Screener.** Returns are compounded against WIG over 5, 20, 60 and 250 sessions on the
+  market's calendar, inside one segment. RSI, the distance from SMA50, SMA200 and the 52-week
+  high and low, ATR as a share of the price; σ, beta, surprise, turnover and cost from the
+  market state; the forecast and its rank for liquid WIG stocks; insider buying net of
+  selling in the last 20 sessions; ESEF ratios while the annual report is fresh. Stocks
+  under the `tradable` tier are hidden unless asked for.
+- **Chart setups.** Each screener preset becomes a setup: the session a stock enters the
+  preset's state (a new 52-week high or low, RSI falling below 30 or rising above 70, the
+  close moving above both averages, SMA50 crossing above SMA200). A stock counts a setup
+  again only 20 sessions after its last one. The event is known when its session's prices
+  are, so it reaches that evening's digest and the trade enters at the next session's close.
+  `study.compute_signal_stats` measures them exactly as it measures reports (§ 3–5): buyable
+  stocks, costs, two-way clustering, bootstrap, Benjamini–Hochberg, walk-forward, deflated
+  Sharpe. The setups are their own family: their q-values are adjusted across the six
+  setups, and the report signals' statistics do not change.
+- **First result (2015–2018 and 2025–2026, the lake on 2026-11-12).** A new 52-week high:
+  +2.1 % against WIG over 20 sessions (95 % CI +0.6 % … +3.9 %, q 0.03, 3,557 events), +0.2 %
+  a trade after costs out of sample: "not confirmed". The other five are noise or eaten by
+  costs. The screener shows the matching setup's result next to its preset.
+- **Size.** About 95 kB per stock file (2,500 sessions), about 110 MB for 1,180 stocks, and
+  a third of that after the gzip GitHub Pages applies. The export adds about 40 seconds to
+  the nightly run and the setups about 40 more.
