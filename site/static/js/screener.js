@@ -17,7 +17,9 @@
     ['vol_pct', 'pct', 'risk'],
     ['turnover', 'money', 'liq'], ['cost', 'pct', 'liq'],
     ['fc', 'pct', 'model'], ['fc_rank', 'int', 'model'], ['insider_net', 'money', 'model'],
-    ['ey', 'pct', 'fund'], ['prof', 'pct', 'fund'], ['ag', 'pct', 'fund'], ['acc', 'pct', 'fund']
+    ['ey', 'pct', 'fund'], ['prof', 'pct', 'fund'], ['ag', 'pct', 'fund'], ['acc', 'pct', 'fund'],
+    ['mcap', 'money', 'value'], ['pe', 'num', 'value'], ['pbv', 'num', 'value'], ['dy', 'pct', 'value'],
+    ['fcfy', 'pct', 'value'], ['value', 'rank', 'value'], ['fscore', 'int', 'value'], ['altman', 'num', 'value']
   ];
 
   // Presets that are chart setups are computed in Python (setups.states), the same
@@ -30,11 +32,11 @@
     forecast: function (r) { return r.fc !== null; }
   };
   ['new_hi', 'new_lo', 'rsi_low', 'rsi_high', 'above200', 'pullback', 'squeeze', 'breakout',
-   'oversold', 'trend'].forEach(function (k) { PRESETS[k] = inPreset(k); });
+   'oversold', 'trend', 'cheap', 'quality', 'distress'].forEach(function (k) { PRESETS[k] = inPreset(k); });
   var PRESET_SORT = { new_hi: ['x250', -1], new_lo: ['x250', 1], rsi_low: ['rsi', 1], rsi_high: ['rsi', -1],
     above200: ['x60', -1], surprise: ['z', -1], insider: ['insider_net', -1], forecast: ['fc', -1],
     pullback: ['x250', -1], squeeze: ['atr', 1], breakout: ['rvol', -1], oversold: ['rsi', 1],
-    trend: ['adx', -1] };
+    trend: ['adx', -1], cheap: ['value', -1], quality: ['fscore', -1], distress: ['altman', 1] };
 
   function money(x) {
     if (x === null || !isFinite(x)) return '—';
@@ -50,6 +52,7 @@
     switch (kind) {
       case 'pct': return [C.pct(v), v > 0 ? 'up' : v < 0 ? 'down' : ''];
       case 'num': return [C.fmt(v, v >= 100 ? 1 : 2), ''];
+      case 'rank': return [C.fmt(v * 100, 0), ''];
       case 'int': return [C.fmt(v, 0), ''];
       case 'sigma': return [C.fmt(v, 1) + 'σ', Math.abs(v) >= 3 ? (v > 0 ? 'up' : 'down') : ''];
       case 'money': return [money(v), ''];

@@ -39,7 +39,7 @@ import numpy as np
 import numpy.typing as npt
 import polars as pl
 
-from undercurrent import risk, sectors, setups, ta
+from undercurrent import risk, sectors, setups, ta, valuation
 
 log = logging.getLogger(__name__)
 FloatArray = npt.NDArray[np.float64]
@@ -66,6 +66,7 @@ class ToolData:
     screener: list[dict[str, Any]] = field(default_factory=list)
     market: dict[str, Any] = field(default_factory=dict)
     risk: dict[str, dict[str, Any]] = field(default_factory=dict)  # risk.profile per ISIN
+    valuation: dict[str, dict[str, Any]] = field(default_factory=dict)  # per ISIN, listed GPW
 
     @property
     def slug_by_isin(self) -> dict[str, str]:
@@ -91,6 +92,106 @@ def _price(x: Any) -> float | None:
     if x is None or not math.isfinite(float(x)):
         return None
     return round(float(x), 4)
+
+
+def _add_valuation(
+    tool: ToolData,
+    closes: dict[str, float],
+    facts: pl.DataFrame | None,
+    gpw: pl.DataFrame | None,
+    day: date,
+) -> None:
+    """Valuation of every listed main-market stock (``valuation.py``).
+
+    Into the screener rows and ``tool.valuation``; peers are ranked among these stocks.
+    """
+    from undercurrent import esef
+
+    reports: dict[str, list[dict[str, Any]]] = {}
+    if facts is not None and facts.height:
+        for st in esef.statements(facts):
+            reports.setdefault(st["isin"], []).append(st)
+    table = {r["isin"]: r for r in gpw.iter_rows(named=True)} if gpw is not None else {}
+    rows: list[dict[str, Any]] = []
+    for isin, close in closes.items():
+        rep = valuation.report_on(reports.get(isin, []), day)
+        if rep is not None and rep["currency"] != "PLN":
+            rep = None  # a report in euros against a price in złoty: not without FX rates
+        last = valuation.last_report(reports.get(isin, []), day)
+        g = table.get(isin)
+        y = valuation.yields(close, g, rep)
+        rows.append(
+            {
+                "isin": isin,
+                "sector_code": g["sector_code"] if g else None,
+                "sector": g["sector"] if g else None,
+                "gpw": g,
+                "report": rep,
+                "last": last,
+                **y,
+            }
+        )
+    valuation.percentiles(rows)
+    screener = {r["isin"]: r for r in tool.screener}
+    for r in rows:
+        rep, g = r["report"], r["gpw"]
+        f = valuation.piotroski(rep["cur"], rep["prev"]) if rep else None
+        z = (
+            None
+            if rep is None or valuation.is_financial(r["sector"])
+            else valuation.altman(rep["cur"], r["market_cap"])
+        )
+        dcf = {
+            f"{rate:.2f}": valuation.implied_growth(r["fcf"], r["market_cap"], rate)
+            for rate in valuation.DISCOUNT_RATES
+        }
+        detail = {
+            k: r.get(k)
+            for k in (
+                "market_cap", "shares", "shares_source", "sector", "sector_code", "peer_group",
+                "ep", "bp", "fcf", "fcf_yield", "ebit_yield", "dividend_yield", "value_score",
+                "value_score_pct",
+                *(f"{k}_pct" for k in valuation.YIELD_KEYS),
+            )
+        }  # fmt: skip
+        detail |= {
+            "pe": 1 / r["ep"] if r.get("ep") and r["ep"] > 0 else None,
+            "pbv": 1 / r["bp"] if r.get("bp") and r["bp"] > 0 else None,
+            "fscore": f,
+            "altman": z,
+            "dcf": dcf if any(x is not None for x in dcf.values()) else None,
+            "fiscal_year_end": rep["fiscal_year_end"] if rep else None,
+            "report_known_at": rep["known_at"] if rep else None,
+            "gpw_report_date": g["report_date"] if g else None,
+            # the last report however old, for its own scores only (not against today's price)
+            "stale": None
+            if rep is not None or r["last"] is None
+            else {
+                "fiscal_year_end": r["last"]["fiscal_year_end"],
+                "fscore": valuation.piotroski(r["last"]["cur"], r["last"]["prev"]),
+            },
+            "gpw_day": g["trade_date"] if g else None,
+        }
+        tool.valuation[r["isin"]] = detail
+        row = screener.get(r["isin"])
+        if row is None:
+            continue
+        row |= {
+            "mcap": _r(detail["market_cap"]),
+            "pe": _r(detail["pe"], 3),
+            "pbv": _r(detail["pbv"], 3),
+            "dy": _r(detail["dividend_yield"], 3),
+            "fcfy": _r(detail["fcf_yield"], 3),
+            "value": _r(detail["value_score_pct"], 3),
+            "fscore": f["score"] if f and f["seen"] >= valuation.QUALITY_SEEN else None,
+            "altman": _r(z["z"], 3) if z else None,
+        }
+        if (detail["value_score_pct"] or 0.0) >= valuation.CHEAP:
+            row["presets"].append("cheap")
+        if f and f["seen"] >= valuation.QUALITY_SEEN and f["score"] >= valuation.QUALITY:
+            row["presets"].append("quality")
+        if z and z["zone"] == "distress":
+            row["presets"].append("distress")
 
 
 def _risk_json(rk: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -311,11 +412,13 @@ def build(
     *,
     pages: set[str] | None = None,
     forecast: dict[str, dict[str, Any]] | None = None,
+    indicators: pl.DataFrame | None = None,
 ) -> ToolData:
     """Write the analysis pages' JSON into ``work/site_data`` and return what pages need.
 
     ``pages``: report IDs that have an event page (their markers link to it); ``forecast``:
-    the forecast per ISIN (``publish._forecast_rows``).
+    the forecast per ISIN (``publish._forecast_rows``); ``indicators``: GPW's latest
+    indicators per ISIN (``indicators.latest``) for the valuation.
     """
     pages = pages or set()
     forecast = forecast or {}
@@ -359,6 +462,7 @@ def build(
     }
     names = dict(zip(src["names"]["isin"].to_list(), src["names"]["name"].to_list(), strict=True))
     fund = _fundamentals(src["facts"], day)
+    val_in: dict[str, float] = {}  # listed main-market stocks: last close
     breadth = _Breadth(n_cal)
     taken: set[str] = set()
     last_pos = n_cal - 1
@@ -512,7 +616,9 @@ def build(
         p = int(pos[-1])
         day_ret = ret[-1] if p == last_pos and math.isfinite(ret[-1]) else None
         in_state, _ = setups.states(h * f, lo * f, adj, tv, sseg)
-        presets = [k for k, v in setups.PRESET_SETUP.items() if in_state[v][-1]]
+        presets = [k for k, v in setups.PRESET_SETUP.items() if v in in_state and in_state[v][-1]]
+        if market == "GPW":
+            val_in[isin] = float(c[-1])
         rvol = ta.relative(tv, ta.RVOL_N, sseg)[-1]
         adx = ta.adx(ind["h"], ind["l"], adj, ta.ADX_N, sseg)[0][-1]
         tool.screener.append(
@@ -552,6 +658,7 @@ def build(
             }
         )
 
+    _add_valuation(tool, val_in, src["facts"], indicators, day)
     tool.market = _market_summary(tool, cal, idx_close, regime)
     tool.market["sectors"] = sectors.rotation(
         sectors.sector_closes(src["sectors"], idx, n_cal), wig, seg

@@ -472,3 +472,68 @@ Code: `src/undercurrent/ta.py` (indicators), `stock_export.py` (data), `setups.p
   a third of that after the gzip GitHub Pages applies. The export adds about a minute to the
   nightly run (presets, ADX and risk for every listed stock included) and the setups about
   40 seconds.
+
+## 12. Valuation
+
+Code: `src/undercurrent/valuation.py`, `indicators.py` (GPW's table), `esef.statements`.
+
+- **Market cap** is GPW's number of shares (its daily indicators table, SOURCES § 13) times
+  Undercurrent's close. Where the table has no row, shares come from the last annual
+  report: the weighted average where tagged, otherwise net profit attributable ÷ basic EPS.
+- **Yields, not multiples**, so a loss ranks low instead of producing a negative P/E:
+  - earnings yield E/P: GPW's earnings (market value ÷ its P/E), else the report's net
+    profit attributable;
+  - book to price B/P: GPW's book value, else the report's equity attributable;
+  - free-cash-flow yield: operating cash flow minus purchases of fixed and intangible
+    assets from the last annual report (the fixed-asset and intangible lines where the report
+    splits them, else the combined line most Polish filers use);
+  - EBIT yield: operating profit from the last annual report;
+  - dividend yield: GPW's.
+
+  The annual report is used while its fiscal year ended at most 550 days ago and only when
+  it is in złoty. There is no EV/EBITDA: Polish filers tag bank loans and bonds with their
+  own extension concepts, so net debt cannot be read reliably.
+- **Peers.** Each yield's percentile among listed main-market stocks of the same GPW sector
+  code (at least six with a value), else of the same sector group (GPW's heading before the
+  dash: "Finanse" for "Finanse - banki komercyjne"), else among all of them, and the page
+  says which. GPW uses 83 sector codes for 421 companies, so the group level matters.
+- **Value rank.** The value score is the mean of the E/P, B/P and FCF-yield percentiles;
+  being a mean, it bunches towards the middle, so the page, the screener and the "cheap"
+  setup rank the value score itself among the same peers. "Cheap against its sector" is
+  the top fifth of that rank. The value score needs at least two of the three percentiles.
+- **Reverse DCF.** The constant yearly growth of free cash flow over ten years, then 2.5 %
+  a year for ever, whose present value equals the market cap, at 8, 10 and 12 %; solved by
+  bisection within −30 % … +60 %. Equity-level and without a debt adjustment; only with
+  positive free cash flow. It states what the price assumes and forecasts nothing.
+- **Piotroski's F-score**, nine tests from the report and its own comparatives: return on
+  assets above zero and up, operating cash flow above zero and above net profit,
+  non-current liabilities to assets down (for long-term debt), current ratio up, no more
+  shares (0.5 % tolerance), gross margin up, asset turnover up. Year-end assets throughout.
+  The page shows how many tests the report allows; the screener and the setup need at least
+  eight.
+- **Altman's Z** for listed companies: 1.2·(current assets − current liabilities)/assets +
+  1.4·retained earnings/assets + 3.3·EBIT/assets + 0.6·market cap/liabilities +
+  1.0·revenue/assets; below 1.81 distress, above 2.99 safe. Not for GPW's financial sectors.
+- **Tested.** Three valuation setups join the chart setups (§ 11): entering the top fifth
+  of the value rank among its peers, reaching an F-score of 7 with eight tests judged, and
+  falling into Altman's distress zone. They are judged on the first session of each week,
+  with shares from the annual report (GPW's table has no history) and today's GPW sector
+  code applied to the past.
+- **First result (the lake on 2026-11-12; reports of fiscal 2020–2024).** Cheap against its
+  peers: 159 events, +0.5 % against WIG over 20 sessions (95 % CI −1.9 % … +3.2 %), −4.3 % a
+  trade after costs out of sample: "eaten by costs". A strong report (26 events) and Altman
+  distress (19) are too few to tell anything; they only begin when a new report arrives.
+- **Live, today.** The ESEF repository has no Polish report added after July 2024, so no
+  stock has an annual report from the last 18 months: the FCF and EBIT yields, the reverse
+  DCF and Altman's Z are empty, and the value rank rests on E/P and B/P from GPW's table.
+  The page says so, and shows the last report's F-score marked with its age. A source of
+  current annual reports would fill them in.
+- **ESEF lines read** (`esef.CONCEPTS`, version 3): besides the headline facts, depreciation,
+  purchases of fixed and intangible assets (separate lines, or the combined line), current
+  assets and liabilities, non-current liabilities, retained earnings, profit before tax,
+  income tax, dividends paid, lease liabilities and the weighted average number of shares.
+  Of the 779 Polish filings read, capital expenditure is tagged in 729 (305 as a fixed-asset
+  line, 424 only as the combined line), current assets in 705, retained earnings in 717,
+  non-current liabilities in 724, gross profit in 552, basic EPS in 643, dividends paid in
+  433 and the weighted average number of shares in 127. Bank debt is not read: filers tag it
+  with their own extension concepts.

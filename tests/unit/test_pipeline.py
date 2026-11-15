@@ -21,6 +21,7 @@ def _site(nc_available_after: int | None):
     shares = (FIX / "prices" / "gpw_shares_2026-11-06.xls").read_bytes()
     idx = (FIX / "prices" / "gpw_indices_2026-11-06.xls").read_bytes()
     nc = (FIX / "prices" / "nc_2026-11-06.xlsx").read_bytes()
+    indicators = (FIX / "indicators" / "gpw_wskazniki_2026-11-15.html").read_text("utf-8")
     html404 = httpx.Response(
         200, text="<!DOCTYPE html><html>404</html>", headers={"content-type": "text/html"}
     )
@@ -33,6 +34,8 @@ def _site(nc_available_after: int | None):
             body = req.content.decode()
             only_day = "date=06-11-2026" in body and "offset=0&" in body
             return httpx.Response(200, text=listing[site] if only_day else "")
+        if req.url.path == "/wskazniki":
+            return httpx.Response(200, text=indicators, headers={"content-type": "text/html"})
         if req.url.path == "/komunikat":
             return httpx.Response(200, text=page, headers={"content-type": "text/html"})
         if req.url.path == "/archiwum-notowan":
@@ -279,3 +282,9 @@ def test_a_holiday_run_is_closed_not_degraded(tmp_path):
     assert row["status"] == "ok" and not row["nc_pending"]
     assert row["notes"] == "GPW closed: Independence Day"
     assert not any("11-11-2026" in u or "NC_20261111" in u for u in asked)  # no prices asked
+
+
+def test_a_missed_indicators_table_is_a_note_not_a_degraded_run():
+    res = pipeline.RunResult(run_date=DAY, started_at=datetime(2026, 11, 6, 17, tzinfo=UTC))
+    res.notes.append(f"{pipeline.INDICATORS_NOTE} (ConnectTimeout)")
+    assert res.problems == []

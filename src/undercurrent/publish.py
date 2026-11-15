@@ -542,10 +542,14 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
     tiers = _tiers(worth)
     record = _track_record([i for d in archive for i in d["events"]])
     pick_ctx = _pick_context(work, data_dir, day, reports, by_key_h, events)
-    from undercurrent import stock_export
+    from undercurrent import indicators, stock_export
 
     tool = stock_export.build(
-        work, day, pages={e["report_id"] for e in events}, forecast=_forecast_rows(work, day)
+        work,
+        day,
+        pages={e["report_id"] for e in events},
+        forecast=_forecast_rows(work, day),
+        indicators=indicators.latest(data_dir, day),
     )
     links = xtb.read_links(data_dir)
     for meta in tool.stocks:
@@ -1308,6 +1312,7 @@ def _render_lang(ctx: SiteContext, out: Path, lang: str) -> list[Path]:
                 s=st,
                 row=rows.get(st["isin"]),
                 rk=tool.risk.get(st["isin"]),
+                val=tool.valuation.get(st["isin"]),
                 kinds=kinds,
             )
     for h in ctx.stats:

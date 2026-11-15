@@ -110,6 +110,7 @@ def test_formatting_helpers():
     assert publish.pct(0.031) == "+3.1%" and publish.pct(None) == "—"
     assert publish.num(0) == "0" and publish.num(1234567) == "1,234,567"
     assert publish.short_pln(772800) == "773k"
+    assert publish.short_pln(56_860_000_000) == "56.9bn"
     assert publish.tone(-0.1) == "down" and publish.tone(0.1) == "up"
 
 
@@ -130,6 +131,7 @@ def test_polish_formatting_and_plurals() -> None:
     assert i18n.num(1234567, "pl") == "1\xa0234\xa0567"
     assert i18n.num(18.4, "pl") == "18,40"
     assert i18n.short_pln(772800, "pl") == "773 tys."
+    assert i18n.short_pln(56_860_000_000, "pl") == "56,9 mld"
     assert [i18n.plural("pl", n, "event worth a look today").split()[0] for n in (1, 3, 5, 22)] == [
         "zdarzenie",
         "zdarzenia",

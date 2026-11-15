@@ -664,6 +664,39 @@ options models need US yields and option prices, VPIN needs intraday trades, and
   Hurst exponent, and a GJR leverage term for the GARCH, which would be adopted only if
   its out-of-sample QLIKE improved.
 
+## Valuation (2026-11-15)
+
+- **GPW's own indicators instead of a portal.** The exchange publishes shares, market and
+  book value, P/E and the sector of every main-market company daily, in plain HTML. It is
+  the only source of share counts and sectors, and since the ESEF repository stops in July
+  2024, of current earnings and book value. Its history is a paid product, so it is landed
+  nightly and the history grows from now on.
+- **From the Model Finance app, the reverse DCF but not the Monte Carlo DCF.** A DCF built
+  on a few years of revenue growth, a guessed WACC and fundamentals up to two years old
+  would print precise-looking percentile bands it cannot support. The reverse DCF turns the
+  question around (what growth does the price assume?) and is shown at three discount rates
+  instead of one estimated WACC.
+- **Peers from GPW's sector codes**, as that app ranked against sector peers, but with the
+  exchange's own classification and yields instead of Yahoo's multiples.
+- **Quality scores the reports allow.** Piotroski's F-score and Altman's Z use lines that
+  Polish ESEF filings tag reliably; the page shows how many of the F-score's tests could be
+  judged, and debt stands in as non-current liabilities, which is said where it is used.
+- **Tested like every preset.** "Cheap against its sector", "strong annual report" and
+  "Altman distress" are setups in the event study. Their history uses shares from the
+  reports and today's sector codes, which is a mild look-ahead in the classification only.
+  "Cheap" is the top fifth of the value score's own rank: a mean of three percentiles bunches
+  in the middle, and a cut at 0.8 on the mean caught about 7 % of stocks, not a fifth.
+- **Peers in three steps.** GPW has 83 sector codes for 421 companies, so most sectors are
+  too small; the sector group (the heading before the dash) comes between the sector and
+  the whole market.
+- **Honest about stale reports.** With no report newer than July 2024 in the repository,
+  the report-based measures are left empty rather than computed from a two-year-old
+  report against today's price; the F-score, which is about the report alone, is shown
+  with its fiscal year and marked as old.
+- **The combined capital-expenditure line.** Most Polish filers tag one line for fixed,
+  intangible and other non-current assets instead of the fixed-asset line; reading it
+  raised the reports with a usable capital expenditure from 305 to 729 of 779.
+
 ## Known limitations
 
 - Insider trade details (side, volume, price) are missing for reports that no portal

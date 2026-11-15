@@ -61,12 +61,14 @@ flowchart LR
    band on every forecast, keeps an append-only ledger of them, and builds a weekly basket
    weighted by hierarchical risk parity (`basket.py`); event pages show the same forecast.
 5. **Analysis pages** (`ta.py`, `stock_export.py`, `setups.py`, `risk.py`, `sectors.py`,
-   `site/static/js/`): the market page with sector rotation, the screener and one chart page
-   per stock with its risk (Student-t VaR and expected shortfall from the GARCH σ, backtested
-   out of sample), from JSON written each night; charts with TradingView's Lightweight Charts
-   (vendored). Indicators are computed in Python and, for changed parameters, by the same
-   formulas in the browser. Each screener preset is tested as a chart setup with the event
-   study.
+   `valuation.py`, `indicators.py`, `site/static/js/`): the market page with sector rotation,
+   the screener and one chart page per stock with its risk (Student-t VaR and expected
+   shortfall from the GARCH σ, backtested out of sample) and valuation (yields against GPW
+   sector peers from the exchange's daily indicators and the last ESEF report, a reverse
+   DCF, Piotroski's F-score, Altman's Z), from JSON written each night; charts with
+   TradingView's Lightweight Charts (vendored). Indicators are computed in Python and, for
+   changed parameters, by the same formulas in the browser. Each screener preset is tested
+   as a chart setup with the event study.
 6. **Publish** (`publish.py`, `pages.py`, `i18n.py`): Jinja2 site in Polish and English with
    inline SVG charts, plain-language summaries, the report's own text, the stock's price and
    liquidity, a glossary, and a Telegram digest via the Bot API. Event pages link to the

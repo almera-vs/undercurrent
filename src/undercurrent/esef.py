@@ -7,7 +7,9 @@ of the attachment sits behind bot protection (SOURCES § 4), so the filings come
 filing to xBRL-JSON. Its LEIs are mapped to ISINs with **GLEIF**'s public API.
 
 What is kept: a short list of headline facts (``CONCEPTS``): facts without
-any extra dimension, in a currency (or per share), for every period the filing reports.
+any extra dimension, in a currency, per share, or in shares, for every period the filing
+reports. When the list grows, ``CONCEPTS_VERSION`` goes up and filings read before are
+read once more, adding only the new facts.
 Narrative text blocks, notes and dimensional breakdowns are dropped. The 2–3 MB document is
 read in memory and never cached on disk. An issuer's consolidated and standalone reports are
 both kept; ``snapshots`` reads one filing per year (the consolidated report).
@@ -69,7 +71,29 @@ CONCEPTS: dict[str, str] = {
     "ifrs-full:CashAndCashEquivalents": "cash",
     "ifrs-full:CashFlowsFromUsedInOperatingActivities": "operating_cash_flow",
     "ifrs-full:BasicEarningsLossPerShare": "eps_basic",
+    # for valuation and quality scores (valuation.py); CONCEPTS_VERSION 2
+    "ifrs-full:DepreciationAndAmortisationExpense": "depreciation",
+    "ifrs-full:AdjustmentsForDepreciationAndAmortisationExpense": "depreciation_cf",
+    "ifrs-full:PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities": "capex_ppe",
+    "ifrs-full:PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities": "capex_intangibles",
+    # the combined line many Polish filers use instead (fixed, intangible, investment property
+    # and other non-current assets); CONCEPTS_VERSION 3
+    "ifrs-full:PurchaseOfPropertyPlantAndEquipmentIntangibleAssetsOtherThanGoodwill"
+    "InvestmentPropertyAndOtherNoncurrentAssets": "capex_combined",
+    "ifrs-full:CurrentAssets": "current_assets",
+    "ifrs-full:CurrentLiabilities": "current_liabilities",
+    "ifrs-full:NoncurrentLiabilities": "noncurrent_liabilities",
+    "ifrs-full:RetainedEarnings": "retained_earnings",
+    "ifrs-full:ProfitLossBeforeTax": "profit_before_tax",
+    "ifrs-full:IncomeTaxExpenseContinuingOperations": "income_tax",
+    "ifrs-full:DividendsPaidClassifiedAsFinancingActivities": "dividends_paid",
+    "ifrs-full:LeaseLiabilities": "lease_liabilities",
+    "ifrs-full:WeightedAverageShares": "shares_weighted",
 }
+# Raised whenever CONCEPTS grows: a filing read with an older version is read again (once),
+# and only the facts it did not have before are added.
+CONCEPTS_VERSION = 3
+SHARE_CONCEPTS = frozenset({"shares_weighted"})
 _PLAIN_DIMS = {"concept", "entity", "period", "unit"}
 
 FACT_SCHEMA: dict[str, Any] = {
@@ -140,7 +164,10 @@ def facts_from_json(doc: dict[str, Any], filing: Filing) -> pl.DataFrame:
         if name is None or set(dims) - _PLAIN_DIMS:
             continue
         unit = str(dims.get("unit", ""))
-        if not unit.startswith("iso4217:"):
+        # a count of shares in shares, every other figure in a currency (or per share)
+        if (unit == "xbrli:shares") != (name in SHARE_CONCEPTS) or (
+            unit != "xbrli:shares" and not unit.startswith("iso4217:")
+        ):
             continue
         try:
             value = float(f["value"])
@@ -194,7 +221,14 @@ def ingest(
     """Read up to ``max_filings`` filings not read before, oldest first; map new LEIs."""
     now = now or datetime.now(UTC)
     done_df = lake.read_state(root, FILINGS_STATE)
-    done = set(done_df["filing_id"].to_list()) if done_df is not None else set()
+    done: set[str] = set()
+    if done_df is not None:
+        version = (
+            done_df["concepts_version"].fill_null(1)
+            if "concepts_version" in done_df.columns
+            else pl.Series([1] * done_df.height)
+        )
+        done = set(done_df.filter(version >= CONCEPTS_VERSION)["filing_id"].to_list())
     todo = [f for f in list_filings(client) if f.id not in done][:max_filings]
     leis_df = lake.read_state(root, LEI_STATE)
     known_leis = set(leis_df["lei"].to_list()) if leis_df is not None else set()
@@ -215,6 +249,7 @@ def ingest(
                 "errors": f.errors,
                 "facts": facts.height,
                 "read_at": now,
+                "concepts_version": CONCEPTS_VERSION,
             }
         )
         if f.lei not in known_leis:
@@ -224,6 +259,8 @@ def ingest(
             ]
     if new_done:
         df = pl.DataFrame(new_done)
+        if done_df is not None:  # a re-read filing replaces its older row
+            done_df = done_df.filter(~pl.col("filing_id").is_in(df["filing_id"].implode()))
         lake.write_state(
             root,
             FILINGS_STATE,
@@ -400,6 +437,70 @@ def snapshots(facts: pl.DataFrame) -> pl.DataFrame:
                 }
             )
     return pl.DataFrame(rows, schema=SNAPSHOT_SCHEMA)
+
+
+# Statement lines for valuation.py: flows over the fiscal year, balances at its end.
+FLOWS = (
+    "revenue", "revenue_contracts", "gross_profit", "operating_profit", "net_profit",
+    "net_profit_parent", "operating_cash_flow", "depreciation", "depreciation_cf", "capex_ppe",
+    "capex_intangibles", "capex_combined", "profit_before_tax", "income_tax", "dividends_paid",
+    "eps_basic", "shares_weighted",
+)  # fmt: skip
+BALANCES = (
+    "assets", "liabilities", "equity", "equity_parent", "cash", "current_assets",
+    "current_liabilities", "noncurrent_liabilities", "retained_earnings", "lease_liabilities",
+)  # fmt: skip
+
+
+def _line(facts: list[dict[str, Any]], concept: str, end: date, cur: str) -> float | None:
+    if concept == "eps_basic":
+        return _value(facts, concept, end, f"{cur}/xbrli:shares", duration=True)
+    if concept == "shares_weighted":
+        return _value(facts, concept, end, "xbrli:shares", duration=True)
+    return _value(facts, concept, end, cur, duration=concept in FLOWS)
+
+
+def statements(facts: pl.DataFrame) -> list[dict[str, Any]]:
+    """The latest annual report's lines and its prior-year comparatives, at each filing moment.
+
+    One dict per (ISIN, moment a filing arrived): ``isin``, ``known_at``, ``fiscal_year_end``,
+    ``currency``, ``prior_year_end``, and ``cur`` / ``prev`` mapping every line of ``FLOWS``
+    and ``BALANCES`` to its value (None where the filing does not tag it). Read from one
+    filing in one currency, the consolidated report's latest version (``_main_filing``),
+    with the prior year from that filing's own comparatives, as ``snapshots``.
+    """
+    out: list[dict[str, Any]] = []
+    if not facts.height:
+        return out
+    for (isin,), grp in facts.sort("known_at").group_by(["isin"], maintain_order=True):
+        recs = grp.to_dicts()
+        for when in sorted({r["known_at"] for r in recs}):
+            known = [r for r in recs if r["known_at"] <= when]
+            fy = max(r["fiscal_period_end"] for r in known)
+            by_filing: dict[str, list[dict[str, Any]]] = {}
+            for r in known:
+                if r["fiscal_period_end"] == fy:
+                    by_filing.setdefault(r["filing_id"], []).append(r)
+            mine = by_filing[_main_filing(by_filing, fy)]
+            cur = _currency(mine)
+            if cur is None:
+                continue
+            prior = _prior_end(mine, fy, cur)
+            out.append(
+                {
+                    "isin": isin,
+                    "known_at": when,
+                    "fiscal_year_end": fy,
+                    "currency": cur,
+                    "prior_year_end": prior,
+                    "cur": {c: _line(mine, c, fy, cur) for c in (*FLOWS, *BALANCES)},
+                    "prev": {
+                        c: (_line(mine, c, prior, cur) if prior else None)
+                        for c in (*FLOWS, *BALANCES)
+                    },
+                }
+            )
+    return out
 
 
 def fundamentals_as_of(root: Path, as_of: datetime) -> pl.DataFrame:

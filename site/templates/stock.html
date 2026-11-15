@@ -92,6 +92,55 @@
   </section>
 </div>
 
+{% if val and val.market_cap %}
+{% macro pctbar(p) %}{% if p is not none %}<span class="pbar" title="{{ (p * 100)|round|int }}"><i style="width: {{ (p * 100)|round|int }}%"></i></span> <small class="mono muted">{{ (p * 100)|round|int }}</small>{% else %}<span class="muted">—</span>{% endif %}{% endmacro %}
+<section class="panel valuation-panel">
+  <div class="card-head"><h2>{{ _('Valuation') }}</h2><span class="muted small">{{ _('Market cap') }} <b class="mono">{{ val.market_cap|short_pln }} PLN</b>{% if val.sector %} · {{ val.sector }}{% endif %}</span></div>
+  <div class="risk-grid">
+    <div>
+      <table class="val-table">
+        <thead><tr><th>{{ _('Measure') }}</th><th class="r">{{ _('Value') }}</th><th>{{ _('Percentile') }} <small class="muted">({{ {'sector': _('against the sector'), 'group': _('against the sector group')}.get(val.peer_group, _('against all listed stocks')) }})</small></th></tr></thead>
+        <tbody>
+          <tr><td>{{ _('Earnings yield') }} <small class="muted">E/P</small></td><td class="r mono">{{ val.ep|pct }}{% if val.pe %} <small class="muted">P/E {{ val.pe|decimal(1) }}</small>{% endif %}</td><td>{{ pctbar(val.ep_pct) }}</td></tr>
+          <tr><td>{{ _('Book to price') }} <small class="muted">B/P</small></td><td class="r mono">{{ val.bp|decimal(2) }}{% if val.pbv %} <small class="muted">P/BV {{ val.pbv|decimal(2) }}</small>{% endif %}</td><td>{{ pctbar(val.bp_pct) }}</td></tr>
+          <tr><td>{{ _('Free cash flow yield') }}</td><td class="r mono">{{ val.fcf_yield|pct }}</td><td>{{ pctbar(val.fcf_yield_pct) }}</td></tr>
+          <tr><td>{{ _('EBIT yield') }}</td><td class="r mono">{{ val.ebit_yield|pct }}</td><td>{{ pctbar(val.ebit_yield_pct) }}</td></tr>
+          <tr><td>{{ _('Dividend yield') }}</td><td class="r mono">{{ val.dividend_yield|share }}</td><td>{{ pctbar(val.dividend_yield_pct) }}</td></tr>
+          <tr class="val-score"><td><b>{{ _('Value rank') }}</b></td><td></td><td>{{ pctbar(val.value_score_pct) }}</td></tr>
+        </tbody>
+      </table>
+      <p class="muted small">{{ _('val_note') }}</p>
+    </div>
+    <div>
+      <h3>{{ _('What the price implies') }}</h3>
+      {% if val.dcf %}
+      <dl class="kv kv-tight">
+        {% for rate, g in val.dcf.items() %}
+        <dt>{{ _('discount rate {r}', r=((rate|float) * 100)|round|int ~ '%') }}</dt>
+        <dd class="mono">{% if g is none %}—{% elif g >= 0.6 %}{{ _('above {g} a year', g='+60%') }}{% elif g <= -0.3 %}{{ _('below {g} a year', g='−30%') }}{% else %}{{ g|pct }} {{ _('a year') }}{% endif %}</dd>
+        {% endfor %}
+      </dl>
+      <p class="muted small">{{ _('dcf_note') }}</p>
+      {% elif val.fiscal_year_end %}<p class="muted">{{ _('No positive free cash flow in the last annual report: there is no growth the price could imply.') }}</p>
+      {% else %}<p class="muted">{{ _('no_recent_report') }}</p>{% endif %}
+      <h3>{{ _('Quality of the last annual report') }}</h3>
+      {% set f = val.fscore or (val.stale.fscore if val.stale else none) %}
+      {% if val.stale %}<p class="warn-line small">{{ _('Fiscal year ending {d}: older than 18 months, shown for reference only.', d=val.stale.fiscal_year_end) }}</p>{% endif %}
+      {% if f %}
+      <p><span class="mono big-num">{{ f.score }}</span> <span class="muted">/ {{ f.seen }} {{ _('tests the report allows') }}</span> <a class="q" href="../glossary.html#fscore" aria-label="{{ _('What is this?') }}">?</a></p>
+      <ul class="ftests">
+        {% for k, t in f.tests.items() %}
+        <li class="{{ 'ok' if t else ('no' if t == false else 'na') }}"><span aria-hidden="true">{{ '✓' if t else ('✗' if t == false else '–') }}</span> {{ _('f_' ~ k) }}</li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="muted">{{ _('No fresh annual report in the data.') }}</p>{% endif %}
+      <p>{{ _('Altman Z') }}: {% if val.altman %}<b class="mono">{{ val.altman.z|decimal(2) }}</b> <span class="phase phase-{{ {'safe': 'leading', 'grey': 'weakening', 'distress': 'lagging'}[val.altman.zone] }}">{{ _('z_' ~ val.altman.zone) }}</span>{% elif val.sector and val.sector.lower().startswith('finanse') %}<span class="muted">{{ _('not for financial companies') }}</span>{% elif not val.fiscal_year_end %}<span class="muted">{{ _('needs an annual report from the last 18 months') }}</span>{% else %}<span class="muted">{{ _('a line it needs is not in the report') }}</span>{% endif %} <a class="q" href="../glossary.html#altman" aria-label="{{ _('What is this?') }}">?</a></p>
+    </div>
+  </div>
+  <p class="muted small">{{ _('Shares and book value: GPW indicators of {d}.', d=val.gpw_day or '—') if val.shares_source == 'gpw' else _('Shares from the annual report (profit ÷ earnings per share).') }} {% if val.fiscal_year_end %}{{ _('Annual report: fiscal year ending {d}.', d=val.fiscal_year_end) }}{% else %}{{ _('No fresh annual report: cash flow, EBIT and quality are missing.') }}{% endif %} {{ _('Not investment advice.') }}</p>
+</section>
+{% endif %}
+
 {% if rk %}
 {% set bt = rk.backtest %}
 <section class="panel risk-panel">

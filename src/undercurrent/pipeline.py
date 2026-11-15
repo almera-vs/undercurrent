@@ -34,6 +34,7 @@ PRICE_LOOKBACK_SESSIONS = 10
 NC_WAIT_UNTIL_LOCAL = time(20, 5)
 # Run note on an exchange holiday, followed by its name (gpw_calendar). Not a problem.
 CLOSED_NOTE = "GPW closed: "
+INDICATORS_NOTE = "GPW indicators not landed"
 NC_POLL_EVERY_S = 300
 # Never wait longer than this for the NewConnect file, whatever the clock says: a run started
 # hours early or late must not sit until the job times out.
@@ -84,8 +85,12 @@ class RunResult:
 
     @property
     def problems(self) -> list[str]:
-        """Notes that make the run degraded (an exchange holiday is not one)."""
-        return [n for n in self.notes if not n.startswith(CLOSED_NOTE)]
+        """Notes that make the run degraded.
+
+        An exchange holiday is not one, nor a missed GPW indicators table: the valuation then
+        reads the previous session's, and the digest does not depend on it.
+        """
+        return [n for n in self.notes if not n.startswith((CLOSED_NOTE, INDICATORS_NOTE))]
 
     def row(self) -> dict[str, Any]:
         """Row for the runs table."""
@@ -242,13 +247,15 @@ def run_day(
             _wait_for_nc(
                 client, data_dir, day, res, wait_until=wait_until, sleep=sleep, clock=clock
             )
+        if not closed:
+            _ingest_indicators(client, data_dir, day, res)
         if run_transform:
             from undercurrent import study, transform
 
             transform.build(data_dir, work_dir)
             stats_path = study.run_study(transform.duckdb_path(work_dir), work_dir, day)
             snapshot_gold(data_dir, stats_path, day)
-            _run_setups(work_dir, transform.duckdb_path(work_dir), day)
+            _run_setups(work_dir, transform.duckdb_path(work_dir), day, data_dir)
             _run_market_state(work_dir, transform.duckdb_path(work_dir), day)
             _run_pick(work_dir, data_dir, transform.duckdb_path(work_dir), day)
             _refresh_xtb_links(client, data_dir, transform.duckdb_path(work_dir), clock())
@@ -323,7 +330,24 @@ def _report_price_cases(work_dir: Path) -> None:
             fh.write(text)
 
 
-def _run_setups(work_dir: Path, duckdb_file: Path, day: date) -> None:
+def _ingest_indicators(client: PoliteClient, data_dir: Path, day: date, res: RunResult) -> None:
+    """GPW's market indicators for the session (``indicators.py``). A failure is a note.
+
+    Only on a session whose share prices are in: the page is the exchange's latest table, so
+    it is landed under the session it belongs to, the evening of that session.
+    """
+    from undercurrent import indicators
+
+    if not lake.partition_exists(data_dir, "bronze", "prices_gpw", day):
+        return
+    try:
+        indicators.ingest(client, data_dir, day)
+    except Exception as exc:  # the digest must not wait on it
+        log.warning("GPW indicators not landed: %s: %s", type(exc).__name__, exc)
+        res.notes.append(f"{INDICATORS_NOTE} ({type(exc).__name__})")
+
+
+def _run_setups(work_dir: Path, duckdb_file: Path, day: date, data_dir: Path) -> None:
     """Chart setups through the event study (``setups.py``). A failure is logged, not fatal.
 
     A table from an earlier run is removed first, so the site never shows yesterday's.
@@ -333,7 +357,7 @@ def _run_setups(work_dir: Path, duckdb_file: Path, day: date) -> None:
     for name in ("setup_stats.parquet", "setup_paths.parquet"):
         (work_dir / "gold" / name).unlink(missing_ok=True)
     try:
-        setups.run_setups(duckdb_file, work_dir, day)
+        setups.run_setups(duckdb_file, work_dir, day, data_dir)
     except Exception as exc:  # the digest must not wait on it
         log.warning("chart setups not computed: %s: %s", type(exc).__name__, exc)
 

@@ -14,7 +14,7 @@
   <form class="scr-filters" onsubmit="return false">
     <label>{{ _('Preset') }}
       <select data-field="preset">
-        {% for key, label in [('all', 'All stocks'), ('new_hi', 'New 52-week high'), ('new_lo', 'New 52-week low'), ('rsi_low', 'RSI below 30'), ('rsi_high', 'RSI above 70'), ('above200', 'Above both averages'), ('pullback', 'Pullback in an uptrend'), ('squeeze', 'Volatility squeeze'), ('breakout', 'Breakout on heavy turnover'), ('oversold', 'Oversold near the 52-week low'), ('trend', 'Healthy trend (ADX above 25)'), ('surprise', 'Surprise beyond 3σ today'), ('insider', 'Insider buying, last 20 sessions'), ('forecast', 'Model forecast, liquid WIG')] %}
+        {% for key, label in [('all', 'All stocks'), ('new_hi', 'New 52-week high'), ('new_lo', 'New 52-week low'), ('rsi_low', 'RSI below 30'), ('rsi_high', 'RSI above 70'), ('above200', 'Above both averages'), ('pullback', 'Pullback in an uptrend'), ('squeeze', 'Volatility squeeze'), ('breakout', 'Breakout on heavy turnover'), ('oversold', 'Oversold near the 52-week low'), ('trend', 'Healthy trend (ADX above 25)'), ('cheap', 'Cheap against its sector'), ('quality', 'Strong annual report (F-score 7+)'), ('distress', 'Altman distress zone'), ('surprise', 'Surprise beyond 3σ today'), ('insider', 'Insider buying, last 20 sessions'), ('forecast', 'Model forecast, liquid WIG')] %}
         <option value="{{ key }}">{{ _(label) }}</option>
         {% endfor %}
       </select>
@@ -36,7 +36,7 @@
     </label>
     <fieldset class="groups">
       <legend>{{ _('Columns') }}</legend>
-      {% for g, label in [('trend', 'vs WIG'), ('tech', 'Technical'), ('risk', 'Risk'), ('liq', 'Liquidity'), ('model', 'Model'), ('fund', 'Fundamentals')] %}
+      {% for g, label in [('trend', 'vs WIG'), ('tech', 'Technical'), ('risk', 'Risk'), ('liq', 'Liquidity'), ('model', 'Model'), ('fund', 'Fundamentals'), ('value', 'Valuation')] %}
       <label class="check"><input type="checkbox" data-field="groups" value="{{ g }}"> {{ _(label) }}</label>
       {% endfor %}
     </fieldset>
@@ -57,8 +57,8 @@ UCScreener.mount(document.getElementById('screener'), {
   url: '{{ assets }}data/screener.json?v={{ ctx.day }}',
   stockBase: 'stock/',
   labels: {{ {
-    'cols': {'ticker': _('Stock'), 'close': _('Close'), 'ret': _('Today'), 'x5': _('5 s.'), 'x20': _('20 s.'), 'x60': _('60 s.'), 'x250': _('1 y.'), 'rsi': 'RSI', 'd50': _('vs SMA50'), 'd200': _('vs SMA200'), 'dhi': _('vs 52w high'), 'atr': 'ATR', 'rvol': _('Rel. turnover'), 'adx': 'ADX', 's20': 'σ 20', 'beta': 'β', 'z': _('Surprise'), 'var95': 'VaR 95', 'es975': 'ES 97.5', 'dd': _('Drawdown'), 'vol_pct': _('σ percentile'), 'turnover': _('Turnover'), 'cost': _('Cost'), 'fc': _('Forecast'), 'fc_rank': _('Rank'), 'insider_net': _('Insiders 20 s.'), 'ey': 'E/P', 'prof': _('EBIT/assets'), 'ag': _('Asset growth'), 'acc': _('Accruals')},
-    'titles': {'ret': _('t_ret'), 'x5': _('t_x'), 'x20': _('t_x'), 'x60': _('t_x'), 'x250': _('t_x'), 'rsi': _('t_rsi'), 'd50': _('t_dma'), 'd200': _('t_dma'), 'dhi': _('t_dhi'), 'atr': _('t_atr'), 'rvol': _('t_rvol'), 'adx': _('t_adx'), 'var95': _('t_var'), 'es975': _('t_es'), 'dd': _('t_dd'), 'vol_pct': _('t_volpct'), 's20': _('t_s20'), 'beta': _('t_beta'), 'z': _('t_z'), 'turnover': _('t_turnover'), 'cost': _('t_cost'), 'fc': _('t_fc'), 'fc_rank': _('t_fc'), 'insider_net': _('t_insider'), 'ey': _('t_fund'), 'prof': _('t_fund'), 'ag': _('t_fund'), 'acc': _('t_fund')},
+    'cols': {'ticker': _('Stock'), 'close': _('Close'), 'ret': _('Today'), 'x5': _('5 s.'), 'x20': _('20 s.'), 'x60': _('60 s.'), 'x250': _('1 y.'), 'rsi': 'RSI', 'd50': _('vs SMA50'), 'd200': _('vs SMA200'), 'dhi': _('vs 52w high'), 'atr': 'ATR', 'rvol': _('Rel. turnover'), 'adx': 'ADX', 's20': 'σ 20', 'beta': 'β', 'z': _('Surprise'), 'var95': 'VaR 95', 'es975': 'ES 97.5', 'dd': _('Drawdown'), 'vol_pct': _('σ percentile'), 'turnover': _('Turnover'), 'cost': _('Cost'), 'fc': _('Forecast'), 'fc_rank': _('Rank'), 'insider_net': _('Insiders 20 s.'), 'ey': 'E/P', 'prof': _('EBIT/assets'), 'ag': _('Asset growth'), 'acc': _('Accruals'), 'mcap': _('Market cap'), 'pe': 'P/E', 'pbv': 'P/BV', 'dy': _('Div. yield'), 'fcfy': _('FCF yield'), 'value': _('Value rank'), 'fscore': 'F-score', 'altman': 'Altman Z'},
+    'titles': {'ret': _('t_ret'), 'x5': _('t_x'), 'x20': _('t_x'), 'x60': _('t_x'), 'x250': _('t_x'), 'rsi': _('t_rsi'), 'd50': _('t_dma'), 'd200': _('t_dma'), 'dhi': _('t_dhi'), 'atr': _('t_atr'), 'rvol': _('t_rvol'), 'adx': _('t_adx'), 'var95': _('t_var'), 'es975': _('t_es'), 'dd': _('t_dd'), 'vol_pct': _('t_volpct'), 's20': _('t_s20'), 'beta': _('t_beta'), 'z': _('t_z'), 'turnover': _('t_turnover'), 'cost': _('t_cost'), 'fc': _('t_fc'), 'fc_rank': _('t_fc'), 'insider_net': _('t_insider'), 'ey': _('t_fund'), 'prof': _('t_fund'), 'ag': _('t_fund'), 'acc': _('t_fund'), 'mcap': _('t_mcap'), 'pe': _('t_pe'), 'pbv': _('t_pe'), 'dy': _('t_pe'), 'fcfy': _('t_fcfy'), 'value': _('t_value'), 'fscore': _('t_fscore'), 'altman': _('t_altman')},
     'setups': ctx.preset_setups|setup_lines,
     'count': _('{n} of {t} listed stocks'), 'none': _('No stock matches.'), 'more': _('{n} more: narrow the filters to see them.'), 'loadError': _('The screener data could not be loaded.')
   }|tojson }}

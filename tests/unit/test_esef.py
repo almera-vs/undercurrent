@@ -35,9 +35,10 @@ def test_headline_facts_are_extracted_and_decoys_dropped():
     assert rev["period_start"][0] == date(2023, 4, 1)
     # the prior year's comparatives are kept too
     assert date(2023, 3, 31) in set(df["period_end"])
-    # no duplicates, no dimensional breakdowns, no text, no share counts
+    # no duplicates, no dimensional breakdowns, no text; shares only for the share count
     assert df["fact_key"].n_unique() == df.height
-    assert set(df["unit"]) <= {"PLN", "PLN/xbrli:shares"}
+    assert set(df["unit"]) <= {"PLN", "PLN/xbrli:shares", "xbrli:shares"}
+    assert set(df.filter(pl.col("unit") == "xbrli:shares")["concept"]) <= {"shares_weighted"}
     assert (df["known_at"] == FILING.added).all()
 
 

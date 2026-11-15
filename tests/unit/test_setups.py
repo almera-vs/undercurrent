@@ -94,4 +94,4 @@ def test_new_setups_match_their_definitions() -> None:
     assert np.array_equal(st["pullback"], pull)
     assert not defined["trend_health"][:209].any()  # SMA200 ten sessions ago needs 209
     assert set(st) == set(setups.SETUPS)
-    assert set(setups.PRESET_SETUP.values()) <= set(setups.SETUPS)
+    assert set(setups.PRESET_SETUP.values()) <= set(setups.SETUPS) | set(setups.VALUATION_SETUPS)

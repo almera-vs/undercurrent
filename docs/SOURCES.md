@@ -286,3 +286,22 @@ the LEI (shares and bonds alike; the join with prices picks the share). Checked 
 2026-11-12 (GRODNO: `PLGRODN00015`, the ISIN the GPW archive uses). Called once per new LEI;
 results in `state/lei_isins.parquet`.
 
+## 13. gpw.pl/wskazniki (market indicators, main market)
+
+`https://www.gpw.pl/wskazniki` is the exchange's own table of market indicators: for every
+main-market company (domestic and foreign tables), the ISIN, ticker, sector code with its
+name in the cell's `title`, the number of shares issued, market value and book value in
+millions of złoty, the date and type (`H` or `J`) of the latest financial report, P/BV, P/E
+(`x` for a loss) and dividend yield (`--` for none). Plain HTML, no bot protection; checked
+on 2026-11-15 (402 companies; 11BIT: `PL11BTS00015`, 2,417,199 shares, the same ISIN the
+quote archive uses).
+
+- Only the current table is free; the exchange sells its history ("Dane przetworzone i
+  wskaźniki"). The nightly run lands it once per session, the evening of that session
+  (`indicators.py`), so the history starts with the first run and is point in time.
+- The page does not say which session its prices are from. Undercurrent keeps the shares,
+  the book value and the earnings the table implies (market value ÷ P/E), and computes
+  every ratio itself from its own close.
+- One request a night, like the price files. Before relying on it beyond these figures,
+  the exchange's terms for its information services (*Regulamin świadczenia usług
+  informacyjnych*) should be checked; the site shows derived ratios, not the table.

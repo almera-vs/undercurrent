@@ -63,7 +63,13 @@ PRESET_SETUP = {
     "breakout": "breakout",
     "oversold": "oversold",
     "trend": "trend_health",
+    "cheap": "cheap_vs_sector",
+    "quality": "quality",
+    "distress": "distress",
 }
+# Setups from the valuation (valuation.history_events): cross-sectional, judged weekly, so
+# they are not among the per-stock ``states``.
+VALUATION_SETUPS = ("cheap_vs_sector", "quality", "distress")
 # 52-week highs and lows are events every time they happen (the refractory spaces them);
 # every other setup is an event when its state begins
 EVERY_TIME = ("new_high", "new_low")
@@ -221,9 +227,15 @@ def setup_events(prices: pl.DataFrame, segment: dict[date, int]) -> pl.DataFrame
     return pl.DataFrame(rows, schema=schema)
 
 
-def run_setups(duckdb_file: Path, work: Path, day: date) -> Path:
-    """Write ``gold/setup_stats.parquet`` and ``gold/setup_paths.parquet`` for ``day``."""
+def run_setups(duckdb_file: Path, work: Path, day: date, data_dir: Path | None = None) -> Path:
+    """Write ``gold/setup_stats.parquet`` and ``gold/setup_paths.parquet`` for ``day``.
+
+    With ``data_dir``, the valuation setups use GPW's latest sector codes from the lake;
+    without, they rank every stock against the whole market.
+    """
     import duckdb
+
+    from undercurrent import esef, indicators, valuation
 
     as_of = study.as_of_for(day)
     con = duckdb.connect(str(duckdb_file))
@@ -236,11 +248,29 @@ def run_setups(duckdb_file: Path, work: Path, day: date) -> Path:
             params=[day],
         ).pl()
         holes = con.sql("select trade_date, after_hole from sessions order by 1").fetchall()
+        tables = {
+            r[0] for r in con.sql("select table_name from information_schema.tables").fetchall()
+        }
+        facts = con.sql("select * from fundamentals").pl() if "fundamentals" in tables else None
     finally:
         con.close()
     base = study.load_inputs(duckdb_file, as_of)
     seg = np.cumsum([bool(h) for _, h in holes]).tolist()
     events = setup_events(prices, {d: int(k) for (d, _), k in zip(holes, seg, strict=True)})
+    if facts is not None and facts.height:
+        sectors: dict[str, tuple[int | None, str | None]] = {}
+        gpw = indicators.latest(data_dir, day) if data_dir is not None else None
+        if gpw is not None:
+            sectors = {
+                r["isin"]: (r["sector_code"], r["sector"]) for r in gpw.iter_rows(named=True)
+            }
+        main = prices.filter(pl.col("market") == "GPW").select(
+            "isin", "trade_date", "close", "known_at", "market"
+        )
+        cal = [d for d, _ in holes if d <= day]
+        events = pl.concat(
+            [events, valuation.history_events(main, esef.statements(facts), sectors, cal)]
+        )
     inputs = study.cut_inputs(events, base.returns, base.benchmark, as_of)
     stats, paths = study.compute_signal_stats(inputs)
     out = work / "gold" / "setup_stats.parquet"

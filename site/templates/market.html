@@ -118,7 +118,7 @@
 <section class="panel presets">
   <div class="card-head"><h2>{{ _('Screener') }}</h2><a href="screener.html">{{ _('All {n} listed stocks', n=m.listed or 0) }} →</a></div>
   <ul class="preset-links">
-    {% for key, label in [('new_hi', 'New 52-week high'), ('rsi_low', 'RSI below 30'), ('pullback', 'Pullback in an uptrend'), ('squeeze', 'Volatility squeeze'), ('breakout', 'Breakout on heavy turnover'), ('oversold', 'Oversold near the 52-week low'), ('trend', 'Healthy trend (ADX above 25)'), ('above200', 'Above both averages'), ('surprise', 'Surprise beyond 3σ today'), ('insider', 'Insider buying, last 20 sessions'), ('forecast', 'Model forecast, liquid WIG')] %}
+    {% for key, label in [('new_hi', 'New 52-week high'), ('rsi_low', 'RSI below 30'), ('pullback', 'Pullback in an uptrend'), ('squeeze', 'Volatility squeeze'), ('breakout', 'Breakout on heavy turnover'), ('oversold', 'Oversold near the 52-week low'), ('trend', 'Healthy trend (ADX above 25)'), ('cheap', 'Cheap against its sector'), ('quality', 'Strong annual report (F-score 7+)'), ('above200', 'Above both averages'), ('surprise', 'Surprise beyond 3σ today'), ('insider', 'Insider buying, last 20 sessions'), ('forecast', 'Model forecast, liquid WIG')] %}
     <li><a class="btn btn-ghost" href="screener.html#preset={{ key }}">{{ _(label) }}</a></li>
     {% endfor %}
   </ul>

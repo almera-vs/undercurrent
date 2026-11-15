@@ -3,14 +3,15 @@ name: esef
 # Company fundamentals from ESEF annual reports (filings.xbrl.org, LEIs mapped to ISINs via
 # GLEIF). Manual for now: the repository's Polish coverage ends in mid-2024, so there is
 # nothing new to fetch on a schedule. Each run reads at most `max` filings it has not read
-# before (about 2.6 MB each, read in memory, never cached) and commits the extracted facts.
+# before, or read with an older list of concepts (esef.CONCEPTS_VERSION), about 2.6 MB each,
+# read in memory, never cached, and commits the extracted facts.
 on:
   workflow_dispatch:
     inputs:
       max:
-        description: "at most this many new filings"
+        description: "at most this many filings to read (new, or read with older concepts)"
         required: true
-        default: "200"
+        default: "900"
 
 permissions:
   contents: write

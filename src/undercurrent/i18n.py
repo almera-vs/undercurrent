@@ -620,6 +620,131 @@ PL: dict[str, str] = {
     "Signals · Undercurrent": "Sygnały · Undercurrent",
     "Pipeline · Undercurrent": "Proces · Undercurrent",
     # analysis pages: market, screener, stock
+    "Valuation": "Wycena",
+    "Market cap": "Kapitalizacja",
+    "Measure": "Miara",
+    "Percentile": "Percentyl",
+    "against the sector": "na tle sektora",
+    "against the sector group": "na tle grupy sektorów",
+    "against all listed stocks": "na tle wszystkich notowanych spółek",
+    "Earnings yield": "Stopa zysku",
+    "Book to price": "Wartość księgowa do ceny",
+    "Free cash flow yield": "Stopa wolnych przepływów",
+    "EBIT yield": "Stopa EBIT",
+    "Dividend yield": "Stopa dywidendy",
+    "Value score": "Wynik wartości",
+    "Value rank": "Ranking wartości",
+    "needs an annual report from the last 18 months": (
+        "wymaga raportu rocznego z ostatnich 18 miesięcy"
+    ),
+    "no_recent_report": (
+        "Brak raportu rocznego z ostatnich 18 miesięcy w danych: repozytorium ESEF, z którego "
+        "pochodzą, nie ma polskich raportów dodanych po lipcu 2024. Liczba akcji, zysk i "
+        "wartość księgowa pochodzą z dzisiejszej tabeli GPW."
+    ),
+    "Fiscal year ending {d}: older than 18 months, shown for reference only.": (
+        "Rok obrotowy kończący się {d}: starszy niż 18 miesięcy, tylko dla orientacji."
+    ),
+    "val_note": (
+        "Stopy zamiast mnożników: strata to niska stopa, a nie ujemny C/Z. Percentyl 100 to "
+        "najtańsza spółka w grupie. Wynik wartości to średni percentyl stopy zysku, wartości "
+        "księgowej do ceny i stopy wolnych przepływów. Bez EV/EBITDA: zadłużenie bankowe nie "
+        "jest jednolicie oznaczane w raportach ESEF."
+    ),
+    "What the price implies": "Co zakłada cena",
+    "discount rate {r}": "stopa dyskontowa {r}",
+    "above {g} a year": "ponad {g} rocznie",
+    "below {g} a year": "poniżej {g} rocznie",
+    "a year": "rocznie",
+    "dcf_note": (
+        "Odwrócony DCF: roczny wzrost wolnych przepływów przez 10 lat (potem 2,5% rocznie), "
+        "przy którym ich wartość bieżąca równa się kapitalizacji. Na poziomie kapitału "
+        "własnego, bez korekty o dług. To założenie rynku, nie prognoza."
+    ),
+    (
+        "No positive free cash flow in the last annual report: "
+        "there is no growth the price could imply."
+    ): (
+        "W ostatnim raporcie rocznym wolne przepływy nie są dodatnie: cena nie zakłada "
+        "żadnego wzrostu, który dałoby się policzyć."
+    ),
+    "Quality of the last annual report": "Jakość ostatniego raportu rocznego",
+    "tests the report allows": "testów, na które pozwala raport",
+    "No fresh annual report in the data.": "Brak świeżego raportu rocznego w danych.",
+    "Altman Z": "Z Altmana",
+    "not for financial companies": "nie dla spółek finansowych",
+    "a line it needs is not in the report": "w raporcie brakuje potrzebnej pozycji",
+    "Shares and book value: GPW indicators of {d}.": (
+        "Liczba akcji i wartość księgowa: wskaźniki GPW z dnia {d}."
+    ),
+    "Shares from the annual report (profit ÷ earnings per share).": (
+        "Liczba akcji z raportu rocznego (zysk ÷ zysk na akcję)."
+    ),
+    "Annual report: fiscal year ending {d}.": "Raport roczny: rok obrotowy kończący się {d}.",
+    "No fresh annual report: cash flow, EBIT and quality are missing.": (
+        "Brak świeżego raportu rocznego: bez przepływów, EBIT i oceny jakości."
+    ),
+    "Not investment advice.": "To nie jest rekomendacja inwestycyjna.",
+    "f_roa_positive": "zwrot z aktywów dodatni",
+    "f_cfo_positive": "przepływy operacyjne dodatnie",
+    "f_roa_up": "zwrot z aktywów wzrósł",
+    "f_cash_above_profit": "przepływy wyższe niż zysk",
+    "f_leverage_down": "zobowiązania długoterminowe do aktywów spadły",
+    "f_liquidity_up": "płynność bieżąca wzrosła",
+    "f_no_new_shares": "bez nowych akcji",
+    "f_margin_up": "marża brutto wzrosła",
+    "f_turnover_up": "rotacja aktywów wzrosła",
+    "z_safe": "strefa bezpieczna",
+    "z_grey": "strefa szara",
+    "z_distress": "strefa zagrożenia",
+    "Cheap against its sector": "Tania na tle sektora",
+    "Strong annual report (F-score 7+)": "Mocny raport roczny (F-score 7+)",
+    "Altman distress zone": "Strefa zagrożenia Altmana",
+    "Div. yield": "Stopa dyw.",
+    "FCF yield": "Stopa FCF",
+    "t_mcap": "Liczba akcji z tabeli wskaźników GPW razy dzisiejszy kurs.",
+    "t_pe": "Na dzisiejszym kursie: zysk z tabeli wskaźników GPW, wartość księgowa i dywidenda.",
+    "t_fcfy": (
+        "Przepływy operacyjne minus nakłady inwestycyjne z ostatniego raportu rocznego, do "
+        "kapitalizacji."
+    ),
+    "t_value": "Średni percentyl stopy zysku, B/P i stopy FCF w sektorze; 100% to najtańsza.",
+    "t_fscore": (
+        "F-score Piotroskiego: ile z dziewięciu testów jakości raport zdaje (gdy da się "
+        "ocenić co najmniej osiem)."
+    ),
+    "t_altman": (
+        "Z Altmana: poniżej 1,81 strefa zagrożenia, powyżej 2,99 bezpieczna; nie dla finansów."
+    ),
+    "Valuation yields": "Stopy wyceny",
+    "g_valuation": (
+        "Kapitalizacja to liczba akcji z dziennej tabeli wskaźników GPW razy kurs. Stopa "
+        "zysku (E/P), wartość księgowa do ceny (B/P), stopa wolnych przepływów (przepływy "
+        "operacyjne minus nakłady na środki trwałe i wartości niematerialne, do "
+        "kapitalizacji) i stopa EBIT są odwrotnościami mnożników, więc strata to po prostu "
+        "niska stopa. Każda jest porównana ze spółkami tego samego sektora GPW (co najmniej "
+        "sześć z wartością), inaczej z tej samej grupy sektorów, a inaczej ze wszystkimi "
+        "notowanymi."
+    ),
+    "Reverse DCF": "Odwrócony DCF",
+    "g_dcf": (
+        "Zamiast zgadywać wzrost i liczyć z niego wartość, odwrócony DCF pyta, jaki roczny "
+        "wzrost wolnych przepływów przez dziesięć lat, a potem 2,5% rocznie, uzasadnia "
+        "dzisiejszą kapitalizację przy stopie dyskontowej 8, 10 i 12%. Wysoka liczba znaczy, "
+        "że rynek oczekuje dużo."
+    ),
+    "Piotroski F-score": "F-score Piotroskiego",
+    "g_fscore": (
+        "Dziewięć prostych testów raportu rocznego wobec poprzedniego roku: zyskowność, "
+        "przepływy, ich przewaga nad zyskiem, zadłużenie (tu: zobowiązania długoterminowe), "
+        "płynność, emisje akcji, marża i rotacja aktywów. Pokazujemy, ile testów raport "
+        "pozwala ocenić."
+    ),
+    "g_altman": (
+        "Z Altmana łączy kapitał obrotowy, zyski zatrzymane, EBIT i przychody (każde do "
+        "aktywów) oraz kapitalizację do zobowiązań. Poniżej 1,81 historycznie częściej "
+        "zdarzały się bankructwa. Nie liczymy go dla banków, ubezpieczycieli i funduszy."
+    ),
     "Pullback in an uptrend": "Korekta w trendzie wzrostowym",
     "Volatility squeeze": "Ściśnięcie zmienności",
     "Breakout on heavy turnover": "Wybicie przy dużym obrocie",
@@ -950,6 +1075,71 @@ PL: dict[str, str] = {
 }
 
 EN_OVERRIDES: dict[str, str] = {
+    "no_recent_report": (
+        "No annual report from the last 18 months in the data: the ESEF repository it comes "
+        "from has no Polish reports added after July 2024. Shares, earnings and book value come "
+        "from today's GPW table."
+    ),
+    "val_note": (
+        "Yields rather than multiples: a loss is a low yield, not a negative P/E. Percentile "
+        "100 is the cheapest of the group. The value score is the mean percentile of the "
+        "earnings yield, book to price and free-cash-flow yield. No EV/EBITDA: bank debt is "
+        "not tagged uniformly in ESEF reports."
+    ),
+    "dcf_note": (
+        "Reverse DCF: the yearly growth of free cash flow over 10 years (then 2.5% a year) "
+        "at which its present value equals the market cap. Equity-level, without a debt "
+        "adjustment. This is what the market assumes, not a forecast."
+    ),
+    "f_roa_positive": "return on assets positive",
+    "f_cfo_positive": "operating cash flow positive",
+    "f_roa_up": "return on assets up",
+    "f_cash_above_profit": "cash flow above profit",
+    "f_leverage_down": "long-term liabilities to assets down",
+    "f_liquidity_up": "current ratio up",
+    "f_no_new_shares": "no new shares",
+    "f_margin_up": "gross margin up",
+    "f_turnover_up": "asset turnover up",
+    "z_safe": "safe zone",
+    "z_grey": "grey zone",
+    "z_distress": "distress zone",
+    "t_mcap": "Shares from GPW's indicators table times today's close.",
+    "t_pe": "At today's close: earnings from GPW's indicators table, book value and dividend.",
+    "t_fcfy": (
+        "Operating cash flow minus capital expenditure from the last annual report, over "
+        "market cap."
+    ),
+    "t_value": "Mean sector percentile of E/P, B/P and FCF yield; 100% is the cheapest.",
+    "t_fscore": (
+        "Piotroski's F-score: how many of nine quality tests the report passes (when at "
+        "least eight can be judged)."
+    ),
+    "t_altman": "Altman's Z: below 1.81 distress zone, above 2.99 safe; not for financials.",
+    "g_valuation": (
+        "Market cap is the number of shares from GPW's daily indicators table times the "
+        "close. Earnings yield (E/P), book to price (B/P), free-cash-flow yield (operating "
+        "cash flow minus purchases of fixed and intangible assets, over market cap) and EBIT "
+        "yield are the inverses of multiples, so a loss is simply a low yield. Each is "
+        "compared with the stocks of the same GPW sector (at least six with a value), "
+        "otherwise with its sector group, otherwise with all listed stocks."
+    ),
+    "g_dcf": (
+        "Instead of guessing growth and deriving a value from it, a reverse DCF asks what "
+        "yearly growth of free cash flow over ten years, then 2.5% a year, justifies today's "
+        "market cap at discount rates of 8, 10 and 12%. A high number means the market "
+        "expects a lot."
+    ),
+    "g_fscore": (
+        "Nine simple tests of the annual report against the year before: profitability, cash "
+        "flow, cash flow above profit, leverage (here: long-term liabilities), liquidity, "
+        "share issues, margin and asset turnover. The page says how many tests the report "
+        "allows."
+    ),
+    "g_altman": (
+        "Altman's Z combines working capital, retained earnings, EBIT and revenue (each over "
+        "assets) with market cap over liabilities. Below 1.81, bankruptcies were "
+        "historically more frequent. It is not computed for banks, insurers and funds."
+    ),
     "t_rvol": "Today's turnover against the mean of the 20 sessions before.",
     "t_adx": (
         "Wilder's ADX over 14 sessions: the strength of a trend whichever way it goes; above "
@@ -1350,6 +1540,9 @@ SIGNAL_LABELS: dict[str, dict[str, str]] = {
         "setup:breakout": "Breakout on heavy turnover",
         "setup:oversold": "Oversold near the 52-week low",
         "setup:trend_health": "Healthy trend (ADX above 25)",
+        "setup:cheap_vs_sector": "Cheap against its sector",
+        "setup:quality": "Strong annual report (F-score 7+)",
+        "setup:distress": "Altman distress zone",
     },
     "pl": {
         "insider_tx:buy": "Zakup przez insidera",
@@ -1379,6 +1572,9 @@ SIGNAL_LABELS: dict[str, dict[str, str]] = {
         "setup:breakout": "Wybicie przy dużym obrocie",
         "setup:oversold": "Wyprzedanie blisko minimum 52-tygodniowego",
         "setup:trend_health": "Zdrowy trend (ADX powyżej 25)",
+        "setup:cheap_vs_sector": "Tania na tle sektora",
+        "setup:quality": "Mocny raport roczny (F-score 7+)",
+        "setup:distress": "Strefa zagrożenia Altmana",
     },
 }
 BASIS_LABELS: dict[str, dict[str, str]] = {
@@ -1715,9 +1911,11 @@ def num(x: float | None, lang: str = "en") -> str:
 
 
 def short_pln(x: float | None, lang: str = "en") -> str:
-    """``772800`` → ``773k`` (en) / ``773 tys.`` (pl)."""
+    """``772800`` → ``773k`` (en) / ``773 tys.`` (pl); ``5.7e10`` → ``56.9bn`` / ``56,9 mld``."""
     if x is None:
         return "—"
+    if abs(x) >= 1e9:
+        return f"{x / 1e9:.1f}bn" if lang != "pl" else f"{x / 1e9:.1f} mld".replace(".", ",")
     if abs(x) >= 1e6:
         return f"{x / 1e6:.1f}m" if lang != "pl" else f"{x / 1e6:.1f} mln".replace(".", ",")
     if abs(x) >= 1e3:
