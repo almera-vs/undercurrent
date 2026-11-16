@@ -711,6 +711,22 @@ options models need US yields and option prices, VPIN needs intraday trades, and
   11BIT and PKO BP but neither NewConnect sample) and would add a dependency.
 - **Weekly, apart from the nightly run**, so the nightly run stays as fast as before.
 
+## Results first, explanations on demand (2026-11-16)
+
+- **Each page shows its numbers and one short caption.** How a figure is computed moved to
+  `how.html` ("How it works"), grouped by feature, with the glossary's anchors. Feature
+  pages link there with "How it's measured".
+- **Technical terms carry their definition on hover** (a tap on a phone): `terms.py` holds
+  one or two plain sentences per term, in Polish and English, that say what the term means
+  and nothing about the method. The glossary lists the same definitions from A to Z, so a
+  term never has two explanations.
+- **The model's record stays on the stock of the week as a number** (its result against
+  WIG after costs), not as a paragraph; a weak record is shown as plainly as a strong one.
+- **The home page opens with what the site is for** and three ways in (screener, tonight's
+  reports, stock of the week); the header search opens a stock's page directly.
+- **Session counts read as calendar words** (1 week, 1 month, 3 months); their definition
+  says they are 5, 20 and 60 sessions.
+
 ## Known limitations
 
 - Insider trade details (side, volume, price) are missing for reports that no portal

@@ -691,6 +691,28 @@ def build(
         ),
         encoding="utf-8",
     )
+    # the header's search: listed stocks first, then those with a page but no recent session
+    search = sorted(tool.stocks, key=lambda m: (not m["listed"], m["ticker"] or ""))
+    (staging / "search.json").write_text(
+        json.dumps(
+            {
+                "format": FORMAT,
+                "rows": [
+                    [
+                        m["ticker"],
+                        page_text.company_name(m["name"]),
+                        m["slug"],
+                        m.get("logo"),
+                        m["market"],
+                    ]
+                    for m in search
+                ],
+            },
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
     log.info(
         "site data: %d stocks (%d listed), %.1f MB",
         len(tool.stocks),

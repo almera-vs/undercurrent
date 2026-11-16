@@ -26,7 +26,7 @@ import polars as pl
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
-from undercurrent import i18n, lake, logos, pages, sectors, xtb
+from undercurrent import i18n, lake, logos, pages, sectors, terms, xtb
 
 log = logging.getLogger(__name__)
 WARSAW = ZoneInfo("Europe/Warsaw")
@@ -1208,6 +1208,19 @@ def _env(lang: str = "en") -> Environment:
         None, ticker, assets, big=big
     )
 
+    def term(key: str, text: Any = None) -> Markup:
+        """A technical term that shows its definition on hover (terms.py, terms.js)."""
+        shown = terms.label(key, lang) if text is None else text
+        return tip(shown, terms.definition(key, lang))
+
+    env.globals |= {
+        "term": term,
+        "tip": tip,
+        "glossary_terms": terms.glossary(lang),
+        "how_anchor": lambda key: terms.HOW.get(key),
+        "define": lambda key: terms.definition(key, lang),
+    }
+
     def lookup(table: dict[str, dict[str, str]]) -> Any:
         return lambda k: table[lang].get(k or "", k or "—") if k else "—"
 
@@ -1281,6 +1294,11 @@ def _env(lang: str = "en") -> Environment:
     return env
 
 
+def tip(text: Any, definition: str) -> Markup:
+    """``text`` with ``definition`` in a hover panel; the ``title`` is the no-JS fallback."""
+    return Markup('<span class="term" tabindex="0" title="{}">{}</span>').format(definition, text)
+
+
 def icon_html(
     file: Path | str | None, ticker: str | None, assets: str, *, big: bool = False
 ) -> Markup:
@@ -1351,6 +1369,7 @@ def _render_lang(ctx: SiteContext, out: Path, lang: str) -> list[Path]:
     write("pipeline.html", "pipeline.html", page="pipeline")
     write("archive.html", "archive.html", page="archive")
     write("glossary.html", "glossary.html", page="glossary")
+    write("how.html", "how.html", page="how")
     write("pick.html", "pick.html", page="pick")
     for e in ctx.events:
         write(f"event/{e['slug']}.html", "event.html", depth=1, page="event", e=e, kinds=kinds)

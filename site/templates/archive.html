@@ -7,12 +7,12 @@
     <p class="eyebrow">{{ _('Last {n} sessions', n=ctx.archive|length) }} · {{ _('{n} events', n=total) }}</p>
     <h1>{{ _('Earlier digests') }}</h1>
   </div>
-  <p class="lede">{{ _('archive_lede') }}</p>
+  <p class="lede">{{ _('archive_lede_short') }}</p>
 </section>
 {% if ctx.record %}
 <section class="panel">
   <h2>{{ _('How these events have done since entry') }}</h2>
-  <p class="muted small">{{ _('record_note') }}</p>
+  <p class="muted small">{{ _('record_note_short') }} <a href="how.html#archive">{{ _('How it’s measured') }}</a></p>
   <div class="scroll"><table>
     <thead><tr><th>{{ _('Kind of signal') }}</th><th class="r">{{ _('Events') }}</th><th class="r">{{ _('Avg vs WIG so far') }}</th><th class="r">{{ _('Better than WIG') }}</th></tr></thead>
     <tbody>

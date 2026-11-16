@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}{{ _('How it works · Undercurrent') }}{% endblock %}
+{% block main %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">{{ _('Behind the numbers') }}</p>
+    <h1>{{ _('How it works') }}</h1>
+  </div>
+  <p class="lede">{{ _('how_lede') }} <a href="glossary.html">{{ _('Glossary') }}</a></p>
+</section>
+{% set k = ctx.pick %}
+{% set s = k.summary if k else none %}
+<nav class="how-toc panel" aria-label="{{ _('On this page') }}">
+  {% for id, title in [('market', 'The market page'), ('signals', 'Reports and signals'), ('setups', 'Chart setups'), ('stocks', 'Stock pages'), ('pick', 'Stock of the week'), ('sources', 'Data and links')] %}
+  <a href="#{{ id }}">{{ _(title) }}</a>
+  {% endfor %}
+</nav>
+{% macro item(id, title, keys) %}
+<article class="how-item" id="{{ id }}">
+  <h3>{{ _(title) }}</h3>
+  {% for key in keys %}<p>{{ _(key) }}</p>{% endfor %}
+  {{ caller() if caller else '' }}
+</article>
+{% endmacro %}
+
+<section class="panel how" id="market">
+  <h2>{{ _('The market page') }}</h2>
+  {{ item('regime', 'Stress regime', ['g_regime']) }}
+  {{ item('breadth', 'Breadth', ['g_breadth']) }}
+  {{ item('movers', 'Biggest moves and surprises', ['movers_note']) }}
+  {{ item('surprise', 'Surprise (σ)', ['g_surprise']) }}
+  {{ item('rotation', 'Sector rotation', ['g_rotation', 'rrg_note']) }}
+</section>
+
+<section class="panel how" id="signals">
+  <h2>{{ _('Reports and signals') }}</h2>
+  {{ item('study', 'How a kind of report is tested', ['signals_lede', 'signals_footnote']) }}
+  {{ item('excess', 'Better or worse than WIG', ['g_excess']) }}
+  {{ item('session', 'Session', ['g_session']) }}
+  {{ item('day0', 'Day 0 and entry', ['g_day0', 'event_chart_note_plain']) }}
+  {{ item('costs', 'Trading costs', ['g_costs']) }}
+  {{ item('walk-forward', 'Traded on new data (walk-forward)', ['g_wf']) }}
+  {{ item('q', 'Chance it is luck (FDR q)', ['g_q']) }}
+  {{ item('verdicts', 'Verdicts', ['g_verdicts']) }}
+  {{ item('bad-case', 'Bad case (1 in 20)', ['g_tail']) }}
+  {{ item('liquidity', 'Too thin to trade', ['g_liquidity']) }}
+  {{ item('adjusted', 'Adjusted prices', ['g_adjusted']) }}
+  {{ item('insider-fields', 'Insider trade details', ['insider_note', 'forms_how']) }}
+  {{ item('archive', 'The archive’s record', ['archive_lede', 'record_note']) }}
+</section>
+
+<section class="panel how" id="setups">
+  <h2>{{ _('Chart setups') }}</h2>
+  {{ item('presets', 'Screener presets', ['g_presets']) }}
+  {{ item('setup-test', 'How a setup is tested', ['setups_lede', 'setups_footnote']) }}
+</section>
+
+<section class="panel how" id="stocks">
+  <h2>{{ _('Stock pages') }}</h2>
+  {{ item('indicators', 'Chart indicators', ['g_indicators', 'chart_note']) }}
+  {{ item('adx', 'ADX and relative turnover', ['g_adx']) }}
+  {{ item('sigma', 'Expected volatility (σ)', ['g_sigma', 'band_title']) }}
+  {{ item('beta', 'Beta to WIG', ['g_beta']) }}
+  {{ item('var', 'Value at risk and expected shortfall', ['g_var', 'risk_note']) }}
+  {{ item('valuation', 'Valuation yields', ['g_valuation', 'val_note']) }}
+  {{ item('dcf', 'Reverse DCF', ['g_dcf', 'dcf_note']) }}
+  {{ item('fscore', 'Piotroski F-score', ['g_fscore']) }}
+  {{ item('altman', 'Altman Z', ['g_altman']) }}
+</section>
+
+<section class="panel how" id="pick">
+  <h2>{{ _('Stock of the week') }}</h2>
+  {{ item('model', 'How the model chooses', ['pick_lede', 'why_note']) }}
+  {% call item('backtest', 'Tested on weeks it had not seen', ['g_live', 'live_note']) %}
+    {% if s and s.oos_weeks %}<p>{{ _('backtest_note', weeks=s.oos_weeks, start=s.oos_start, end=s.oos_end, mean=s.mean_net|pct2, p=s.p_value|qval, switches=s.switches, ic=s.ic_mean|decimal(2), t=s.ic_t|decimal(1), mom=s.momentum_total_net|pct) }}</p>{% endif %}
+  {% endcall %}
+  {% call item('ridge', 'Ridge regression', ['g_ridge', 'g_ic']) %}
+    {% if s and s.train_start %}<p>{{ _('model_note', start=s.train_start, end=s.train_end, n=s.train_weeks, p=s.penalty|num) }}</p>{% endif %}
+  {% endcall %}
+  {{ item('hysteresis', 'Switching rule', ['g_hysteresis']) }}
+  {{ item('limits', 'Limitations', ['pick_limits']) }}
+</section>
+
+<section class="panel how" id="sources">
+  <h2>{{ _('Data and links') }}</h2>
+  {{ item('xtb', 'Links to XTB', ['g_xtb']) }}
+  {{ item('logos', 'Company logos', ['logos_how']) }}
+</section>
+{% endblock %}

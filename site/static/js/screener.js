@@ -77,7 +77,7 @@
     var form = el.querySelector('.scr-filters'), setupLine = el.querySelector('.scr-setup');
 
     function readHash() {
-      var o = { sort: 'x20', dir: -1, market: 'all', tier: 'tradable', q: '', preset: 'all', groups: 'base,trend,tech,risk' };
+      var o = { sort: 'x20', dir: -1, market: 'all', tier: 'tradable', q: '', preset: 'all', groups: 'base,trend' };
       (location.hash.slice(1) || '').split('&').forEach(function (kv) {
         var p = kv.split('='); if (p[0] && p.length === 2) o[p[0]] = decodeURIComponent(p[1]);
       });
@@ -101,7 +101,8 @@
         var active = st.sort === c[0];
         return '<th class="' + (c[1] === 'text' ? '' : 'r') + '" aria-sort="' +
           (active ? (st.dir > 0 ? 'ascending' : 'descending') : 'none') + '"><button type="button" data-sort="' +
-          c[0] + '" title="' + C.esc(labels.titles[c[0]] || '') + '">' + C.esc(labels.cols[c[0]] || c[0]) +
+          c[0] + '"' + (labels.titles[c[0]] ? ' class="term" title="' + C.esc(labels.titles[c[0]]) + '"' : '') + '>' +
+          C.esc(labels.cols[c[0]] || c[0]) +
           (active ? (st.dir > 0 ? ' ↑' : ' ↓') : '') + '</button></th>';
       }).join('');
       var q = st.q.trim().toLowerCase(), preset = PRESETS[st.preset] || PRESETS.all;

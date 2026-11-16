@@ -718,3 +718,60 @@ details.weights summary { cursor: pointer; color: var(--up); font-weight: 600; m
 .board-name .tlogo { grid-row: span 2; }
 .scr-table td.sym small { padding-left: 1.8rem; }
 .s-title .sym-link .tick-sym { margin-right: 0.35rem; }
+
+/* ------------------------------------------------------------------ term definitions */
+/* a technical term reads as plain text; hovering underlines it and shows its definition */
+.term { cursor: help; text-decoration: none; border-radius: 3px; }
+.term:hover, .term:focus-visible { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; outline: none; }
+.term-tip { position: absolute; z-index: 60; max-width: min(18rem, calc(100vw - 16px)); padding: 0.55rem 0.75rem;
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45); font: 400 0.86rem/1.45 var(--sans); text-transform: none;
+  letter-spacing: normal; text-align: left; white-space: normal; pointer-events: none; }
+
+/* ------------------------------------------------------------------ header search */
+.jump { position: relative; }
+.jump-list { position: absolute; z-index: 55; top: calc(100% + 6px); left: 0; min-width: 20rem; max-width: calc(100vw - 2rem);
+  margin: 0; padding: 0.3rem; list-style: none; background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5); }
+.jump-list li { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.5rem; border-radius: 7px; cursor: pointer; font-size: 0.9rem; }
+.jump-list li .tlogo { margin-right: 0; }
+.jump-list li span { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.jump-list li[aria-selected="true"], .jump-list li:hover { background: var(--line); }
+.jump-list li.none { cursor: default; }
+.jump-list li.none:hover { background: none; }
+.jump-list li.all { color: var(--up); border-top: 1px solid var(--line); margin-top: 0.2rem; border-radius: 0 0 7px 7px; }
+.jump-list .tmono { --h: 210; }
+@media (max-width: 640px) { .jump-list { min-width: 100%; } }
+
+/* ------------------------------------------------------------------ home pitch */
+.pitch { margin: 0.4rem 0 2rem; }
+.pitch h1 { font-size: clamp(2rem, 5vw, 3.2rem); line-height: 1.08; letter-spacing: -0.02em; margin: 0 0 0.8rem; max-width: 22ch; }
+.pitch-sub { font-size: clamp(1.05rem, 2.2vw, 1.25rem); color: var(--muted); max-width: 44rem; margin: 0 0 1.4rem; }
+.pitch-cta { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0 0 1.6rem; }
+.pitch-cta .cta-n { margin-left: 0.45rem; padding: 0 0.4rem; border-radius: 6px; background: var(--panel-2); font-size: 0.85rem; }
+.pitch-facts { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.6rem 2.4rem; }
+.pitch-facts li { display: flex; flex-direction: column; }
+.pitch-facts b { font-size: 1.6rem; font-weight: 600; }
+.pitch-facts span { color: var(--muted); font-size: 0.9rem; }
+@media (max-width: 640px) {
+  .pitch-cta .btn { flex: 1 1 100%; justify-content: center; }
+  .pitch-facts { gap: 0.6rem 1.6rem; }
+  .pitch-facts b { font-size: 1.3rem; }
+}
+
+/* ------------------------------------------------------------------ how it works */
+.how-toc { display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; margin-bottom: 1.2rem; }
+.how h2 { margin-top: 0; }
+.how-item { padding: 0.6rem 0 0.4rem; border-top: 1px solid var(--line); scroll-margin-top: 1rem; }
+.how-item:first-of-type { border-top: 0; }
+.how-item h3 { font-size: 1.02rem; margin: 0.3rem 0 0.4rem; }
+.how-item p { margin: 0 0 0.6rem; max-width: 46rem; color: var(--muted); }
+.how-item:target h3, .glossary dt:target { color: var(--up); }
+.how-link { white-space: nowrap; }
+
+/* ------------------------------------------------------------------ at a glance */
+.glance { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 1.2rem; padding: 0; list-style: none; }
+.glance li { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 0.45rem 0.75rem; display: flex; flex-direction: column; min-width: 8.5rem; }
+.glance li span { color: var(--muted); font-size: 0.8rem; }
+.glance li b { font-size: 1rem; font-weight: 600; }
+@media (max-width: 640px) { .glance li { flex: 1 1 calc(50% - 0.5rem); min-width: 0; } }

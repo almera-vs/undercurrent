@@ -4,7 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Undercurrent{% endblock %}</title>
-<meta name="description" content="Undercurrent — what moves beneath the tape. {{ _('GPW + NewConnect: charts, screener and a nightly report radar. Not investment advice.') }}">
+<meta name="description" content="{{ _('pitch_meta') }}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Undercurrent">
+<meta property="og:title" content="{{ self.title() }}">
+<meta property="og:description" content="{{ _('pitch_meta') }}">
+<meta property="og:image" content="{{ ctx.site_url.rstrip('/') }}/static/og.jpg">
+<meta property="og:locale" content="{{ 'pl_PL' if lang == 'pl' else 'en_GB' }}">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="alternate" hreflang="{{ other_lang }}" href="{{ other_lang_url }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -25,17 +32,19 @@
     <a href="{{ root }}signals.html" {% if page == 'signals' %}aria-current="page"{% endif %}>{{ _('Signals') }}</a>
     <a href="{{ root }}pick.html" {% if page == 'pick' %}aria-current="page"{% endif %}>★ {{ _('Stock of the week') }}</a>
     <details class="more">
-      <summary {% if page in ('archive', 'pipeline', 'glossary') %}aria-current="page"{% endif %}>{{ _('More') }}</summary>
+      <summary {% if page in ('archive', 'pipeline', 'glossary', 'how') %}aria-current="page"{% endif %}>{{ _('More') }}</summary>
       <div class="more-menu">
+        <a href="{{ root }}how.html" {% if page == 'how' %}aria-current="page"{% endif %}>{{ _('How it works') }}</a>
+        <a href="{{ root }}glossary.html" {% if page == 'glossary' %}aria-current="page"{% endif %}>{{ _('Glossary') }}</a>
         <a href="{{ root }}archive.html" {% if page == 'archive' %}aria-current="page"{% endif %}>{{ _('Archive') }}</a>
         <a href="{{ root }}pipeline.html" {% if page == 'pipeline' %}aria-current="page"{% endif %}>{{ _('Pipeline') }}</a>
-        <a href="{{ root }}glossary.html" {% if page == 'glossary' %}aria-current="page"{% endif %}>{{ _('Glossary') }}</a>
       </div>
     </details>
   </nav>
-  <form class="jump" role="search" action="{{ root }}screener.html" onsubmit="this.action += '#q=' + encodeURIComponent(this.q.value) + '&tier=all'; this.q.disabled = true;">
+  <form class="jump" role="search" action="{{ root }}screener.html" onsubmit="if (this.dataset.ready) return false; this.action += '#q=' + encodeURIComponent(this.q.value) + '&tier=all'; this.q.disabled = true;">
     <label class="sr-only" for="jump-q">{{ _('Find a stock') }}</label>
-    <input id="jump-q" name="q" type="search" placeholder="{{ _('Find a stock') }}" autocomplete="off">
+    <input id="jump-q" name="q" type="search" placeholder="{{ _('Find a stock') }}" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="jump-list" aria-autocomplete="list">
+    <ul class="jump-list" id="jump-list" role="listbox" hidden></ul>
   </form>
   {% set st = ctx.run.get('status', 'unknown') %}
   <span class="pill status-{{ st }}"><i></i>{{ _({'ok': 'Fresh', 'degraded': 'Degraded', 'failed': 'Failed'}.get(st, 'Unknown')) }}<span class="pill-run">· {{ _('run') }} {{ ctx.run.finished_at.astimezone(tz).strftime('%d.%m %H:%M') if ctx.run.get('finished_at') else '—' }}</span></span>
@@ -46,10 +55,14 @@
 </main>
 <footer>
   <p>{{ _('Not investment advice. Historical statistics only.') }} {{ _('Data: official GPW / NewConnect ESPI-EBI pages and quote archives.') }}
+  <a href="{{ root }}how.html">{{ _('How it works') }}</a> ·
   <a href="{{ root }}glossary.html">{{ _('Glossary') }}</a> ·
   {{ _('Source') }}: <a href="https://github.com/almera-vs/undercurrent">github.com/almera-vs/undercurrent</a>.</p>
   {% block footer_extra %}{% endblock %}
 </footer>
+<script src="{{ assets }}static/js/terms.js?v={{ ctx.day }}" defer></script>
+<script src="{{ assets }}static/js/search.js?v={{ ctx.day }}" defer></script>
+<script>window.UC_SEARCH = {{ {'url': assets ~ 'data/search.json?v=' ~ ctx.day, 'stockBase': root ~ 'stock/', 'logoBase': assets ~ 'logos/', 'none': _('No stock found'), 'all': _('All results in the screener')}|tojson }};</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

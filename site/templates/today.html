@@ -7,10 +7,7 @@
     <p class="eyebrow">{{ ctx.day|longdate }} · GPW + NewConnect</p>
     <h1>{{ n }} {{ plural(n, 'report') }}</h1>
   </div>
-  <p class="lede">
-    {{ _('Newest first. Every report shows its type; a price-sensitive one also shows how reports of its type have moved prices before.') }}
-    <a href="glossary.html">{{ _('How to read this page') }}</a>
-  </p>
+  <p class="lede">{{ _('reports_lede_short') }}</p>
 </section>
 
 {% set k = ctx.pick %}
@@ -37,8 +34,8 @@
       <div class="s-main">
         <div class="s-head">
           <span class="chip chip-{{ r.filter }}">{{ r.label_key|label }}</span>
-          {% if r.stat %}<span class="verdict v-{{ r.stat.verdict }}" title="{{ r.stat.verdict|explain }}">{{ r.stat.verdict|verdict }}</span>{% endif %}
-          {% if c and c.buyable == false %}<span class="badge badge-thin" title="{{ _('thin_title') }}">{{ _('Too thin to trade') }}</span>{% endif %}
+          {% if r.stat %}<span class="verdict v-{{ r.stat.verdict }}">{{ tip(r.stat.verdict|verdict, r.stat.verdict|explain) }}</span>{% endif %}
+          {% if c and c.buyable == false %}<span class="badge badge-thin">{{ term('thin') }}</span>{% endif %}
         </div>
         <p class="s-title">{% if r.stock_slug %}<a href="stock/{{ r.stock_slug }}.html" class="sym-link">{{ icon(r.isin, r.ticker, assets) }}<span class="tick-sym">{{ r.ticker }}</span></a>{% else %}{{ icon(r.isin, r.ticker, assets) }}<span class="tick-sym">{{ r.ticker }}</span>{% endif %}
           {% if r.is_event %}<a href="event/{{ r.slug }}.html" lang="{{ 'pl' if r.signal_type != 'insider_tx' else lang }}">{{ r|fact }}</a>{% else %}<a href="{{ r.source_url }}" rel="noopener" lang="pl">{{ r|fact }}</a>{% endif %}</p>

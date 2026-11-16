@@ -3,46 +3,16 @@
 {% block main %}
 <section class="hero">
   <div>
-    <p class="eyebrow">{{ _('How to read Undercurrent') }}</p>
+    <p class="eyebrow">{{ _('Terms from A to Z') }}</p>
     <h1>{{ _('Glossary') }}</h1>
   </div>
-  <p class="lede">{{ _('glossary_lede') }}</p>
+  <p class="lede">{{ _('glossary_lede_short') }} <a href="how.html">{{ _('How it works') }}</a></p>
 </section>
 <section class="panel glossary">
   <dl>
-    {% for id, term, text in [
-      ('excess', 'Better or worse than WIG', 'g_excess'),
-      ('session', 'Session', 'g_session'),
-      ('day0', 'Day 0 and entry', 'g_day0'),
-      ('costs', 'Trading costs', 'g_costs'),
-      ('walk-forward', 'Traded on new data (walk-forward)', 'g_wf'),
-      ('q', 'Chance it is luck (FDR q)', 'g_q'),
-      ('verdicts', 'Verdicts', 'g_verdicts'),
-      ('bad-case', 'Bad case (1 in 20)', 'g_tail'),
-      ('liquidity', 'Too thin to trade', 'g_liquidity'),
-      ('adjusted', 'Adjusted prices', 'g_adjusted'),
-      ('xtb', 'Links to XTB', 'g_xtb'),
-      ('ic', 'Rank IC', 'g_ic'),
-      ('ridge', 'Ridge regression', 'g_ridge'),
-      ('hysteresis', 'Switching rule', 'g_hysteresis'),
-      ('live', 'Live record vs backtest', 'g_live'),
-      ('indicators', 'Chart indicators', 'g_indicators'),
-      ('surprise', 'Surprise (σ)', 'g_surprise'),
-      ('beta', 'Beta to WIG', 'g_beta'),
-      ('sigma', 'Expected volatility (σ)', 'g_sigma'),
-      ('regime', 'Stress regime', 'g_regime'),
-      ('breadth', 'Breadth', 'g_breadth'),
-      ('presets', 'Screener presets', 'g_presets'),
-      ('adx', 'ADX and relative turnover', 'g_adx'),
-      ('var', 'Value at risk and expected shortfall', 'g_var'),
-      ('rotation', 'Sector rotation', 'g_rotation'),
-      ('valuation', 'Valuation yields', 'g_valuation'),
-      ('dcf', 'Reverse DCF', 'g_dcf'),
-      ('fscore', 'Piotroski F-score', 'g_fscore'),
-      ('altman', 'Altman Z', 'g_altman'),
-    ] %}
-    <dt id="{{ id }}">{{ _(term) }}</dt>
-    <dd>{{ _(text) }}</dd>
+    {% for key, label, definition in glossary_terms %}
+    <dt id="{{ key }}">{{ label }}</dt>
+    <dd>{{ definition }}{% if how_anchor(key) %} <a class="how-link small" href="how.html#{{ how_anchor(key) }}">{{ _('How it’s measured') }} →</a>{% endif %}</dd>
     {% endfor %}
   </dl>
 </section>

@@ -7,7 +7,7 @@
     <p class="eyebrow">{{ ctx.day|longdate }} · GPW + NewConnect</p>
     <h1>{{ _('Screener') }}</h1>
   </div>
-  <p class="lede">{{ _('screener_lede') }} <a href="glossary.html#indicators">{{ _('What the columns mean') }}</a></p>
+  <p class="lede">{{ _('screener_lede_short') }}</p>
 </section>
 
 <section class="panel screener" id="screener">
@@ -24,7 +24,7 @@
         <option value="all">{{ _('Both') }}</option><option value="GPW">GPW</option><option value="NC">NewConnect</option>
       </select>
     </label>
-    <label>{{ _('Liquidity') }}
+    <label>{{ term('liquidity') }}
       <select data-field="tier">
         <option value="all">{{ _('All, thin included') }}</option>
         <option value="tradable">{{ _('Tradable (≥ 10,000 zł a day)') }}</option>
@@ -45,7 +45,6 @@
   <p class="muted small scr-count" aria-live="polite"></p>
   <div class="scroll"><table class="scr-table"><thead><tr></tr></thead><tbody><tr><td class="muted">{{ _('Loading…') }}</td></tr></tbody></table></div>
   <p class="muted small scroll-hint">{{ _('Scroll sideways for all columns.') }}</p>
-  <p class="muted small">{{ _('screener_note') }}</p>
 </section>
 {% endblock %}
 {% block scripts %}
@@ -59,7 +58,7 @@ UCScreener.mount(document.getElementById('screener'), {
   logoBase: '{{ assets }}logos/',
   labels: {{ {
     'cols': {'ticker': _('Stock'), 'close': _('Close'), 'ret': _('Today'), 'x5': _('5 s.'), 'x20': _('20 s.'), 'x60': _('60 s.'), 'x250': _('1 y.'), 'rsi': 'RSI', 'd50': _('vs SMA50'), 'd200': _('vs SMA200'), 'dhi': _('vs 52w high'), 'atr': 'ATR', 'rvol': _('Rel. turnover'), 'adx': 'ADX', 's20': 'σ 20', 'beta': 'β', 'z': _('Surprise'), 'var95': 'VaR 95', 'es975': 'ES 97.5', 'dd': _('Drawdown'), 'vol_pct': _('σ percentile'), 'turnover': _('Turnover'), 'cost': _('Cost'), 'fc': _('Forecast'), 'fc_rank': _('Rank'), 'insider_net': _('Insiders 20 s.'), 'ey': 'E/P', 'prof': _('EBIT/assets'), 'ag': _('Asset growth'), 'acc': _('Accruals'), 'mcap': _('Market cap'), 'pe': 'P/E', 'pbv': 'P/BV', 'dy': _('Div. yield'), 'fcfy': _('FCF yield'), 'value': _('Value rank'), 'fscore': 'F-score', 'altman': 'Altman Z'},
-    'titles': {'ret': _('t_ret'), 'x5': _('t_x'), 'x20': _('t_x'), 'x60': _('t_x'), 'x250': _('t_x'), 'rsi': _('t_rsi'), 'd50': _('t_dma'), 'd200': _('t_dma'), 'dhi': _('t_dhi'), 'atr': _('t_atr'), 'rvol': _('t_rvol'), 'adx': _('t_adx'), 'var95': _('t_var'), 'es975': _('t_es'), 'dd': _('t_dd'), 'vol_pct': _('t_volpct'), 's20': _('t_s20'), 'beta': _('t_beta'), 'z': _('t_z'), 'turnover': _('t_turnover'), 'cost': _('t_cost'), 'fc': _('t_fc'), 'fc_rank': _('t_fc'), 'insider_net': _('t_insider'), 'ey': _('t_fund'), 'prof': _('t_fund'), 'ag': _('t_fund'), 'acc': _('t_fund'), 'mcap': _('t_mcap'), 'pe': _('t_pe'), 'pbv': _('t_pe'), 'dy': _('t_pe'), 'fcfy': _('t_fcfy'), 'value': _('t_value'), 'fscore': _('t_fscore'), 'altman': _('t_altman')},
+    'titles': {'x5': define('excess'), 'x20': define('excess'), 'x60': define('excess'), 'x250': define('excess'), 'rsi': define('rsi'), 'd50': define('sma'), 'd200': define('sma'), 'dhi': define('hi52'), 'atr': define('atr'), 'rvol': define('rvol'), 'adx': define('adx'), 'var95': define('var'), 'es975': define('es'), 'dd': define('drawdown'), 'vol_pct': define('vol_pct'), 's20': define('sigma20'), 'beta': define('beta'), 'z': define('surprise'), 'turnover': define('turnover'), 'cost': define('cost'), 'fc': define('forecast'), 'fc_rank': define('forecast'), 'insider_net': define('insiders'), 'ey': define('ep'), 'prof': define('ebit_assets'), 'ag': define('asset_growth'), 'acc': define('accruals'), 'mcap': define('mcap'), 'pe': define('pe'), 'pbv': define('pbv'), 'dy': define('dy'), 'fcfy': define('fcfy'), 'value': define('value_rank'), 'fscore': define('fscore'), 'altman': define('altman')},
     'setups': ctx.preset_setups|setup_lines,
     'count': _('{n} of {t} listed stocks'), 'none': _('No stock matches.'), 'more': _('{n} more: narrow the filters to see them.'), 'loadError': _('The screener data could not be loaded.')
   }|tojson }}

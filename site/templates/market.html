@@ -3,12 +3,22 @@
 {% block main %}
 {% set t = ctx.tool %}
 {% set m = t.market if t else {} %}
-<section class="hero">
-  <div>
-    <p class="eyebrow">{{ (m.day or ctx.day)|longdate }} · GPW + NewConnect</p>
-    <h1>{{ _('The market tonight') }}</h1>
-  </div>
-  <p class="lede">{{ _('market_lede') }} <a href="glossary.html">{{ _('How to read this page') }}</a></p>
+{% set k = ctx.pick %}
+{% set since = (t.stocks|map(attribute='first')|min) if t and t.stocks else none %}
+<section class="pitch">
+  <p class="eyebrow">{{ (m.day or ctx.day)|longdate }} · GPW + NewConnect</p>
+  <h1>{{ _('pitch_h1') }}</h1>
+  <p class="pitch-sub">{{ _('pitch_sub') }}</p>
+  <p class="pitch-cta">
+    <a class="btn" href="screener.html">{{ _('Open the screener') }}</a>
+    <a class="btn btn-ghost" href="reports.html">{{ _('Tonight’s reports') }} <span class="mono cta-n">{{ ctx.counts.reports }}</span></a>
+    {% if k and k.ready and k.pick %}<a class="btn btn-ghost" href="pick.html">★ {{ _('Stock of the week') }}: {{ k.pick.ticker }}</a>{% endif %}
+  </p>
+  <ul class="pitch-facts">
+    <li><b class="mono">{{ m.listed or '—' }}</b><span>{{ _('listed stocks, each with a chart') }}</span></li>
+    <li><b class="mono">{{ ctx.counts.reports }}</b><span>{{ _('ESPI/EBI reports tonight') }}</span></li>
+    <li><b class="mono">{{ since.year if since else '—' }}</b><span>{{ _('price history since') }}</span></li>
+  </ul>
 </section>
 
 {% if m.indices %}
@@ -28,7 +38,7 @@
     <div class="card-head">
       <h2>WIG</h2>
       {% if m.regime is not none and m.regime is defined %}
-      <span class="badge {{ 'badge-thin' if m.regime > 0.5 else 'badge-ok' }}" title="{{ _('regime_title') }}">{{ _('Stress regime: {p}', p=m.regime|share) }}</span>
+      <span class="badge {{ 'badge-thin' if m.regime > 0.5 else 'badge-ok' }}">{{ term('regime', _('Stress regime: {p}', p=m.regime|share)) }}</span>
       {% endif %}
     </div>
     <div class="lw-host market-chart" id="market-chart" aria-label="{{ _('WIG, the stress probability and the share of stocks above their 200-session average') }}"></div>
@@ -39,7 +49,7 @@
     {% if m.breadth %}
     {% set b = m.breadth %}
     <section class="panel">
-      <h2>{{ _('Breadth, main market') }}</h2>
+      <h2>{{ term('breadth', _('Breadth, main market')) }}</h2>
       <dl class="kv kv-tight">
         <dt>{{ _('Up / down today') }}</dt><dd class="mono"><span class="up">{{ b.adv }}</span> / <span class="down">{{ b.dec }}</span></dd>
         <dt>{{ _('Above their 200-session average') }}</dt><dd class="mono">{{ b.above200 }} {{ _('of') }} {{ b.n200 }}{% if b.n200 %} <small class="muted">({{ (b.above200 / b.n200)|share }})</small>{% endif %}</dd>
@@ -47,7 +57,6 @@
       </dl>
     </section>
     {% endif %}
-    {% set k = ctx.pick %}
     {% if k and k.ready and k.pick %}
     <a class="card pick-card" href="pick.html">
       <span class="eyebrow">★ {{ _('Stock of the week') }}</span>
@@ -63,16 +72,16 @@
   </aside>
 </div>
 
-{% macro movers(title, rows, kind) %}
+{% macro movers(title, rows, kind, sort) %}
 <section class="panel">
-  <h2>{{ title }}</h2>
+  <div class="card-head"><h2>{{ title }}</h2><a class="small" href="screener.html#sort={{ sort }}&dir={{ '1' if sort == 'ret' and kind == 'down' else '-1' }}">{{ _('All') }} →</a></div>
   <ol class="movers">
     {% for r in rows %}
     <li>
       <a href="stock/{{ r.slug }}.html" class="sym-link">{{ icon(r.isin, r.ticker, assets) }}<span class="tick-sym">{{ r.ticker }}</span></a>
       <span class="muted mv-name">{{ r.name|company }}{{ ' · NC' if r.market == 'NC' else '' }}</span>
-      {% if kind == 'z' %}<b class="mono {{ r.z|tone }}">{{ r.z|decimal(1) }}σ</b> <small class="mono {{ r.ret|tone }}">{{ r.ret|pct }}</small>
-      {% else %}<b class="mono {{ r.ret|tone }}">{{ r.ret|pct }}</b>{% if r.z is not none %} <small class="mono muted">{{ r.z|decimal(1) }}σ</small>{% endif %}{% endif %}
+      {% if kind == 'z' %}<b class="mono {{ r.z|tone }}">{{ term('surprise', r.z|decimal(1) ~ 'σ') }}</b> <small class="mono {{ r.ret|tone }}">{{ r.ret|pct }}</small>
+      {% else %}<b class="mono {{ r.ret|tone }}">{{ r.ret|pct }}</b>{% if r.z is not none %} <small class="mono muted">{{ term('surprise', r.z|decimal(1) ~ 'σ') }}</small>{% endif %}{% endif %}
     </li>
     {% else %}<li class="muted">—</li>{% endfor %}
   </ol>
@@ -80,18 +89,18 @@
 {% endmacro %}
 {% if m.up is defined %}
 <div class="tiles three movers-grid">
-  {{ movers(_('Biggest rises'), m.up, 'ret') }}
-  {{ movers(_('Biggest falls'), m.down, 'ret') }}
-  {{ movers(_('Biggest surprises'), m.surprised, 'z') }}
+  {{ movers(_('Biggest rises'), m.up, 'up', 'ret') }}
+  {{ movers(_('Biggest falls'), m.down, 'down', 'ret') }}
+  {{ movers(_('Biggest surprises'), m.surprised, 'z', 'z') }}
 </div>
-<p class="muted small">{{ _('movers_note') }}</p>
+<p class="muted small">{{ term('liquidity', _('Tradable stocks only.')) }}</p>
 {% endif %}
 
 {% if m.sectors %}
 <section class="panel sectors">
   <div class="card-head"><h2>{{ _('Sector rotation') }}</h2><span class="muted small">{{ _('The GPW sector indices against WIG') }}</span></div>
   <div class="sectors-split">
-    <figure class="rrg-fig">{{ rrg(m.sectors)|safe }}<figcaption class="muted small">{{ _('rrg_note') }}</figcaption></figure>
+    <figure class="rrg-fig">{{ rrg(m.sectors)|safe }}<figcaption class="muted small">{{ _('rrg_caption') }} <a href="how.html#rotation">{{ _('How it’s measured') }}</a></figcaption></figure>
     <div>
     <p class="muted small sector-note">{{ _('Against WIG, except today: the index’s own change.') }}</p>
     <div class="scroll"><table class="sector-table">
@@ -105,7 +114,7 @@
         <td class="r mono {{ r.x20|tone }}">{{ r.x20|pct }}</td>
         <td class="r mono {{ r.x60|tone }}">{{ r.x60|pct }}</td>
         <td class="r mono {{ r.x250|tone }}">{{ r.x250|pct }}</td>
-        <td>{% if r.quadrant %}<span class="phase phase-{{ r.quadrant }}">{{ _(r.quadrant|capitalize) }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td>{% if r.quadrant %}<span class="phase phase-{{ r.quadrant }}">{{ term('phase_' ~ r.quadrant, _(r.quadrant|capitalize)) }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
       </tr>
       {% endfor %}
       </tbody>

@@ -170,6 +170,13 @@ def test_screener_figures(work) -> None:
     assert a["z"] == pytest.approx(3.5) and a["tier"] == "tradable"
     assert a["fc"] == pytest.approx(0.03) and a["fc_rank"] == 2
     assert a["name"] == "Alfa S.A."
+    # the header's search lists every stock with a page, listed ones first
+    import json
+
+    search = json.loads((tool.staging / "search.json").read_text(encoding="utf-8"))["rows"]
+    assert {r[2] for r in search} == {m["slug"] for m in tool.stocks}
+    listed = [m["listed"] for m in sorted(tool.stocks, key=lambda m: not m["listed"])]
+    assert [any(m["slug"] == r[2] and m["listed"] for m in tool.stocks) for r in search] == listed
     # the market page lists tradable stocks only, and B is thin
     assert [r["isin"] for r in tool.market["surprised"]] == [A]
 

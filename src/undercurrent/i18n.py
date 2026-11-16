@@ -620,6 +620,110 @@ PL: dict[str, str] = {
     "Signals · Undercurrent": "Sygnały · Undercurrent",
     "Pipeline · Undercurrent": "Proces · Undercurrent",
     # analysis pages: market, screener, stock
+    "pitch_h1": "Giełda po sesji, w jednym miejscu.",
+    "pitch_sub": (
+        "Wykresy, skaner i wieczorne raporty ESPI wszystkich spółek GPW i NewConnect. "
+        "Codziennie po sesji, za darmo."
+    ),
+    "pitch_meta": (
+        "Wykresy, skaner i wieczorne raporty ESPI wszystkich spółek GPW i NewConnect, "
+        "codziennie po sesji. Bez rekomendacji, same dane."
+    ),
+    "Open the screener": "Otwórz skaner",
+    "Tonight’s reports": "Raporty dziś",
+    "listed stocks, each with a chart": "notowanych spółek, każda z wykresem",
+    "ESPI/EBI reports tonight": "raportów ESPI/EBI dziś",
+    "price history since": "historia kursów od",
+    "Tradable stocks only.": "Tylko spółki, którymi da się handlować.",
+    "rrg_caption": "Sektory po prawej biją WIG; u góry ich przewaga rośnie.",
+    "screener_lede_short": "Wszystkie notowane spółki. Sortuj, filtruj albo wybierz gotowy zestaw.",
+    "reports_lede_short": "Wszystkie raporty ESPI i EBI z dzisiejszego wieczoru, od najnowszego.",
+    "signals_lede_short": (
+        "Które rodzaje raportów i układów na wykresie naprawdę ruszały kursem po kosztach."
+    ),
+    "setups_lede_short": "Każdy zestaw ze skanera, sprawdzony na historii GPW.",
+    "archive_lede_short": "Wcześniejsze podsumowania i jak ich spółki radzą sobie od tamtej pory.",
+    "record_note_short": "Wynik względem WIG od wejścia do dziś.",
+    "glossary_lede_short": (
+        "Krótkie definicje pojęć ze strony. Najedź na podkreślony termin, by zobaczyć go w miejscu."
+    ),
+    "how_lede": "Jak liczymy to, co pokazuje strona: źródła, metody i ograniczenia.",
+    "At a glance": "W skrócie",
+    "Trend": "Trend",
+    "above the 200-session average": "powyżej średniej z 200 sesji",
+    "below the 200-session average": "poniżej średniej z 200 sesji",
+    "From the 52-week high": "Od szczytu 52 tygodni",
+    "Typical daily range": "Typowy zakres dnia",
+    "Forecast vs WIG, 20 s.": "Prognoza wzgl. WIG, 1 mies.",
+    "Insiders, 20 s.": "Insiderzy, 1 mies.",
+    "σ band": "Pasmo σ",
+    "Click a dot to open its report.": "Kliknij kropkę, aby otworzyć raport.",
+    "only for liquid WIG stocks": "tylko dla płynnych spółek z WIG",
+    "xtb_short": "Undercurrent nie jest powiązany z XTB.",
+    "How it’s measured": "Jak to liczymy",
+    "Largest position in this week’s basket": "Największa pozycja koszyka w tym tygodniu",
+    ("Top score this week. No stock beats its cost, so the basket stays in WIG."): (
+        "Najwyższa ocena modelu w tym tygodniu. Żadna spółka nie pokonuje kosztów, więc "
+        "koszyk zostaje w WIG."
+    ),
+    "{r} vs WIG after costs": "{r} wzgl. WIG po kosztach",
+    "Not in the live record yet.": "Jeszcze nie w zapisie na żywo.",
+    "{w} weeks on unseen data": "{w} tyg. na nowych danych",
+    "Up to {k} stocks, weighted by risk. {wig} stays in WIG.": (
+        "Do {k} spółek, ważonych ryzykiem. {wig} zostaje w WIG."
+    ),
+    "Weight in the basket; beside each name, the expected result vs WIG over 20 sessions.": (
+        "Waga w koszyku; obok spółki jej oczekiwany wynik wzgl. WIG w ciągu 20 sesji."
+    ),
+    "Saved each week as it was made, never edited.": (
+        "Zapisywany co tydzień w chwili wyboru, nigdy nie poprawiany."
+    ),
+    "How the model works and its limits": "Jak działa model i jakie ma ograniczenia",
+    "not counted in these statistics.": "nie wchodzi do tych statystyk.",
+    "Source: the MAR notification form": "Źródło: formularz powiadomienia MAR",
+    "Source: the report’s text": "Źródło: treść raportu",
+    "surprise {z}σ": "niespodzianka {z}σ",
+    "not yet": "jeszcze nie",
+    "90% band {lo} to {hi}": "pasmo 90% od {lo} do {hi}",
+    "rank {r} of {u}": "miejsce {r} z {u}",
+    "over 20 sessions": "w ciągu 20 sesji",
+    "Average vs WIG around day 0, with a 95% band.": (
+        "Średni wynik wzgl. WIG wokół dnia 0, z pasmem 95%."
+    ),
+    "No stock found": "Nie znaleziono spółki",
+    "All results in the screener": "Wszystkie wyniki w skanerze",
+    "How it works": "Jak to działa",
+    "How it works · Undercurrent": "Jak to działa · Undercurrent",
+    "Behind the numbers": "Za liczbami",
+    "On this page": "Na tej stronie",
+    "The market page": "Strona rynku",
+    "Reports and signals": "Raporty i sygnały",
+    "Stock pages": "Strony spółek",
+    "Data and links": "Dane i linki",
+    "Biggest moves and surprises": "Największe ruchy i niespodzianki",
+    "How a kind of report is tested": "Jak sprawdzamy rodzaj raportu",
+    "How a setup is tested": "Jak sprawdzamy układ",
+    "Insider trade details": "Szczegóły transakcji insiderów",
+    "The archive’s record": "Wyniki archiwum",
+    "How the model chooses": "Jak model wybiera",
+    "Tested on weeks it had not seen": "Sprawdzony na tygodniach, których nie widział",
+    "Company logos": "Logo spółek",
+    "Terms from A to Z": "Pojęcia od A do Z",
+    "event_chart_note_plain": (
+        "Wykres zdarzenia pokazuje średni wynik akcji względem WIG od 5 sesji przed do 20 "
+        "sesji po dniu 0, z 95% pasmem niepewności. Liczby pod nim dotyczą okresu od wejścia "
+        "(zamknięcia sesji po podsumowaniu), bo dopiero wtedy czytelnik mógł kupić."
+    ),
+    "forms_how": (
+        "Gdy formularz powiadomienia MAR jest dostępny w kopii na parkiet.com, bankier.pl "
+        "albo biznesradar.pl, pola pochodzą z niego, a czego nie podaje, uzupełnia treść "
+        "raportu."
+    ),
+    "logos_how": (
+        "Logo to logo XTB dla kodu giełdowego spółki albo ikona z jej własnej strony, "
+        "przechowywane i serwowane przez Undercurrent. Jest znakiem towarowym spółki i służy "
+        "tylko do jej rozpoznania."
+    ),
     "Pages of reports": "Strony raportów",
     "Previous": "Poprzednia",
     "Next": "Następna",
@@ -923,10 +1027,10 @@ PL: dict[str, str] = {
         " po zamknięciu sesji, na cenach skorygowanych o dywidendy i splity."
     ),
     "Indices": "Indeksy",
-    "5 s.": "5 ses.",
-    "20 s.": "20 ses.",
-    "60 s.": "60 ses.",
-    "1 y.": "1 r.",
+    "5 s.": "1 tydz.",
+    "20 s.": "1 mies.",
+    "60 s.": "3 mies.",
+    "1 y.": "1 rok",
     "Stress regime: {p}": "Reżim stresu: {p}",
     "regime_title": (
         "Prawdopodobieństwo, że rynek jest w stanie wysokiej zmienności (model dwóch stanów "
@@ -997,7 +1101,7 @@ PL: dict[str, str] = {
     "Turnover": "Obrót",
     "Cost": "Koszt",
     "Forecast": "Prognoza",
-    "Insiders 20 s.": "Insiderzy 20 ses.",
+    "Insiders 20 s.": "Insiderzy, 1 mies.",
     "EBIT/assets": "EBIT/aktywa",
     "Asset growth": "Wzrost aktywów",
     "Accruals": "Memoriały",
@@ -1045,9 +1149,9 @@ PL: dict[str, str] = {
     "Beta to WIG": "Beta do WIG",
     "No session since {d}": "Brak sesji od {d}",
     "Liquid": "Płynna",
-    "vs WIG, 20 s.": "wzgl. WIG, 20 ses.",
-    "vs WIG, 1 y.": "wzgl. WIG, 1 r.",
-    "vs WIG, 5 / 60 s.": "wzgl. WIG, 5 / 60 ses.",
+    "vs WIG, 20 s.": "wzgl. WIG, 1 mies.",
+    "vs WIG, 1 y.": "wzgl. WIG, 1 rok",
+    "vs WIG, 5 / 60 s.": "wzgl. WIG, 1 tydz. / 3 mies.",
     "Price chart of {t}": "Wykres kursu {t}",
     "insider selling": "sprzedaż insiderów",
     "chart_note": (
@@ -1080,6 +1184,52 @@ PL: dict[str, str] = {
 }
 
 EN_OVERRIDES: dict[str, str] = {
+    "pitch_h1": "The Warsaw market after the close, in one place.",
+    "pitch_sub": (
+        "Charts, a screener and tonight's ESPI reports for every GPW and NewConnect stock. "
+        "Every evening after the session, free."
+    ),
+    "pitch_meta": (
+        "Charts, a screener and tonight's ESPI reports for every GPW and NewConnect stock, "
+        "every evening after the session. No recommendations, just data."
+    ),
+    "rrg_caption": "Sectors on the right beat WIG; at the top their lead is growing.",
+    "screener_lede_short": "Every listed stock. Sort, filter or start from a preset.",
+    "reports_lede_short": "Every ESPI and EBI report from tonight, newest first.",
+    "signals_lede_short": "Which kinds of report and chart setup really moved prices, after costs.",
+    "setups_lede_short": "Every screener preset, tested on GPW's history.",
+    "archive_lede_short": "Earlier digests and how their stocks have done since.",
+    "record_note_short": "Result against WIG from entry to today.",
+    "glossary_lede_short": (
+        "Short definitions of the site's terms. Hover over an underlined term to see it in place."
+    ),
+    "how_lede": "How we compute what the site shows: sources, methods and limits.",
+    "xtb_short": "Undercurrent is not affiliated with XTB.",
+    "event_chart_note_plain": (
+        "An event's chart shows the stock's average result against WIG from 5 sessions "
+        "before to 20 sessions after day 0, with a 95% band. The figures below it run from "
+        "entry (the close after the digest), the first moment a reader could buy."
+    ),
+    "forms_how": (
+        "When a copy of the MAR notification form is on parkiet.com, bankier.pl or "
+        "biznesradar.pl, the fields come from it, and the report's text fills in what it "
+        "leaves out."
+    ),
+    "logos_how": (
+        "A logo is XTB's logo for the stock's exchange code or the icon from the company's "
+        "own website, kept and served by Undercurrent. It is the company's trademark, shown "
+        "only to identify the stock."
+    ),
+    "5 s.": "1 wk",
+    "20 s.": "1 mo",
+    "60 s.": "3 mo",
+    "1 y.": "1 yr",
+    "vs WIG, 20 s.": "vs WIG, 1 month",
+    "vs WIG, 1 y.": "vs WIG, 1 year",
+    "vs WIG, 5 / 60 s.": "vs WIG, 1 week / 3 months",
+    "Insiders 20 s.": "Insiders, 1 mo",
+    "Forecast vs WIG, 20 s.": "Forecast vs WIG, 1 mo",
+    "Insiders, 20 s.": "Insiders, 1 mo",
     "no_recent_report": (
         "No annual report from the last 18 months in the data: the ESEF repository it comes "
         "from has no Polish reports added after July 2024. Shares, earnings and book value come "

@@ -10,8 +10,8 @@
 
 <section class="verdict-box v-box-{{ s.verdict if s else 'too_few' }}">
   <p class="summary">{{ s|summary(e.horizon) }}</p>
-  {% if s %}<p><span class="verdict v-{{ s.verdict }}">{{ s.verdict|verdict }}</span> {{ s.verdict|explain }}</p>{% endif %}
-  {% if c.buyable == false %}<p class="warn-line">{{ _('thin_warning') }}</p>{% endif %}
+  {% if s %}<p><span class="verdict v-{{ s.verdict }}">{{ tip(s.verdict|verdict, s.verdict|explain) }}</span></p>{% endif %}
+  {% if c.buyable == false %}<p class="warn-line">{{ term('thin') }}: {{ _('not counted in these statistics.') }}</p>{% endif %}
 </section>
 
 <div class="split even">
@@ -30,9 +30,9 @@
     </dl>
     {% if e.insider_source and e.insider_source.startswith('form:') %}
     {% set portal = {'parkiet': 'parkiet.com', 'bankier': 'bankier.pl', 'biznesradar': 'biznesradar.pl'}.get(e.insider_source[5:], e.insider_source[5:]) %}
-    <p class="muted small">{{ _('form_note', portal='<a href="%s" rel="noopener">%s</a>'|format(e.insider_form_url|e, portal)|safe)|safe }}</p>
+    <p class="muted small">{{ _('Source: the MAR notification form') }}, <a href="{{ e.insider_form_url }}" rel="noopener">{{ portal }}</a></p>
     {% else %}
-    <p class="muted small">{{ _('insider_note') }}</p>
+    <p class="muted small">{{ _('Source: the report’s text') }}</p>
     {% endif %}
     {% endif %}
     {% if e.lead %}
@@ -54,19 +54,19 @@
     {% if c.last_close is not none %}
     <dl class="kv">
       <dt>{{ _('Last close') }}</dt><dd class="mono">{{ c.last_close|num }} PLN <small class="muted">{{ c.last_date }}</small></dd>
-      {% if c.day0_ret is not none %}<dt>{{ _('Reaction on day 0') }}</dt><dd class="mono"><b class="{{ c.day0_ret|tone }}">{{ c.day0_ret|pct }}</b> <small class="muted">{{ _('WIG {w}', w=c.day0_wig|pct) }}{% if c.surprise is not none and c.buyable %} · {{ _('{z} σ beyond what WIG and bonds explain', z=c.surprise|decimal(1)) }}{% endif %}</small></dd>{% endif %}
-      <dt>{{ _('Since entry') }}</dt><dd class="mono">{% if c.since_entry is not none %}<b class="{{ c.since_entry|tone }}">{{ c.since_entry|pct }}</b> <small class="muted">{{ _('vs WIG, {n} of {h} sessions', n=c.since_sessions, h=e.horizon) }}</small>{% else %}<span class="muted">{{ _('not yet: entry is the close after the digest') }}</span>{% endif %}</dd>
-      <dt>{{ _('Liquidity') }}</dt><dd>{% if c.buyable is none %}<span class="muted">—</span>{% else %}<span class="mono">{{ c.median_turnover|short_pln }} PLN</span> <small class="muted">{{ _('median daily turnover') }}</small>{% if c.buyable %} <span class="badge badge-ok">{{ _('Tradable') }}</span>{% else %} <span class="badge badge-thin">{{ _('Too thin to trade') }}</span>{% endif %}{% endif %}</dd>
-      {% if c.sigma_20 is not none and c.buyable %}<dt>{{ _('Expected volatility, next 20 sessions') }}</dt><dd class="mono">{{ c.sigma_20|share }}{% if c.cost is not none %} <small class="muted">{{ _('a round trip costs about {c}', c=c.cost|share) }}</small>{% endif %}</dd>{% endif %}
-      {% if c.forecast %}<dt>{{ _('Forecast vs WIG, 20 sessions') }}</dt><dd class="mono"><b class="{{ c.forecast.expected|tone }}">{{ c.forecast.expected|pct }}</b> <small class="muted">{{ _('90% band {lo} to {hi} · reports of the last 3 months: {n} of it · rank {r} of {u} liquid WIG stocks', lo=c.forecast.band_lo|pct, hi=c.forecast.band_hi|pct, n=c.forecast.news_effect|pct, r=c.forecast.rank, u=c.forecast.universe) }}</small> <a href="../pick.html">{{ _('the model') }}</a></dd>
-      {% elif c.buyable is not none %}<dt>{{ _('Forecast vs WIG, 20 sessions') }}</dt><dd><span class="muted">{{ _('none: the model scores only liquid WIG stocks with a year of history') }}</span></dd>{% endif %}
-      {% if e.effect %}<dt>{{ _('Reports like this, as evidence') }}</dt><dd class="mono"><b class="{{ e.effect.shrunk|tone }}">{{ e.effect.shrunk|pct }}</b> <small class="muted">{% if e.effect.signal_key == '*' %}{{ _('over 20 sessions: what any report adds, shrunk by its evidence; too few reports of this kind to tell it apart') }}{% else %}{{ _('over 20 sessions after shrinking by the evidence: {c} common to all reports, {k} for this kind (measured {m} over {n} reports)', c=e.effect.common|pct, k=(e.effect.shrunk - e.effect.common)|pct, m=e.effect.mean|pct, n=e.effect.n) }}{% endif %}</small></dd>{% endif %}
+      {% if c.day0_ret is not none %}<dt>{{ term('day0', _('Reaction on day 0')) }}</dt><dd class="mono"><b class="{{ c.day0_ret|tone }}">{{ c.day0_ret|pct }}</b> <small class="muted">{{ _('WIG {w}', w=c.day0_wig|pct) }}{% if c.surprise is not none and c.buyable %} · {{ term('surprise', _('surprise {z}σ', z=c.surprise|decimal(1))) }}{% endif %}</small></dd>{% endif %}
+      <dt>{{ _('Since entry') }}</dt><dd class="mono">{% if c.since_entry is not none %}<b class="{{ c.since_entry|tone }}">{{ c.since_entry|pct }}</b> <small class="muted">{{ _('vs WIG, {n} of {h} sessions', n=c.since_sessions, h=e.horizon) }}</small>{% else %}<span class="muted">{{ _('not yet') }}</span>{% endif %}</dd>
+      <dt>{{ term('liquidity') }}</dt><dd>{% if c.buyable is none %}<span class="muted">—</span>{% else %}<span class="mono">{{ c.median_turnover|short_pln }} PLN</span> <small class="muted">{{ _('median daily turnover') }}</small>{% if c.buyable %} <span class="badge badge-ok">{{ _('Tradable') }}</span>{% else %} <span class="badge badge-thin">{{ _('Too thin to trade') }}</span>{% endif %}{% endif %}</dd>
+      {% if c.sigma_20 is not none and c.buyable %}<dt>{{ term('sigma20', _('Expected volatility, next 20 sessions')) }}</dt><dd class="mono">{{ c.sigma_20|share }}{% if c.cost is not none %} <small class="muted">{{ _('a round trip costs about {c}', c=c.cost|share) }}</small>{% endif %}</dd>{% endif %}
+      {% if c.forecast %}<dt>{{ term('forecast', _('Forecast vs WIG, 20 sessions')) }}</dt><dd class="mono"><b class="{{ c.forecast.expected|tone }}">{{ c.forecast.expected|pct }}</b> <small class="muted">{{ term('band90', _('90% band {lo} to {hi}', lo=c.forecast.band_lo|pct, hi=c.forecast.band_hi|pct)) }} · {{ _('rank {r} of {u}', r=c.forecast.rank, u=c.forecast.universe) }}</small> <a href="../pick.html">{{ _('the model') }}</a></dd>
+      {% elif c.buyable is not none %}<dt>{{ term('forecast', _('Forecast vs WIG, 20 sessions')) }}</dt><dd><span class="muted">{{ _('only for liquid WIG stocks') }}</span></dd>{% endif %}
+      {% if e.effect %}<dt>{{ _('Reports like this, as evidence') }}</dt><dd class="mono"><b class="{{ e.effect.shrunk|tone }}">{{ e.effect.shrunk|pct }}</b> <small class="muted">{{ _('over 20 sessions') }}</small></dd>{% endif %}
     </dl>
     {% if c.spark[lang] %}<figure class="spark-fig">{{ c.spark[lang]|safe }}<figcaption class="muted small">{{ _('Share price, last 90 sessions (adjusted); the line marks day 0 of this report.') }}</figcaption></figure>{% endif %}
     {% else %}
     <p class="muted">{{ _('No price data for this company yet.') }}</p>
     {% endif %}
-    {% if e.xtb_url %}<p><a class="ext" href="{{ e.xtb_url }}" rel="noopener nofollow">{{ _('{t} on XTB ↗', t=e.ticker) }}</a><br><small class="muted">{{ _('xtb_note') }}</small></p>{% endif %}
+    {% if e.xtb_url %}<p><a class="ext" href="{{ e.xtb_url }}" rel="noopener nofollow">{{ _('{t} on XTB ↗', t=e.ticker) }}</a><br><small class="muted">{{ _('xtb_short') }}</small></p>{% endif %}
     {% if e.history %}
     <h3>{{ _('Other reports of this company') }}</h3>
     <ul class="feed wide compact">
@@ -90,18 +90,18 @@
 <div class="event-stats">
 <section class="panel chart-panel">
   <h2>{{ _('What happened after {n} similar events', n=e.path_n|num) if e.path_n else _('What happened after similar events') }}</h2>
-  <p class="muted small">{{ _('event_chart_note', h=e.horizon) }}</p>
+  <p class="muted small">{{ _('Average vs WIG around day 0, with a 95% band.') }} <a href="../how.html#day0">{{ _('How it’s measured') }}</a></p>
   {{ e.path|chart(e.entry, e.horizon)|safe }}
 </section>
 
 <section class="tile-stack">
-  <div class="tile"><span>{{ _('Avg vs WIG, {p} after entry', p=e.horizon|period) }}</span><b class="mono {{ (s.mean_car if s else none)|tone }}">{{ (s.mean_car if s else none)|pct }}</b></div>
+  <div class="tile"><span>{{ term('excess', _('Avg vs WIG, {p} after entry', p=e.horizon|period)) }}</span><b class="mono {{ (s.mean_car if s else none)|tone }}">{{ (s.mean_car if s else none)|pct }}</b></div>
   {% if s and s.hit_rate is not none %}
-  <div class="tile"><span>{{ _('Better than WIG') }}</span><b class="mono">{{ ((s.hit_rate * 100)|round|int) }}%</b><small>{{ _('of {n} past cases', n=s.n|num) }}</small></div>
+  <div class="tile"><span>{{ term('hit_rate', _('Better than WIG')) }}</span><b class="mono">{{ ((s.hit_rate * 100)|round|int) }}%</b><small>{{ _('of {n} past cases', n=s.n|num) }}</small></div>
   {% else %}<div class="tile"><span>{{ _('Better than WIG') }}</span><b class="mono">—</b></div>{% endif %}
-  <div class="tile"><span>{{ _('Traded on new data, after costs') }} <a class="q" href="../glossary.html#walk-forward" title="{{ _('wf_title') }}" aria-label="{{ _('What is this?') }}">?</a></span><b class="mono {{ (s.oos_mean_net if s else none)|tone }}">{{ (s.oos_mean_net if s else none)|pct }}</b><small>{{ _('per trade') }}</small></div>
-  <div class="tile"><span>{{ _('Chance it is luck') }} <a class="q" href="../glossary.html#q" title="{{ _('q_title') }}" aria-label="{{ _('What is this?') }}">?</a></span><b class="mono">{{ (s.q_value if s else none)|qval }}</b><small>{{ _('FDR-adjusted q') }}</small></div>
-  <div class="tile"><span>{{ _('Bad case for a short (1 in 20), in sample') if e.tail_short else _('Bad case (1 in 20), in sample') }} <a class="q" href="../glossary.html#bad-case" title="{{ _('tail_title') }}" aria-label="{{ _('What is this?') }}">?</a></span><b class="mono {{ e.tail|tone }}">{{ e.tail|pct }}</b></div>
+  <div class="tile"><span>{{ term('walk_forward', _('Traded on new data, after costs')) }}</span><b class="mono {{ (s.oos_mean_net if s else none)|tone }}">{{ (s.oos_mean_net if s else none)|pct }}</b><small>{{ _('per trade') }}</small></div>
+  <div class="tile"><span>{{ term('q', _('Chance it is luck')) }}</span><b class="mono">{{ (s.q_value if s else none)|qval }}</b><small>{{ _('FDR-adjusted q') }}</small></div>
+  <div class="tile"><span>{{ term('bad_case', _('Bad case for a short (1 in 20), in sample') if e.tail_short else _('Bad case (1 in 20), in sample')) }}</span><b class="mono {{ e.tail|tone }}">{{ e.tail|pct }}</b></div>
 </section>
 </div>
 

@@ -7,14 +7,14 @@
     <p class="eyebrow">{{ _('Rebuilt nightly') }} · {{ ctx.coverage.first_event or '—' }} → {{ ctx.day }} · {{ _('{n} studied events', n=ctx.coverage.events_studied|num) }}</p>
     <h1>{{ _('Which signals actually hold up') }}</h1>
   </div>
-  <p class="lede">{{ _('signals_lede') }}</p>
+  <p class="lede">{{ _('signals_lede_short') }} <a href="how.html#study">{{ _('How it’s measured') }}</a></p>
 </section>
 <section class="tiles five">
   <div class="tile"><span>{{ _('Signal types tested') }}</span><b>{{ ctx.summary.tested }}</b></div>
-  <div class="tile"><span>{{ _('Hold up after costs') }}</span><b class="v-holds_up-text">{{ ctx.summary.holds_up }}</b></div>
-  <div class="tile"><span>{{ _('Not confirmed out of sample') }}</span><b>{{ ctx.summary.unconfirmed }}</b></div>
-  <div class="tile"><span>{{ _('Significant, but eaten by costs') }}</span><b class="down">{{ ctx.summary.eaten_by_costs }}</b></div>
-  <div class="tile"><span>{{ _('Noise') }}</span><b>{{ ctx.summary.noise }}</b></div>
+  <div class="tile"><span>{{ tip(_('Hold up after costs'), 'holds_up'|explain) }}</span><b class="v-holds_up-text">{{ ctx.summary.holds_up }}</b></div>
+  <div class="tile"><span>{{ tip(_('Not confirmed out of sample'), 'unconfirmed'|explain) }}</span><b>{{ ctx.summary.unconfirmed }}</b></div>
+  <div class="tile"><span>{{ tip(_('Significant, but eaten by costs'), 'eaten_by_costs'|explain) }}</span><b class="down">{{ ctx.summary.eaten_by_costs }}</b></div>
+  <div class="tile"><span>{{ tip(_('Noise'), 'noise'|explain) }}</span><b>{{ ctx.summary.noise }}</b></div>
 </section>
 {% macro library(rows, title, anchor, note) %}
 <section class="panel">
@@ -26,12 +26,12 @@
   </div>
   <div class="scroll">
   <table>
-    <thead><tr><th>{{ _('Signal') }}</th><th>{{ _('Verdict') }}</th><th class="r">{{ _('Events') }}</th><th class="r wide">{{ _('Avg excess [0,+{h}]', h=horizon) }}</th><th class="r">{{ _('95% CI') }}</th><th class="r">{{ _('Hit rate') }}</th><th class="r">{{ _('FDR q') }}</th><th class="r wide">{{ _('Walk-forward after costs') }}</th><th class="r">{{ _('Deflated SR') }}</th></tr></thead>
+    <thead><tr><th>{{ _('Signal') }}</th><th>{{ _('Verdict') }}</th><th class="r">{{ _('Events') }}</th><th class="r wide">{{ term('excess', _('Avg excess [0,+{h}]', h=horizon)) }}</th><th class="r">{{ term('ci95') }}</th><th class="r">{{ term('hit_rate') }}</th><th class="r">{{ term('q') }}</th><th class="r wide">{{ term('walk_forward', _('Walk-forward after costs')) }}</th><th class="r">{{ term('deflated_sr') }}</th></tr></thead>
     <tbody>
     {% for r in rows %}
       <tr>
         <td class="sig">{{ r.signal_key|label }}<small class="muted">{{ r.signal_key|basis }}</small></td>
-        <td><span class="verdict v-{{ r.verdict }}">{{ r.verdict|verdict }}</span></td>
+        <td><span class="verdict v-{{ r.verdict }}">{{ tip(r.verdict|verdict, r.verdict|explain) }}</span></td>
         <td class="r mono">{{ r.n|num }}</td>
         <td class="r mono {{ r.mean_car|tone }}">{{ r.mean_car|pct }}</td>
         <td class="r mono muted">{{ r.ci_lo|pct }} … {{ r.ci_hi|pct }}</td>
@@ -47,16 +47,16 @@
   </table>
   </div>
   <p class="muted small scroll-hint">{{ _('Scroll sideways for all columns.') }}</p>
-  {% if note %}<p class="muted small">{{ note }}</p>{% endif %}
+  {% if note %}<p class="muted small"><a href="how.html#{{ note }}">{{ _('How it’s measured') }}</a></p>{% endif %}
 </section>
 {% endmacro %}
-{{ library(rows, _('Signal library'), 'reports', _('signals_footnote')) }}
+{{ library(rows, _('Signal library'), 'reports', 'study') }}
 {% set setup_rows = ctx.setups.get(horizon, []) %}
 {% if setup_rows %}
 <section class="hero setups-hero">
   <div><p class="eyebrow">{{ _('Chart setups') }}</p><h2>{{ _('Do the screener’s presets pay off?') }}</h2></div>
-  <p class="lede">{{ _('setups_lede') }}</p>
+  <p class="lede">{{ _('setups_lede_short') }}</p>
 </section>
-{{ library(setup_rows, _('Chart setups'), 'setups', _('setups_footnote')) }}
+{{ library(setup_rows, _('Chart setups'), 'setups', 'setup-test') }}
 {% endif %}
 {% endblock %}
