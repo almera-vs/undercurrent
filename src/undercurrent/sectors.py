@@ -125,6 +125,8 @@ def rotation(
             "tail": tail,
         }
         row["quadrant"] = quadrant(row["trend"], row["momentum"])
+        # the phase a week ago, from the tail's weekly points
+        row["week_ago"] = quadrant(*tail[-2]) if len(tail) >= 2 else None
         out.append(row)
     return sorted(out, key=lambda r: -(r["x20"] if r["x20"] is not None else -9))
 
@@ -153,7 +155,7 @@ def rrg_svg(rows: list[dict[str, Any]], lang: str, titles: dict[str, str]) -> st
     pts = [(float(x), float(y)) for r in rows for x, y in r["tail"]]
     if not pts:
         return ""
-    w, h, pad = 640, 440, 36
+    w, h, pad = 640, 520, 36
     span_x = float(max(max(abs(x - 100) for x, _ in pts), 1.0) * 1.15)
     span_y = float(max(max(abs(y - 100) for _, y in pts), 0.5) * 1.15)
 

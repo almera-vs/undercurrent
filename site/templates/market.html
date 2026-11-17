@@ -80,8 +80,8 @@
     <li>
       <a href="stock/{{ r.slug }}.html" class="sym-link">{{ icon(r.isin, r.ticker, assets) }}<span class="tick-sym">{{ r.ticker }}</span></a>
       <span class="muted mv-name">{{ r.name|company }}{{ ' · NC' if r.market == 'NC' else '' }}</span>
-      {% if kind == 'z' %}<b class="mono {{ r.z|tone }}">{{ term('surprise', r.z|decimal(1) ~ 'σ') }}</b> <small class="mono {{ r.ret|tone }}">{{ r.ret|pct }}</small>
-      {% else %}<b class="mono {{ r.ret|tone }}">{{ r.ret|pct }}</b>{% if r.z is not none %} <small class="mono muted">{{ term('surprise', r.z|decimal(1) ~ 'σ') }}</small>{% endif %}{% endif %}
+      <span class="mv-val">{% if kind == 'z' %}<b class="mono {{ r.z|tone }}">{{ term('surprise', r.z|decimal(1) ~ 'σ') }}</b><small class="mono {{ r.ret|tone }}">{{ r.ret|pct }}</small>
+      {% else %}<b class="mono {{ r.ret|tone }}">{{ r.ret|pct }}</b>{% if r.z is not none %}<small class="mono muted">{{ term('surprise', r.z|decimal(1) ~ 'σ') }}</small>{% endif %}{% endif %}</span>
     </li>
     {% else %}<li class="muted">—</li>{% endfor %}
   </ol>
@@ -100,7 +100,19 @@
 <section class="panel sectors">
   <div class="card-head"><h2>{{ _('Sector rotation') }}</h2><span class="muted small">{{ _('The GPW sector indices against WIG') }}</span></div>
   <div class="sectors-split">
+    <div>
     <figure class="rrg-fig">{{ rrg(m.sectors)|safe }}<figcaption class="muted small">{{ _('rrg_caption') }} <a href="how.html#rotation">{{ _('How it’s measured') }}</a></figcaption></figure>
+    <div class="phase-box">
+      <h3>{{ _('Phase changes this week') }}</h3>
+      <ul class="phase-changes">
+      {% for r in m.sectors if r.week_ago and r.quadrant and r.week_ago != r.quadrant %}
+        <li><b>{{ sector_label(r.key) }}</b> <span class="phase phase-{{ r.week_ago }}">{{ term('phase_' ~ r.week_ago, _(r.week_ago|capitalize)) }}</span> <span class="arrow" aria-hidden="true">→</span> <span class="phase phase-{{ r.quadrant }}">{{ term('phase_' ~ r.quadrant, _(r.quadrant|capitalize)) }}</span> <span class="mono small {{ r.x5|tone }}">{{ r.x5|pct }} <span class="muted">{{ _('5 s.') }}</span></span></li>
+      {% else %}
+        <li class="muted">{{ _('No sector changed phase this week.') }}</li>
+      {% endfor %}
+      </ul>
+    </div>
+    </div>
     <div>
     <p class="muted small sector-note">{{ _('Against WIG, except today: the index’s own change.') }}</p>
     <div class="scroll"><table class="sector-table">

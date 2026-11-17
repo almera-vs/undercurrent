@@ -620,6 +620,8 @@ PL: dict[str, str] = {
     "Signals · Undercurrent": "Sygnały · Undercurrent",
     "Pipeline · Undercurrent": "Proces · Undercurrent",
     # analysis pages: market, screener, stock
+    "Phase changes this week": "Zmiany fazy w tym tygodniu",
+    "No sector changed phase this week.": "Żaden sektor nie zmienił fazy w tym tygodniu.",
     "pitch_h1": "Giełda po sesji, w jednym miejscu.",
     "pitch_sub": (
         "Wykresy, skaner i wieczorne raporty ESPI wszystkich spółek GPW i NewConnect. "

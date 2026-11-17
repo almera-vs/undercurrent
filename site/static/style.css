@@ -477,7 +477,8 @@ details.weights summary { cursor: pointer; color: var(--up); font-weight: 600; m
   .tile-stack { grid-template-columns: 1fr; }
 }
 /* side-by-side panels are not stacked: no top gap between them */
-.split > .panel + .panel { margin-top: 0; }
+.split > .panel + .panel, .tiles > .panel + .panel { margin-top: 0; }
+.split + .panel { margin-top: 1.6rem; }
 .split.halves { align-items: stretch; }
 
 /* Today: one list, newest first; each report carries its type (and, for price-sensitive
@@ -775,3 +776,18 @@ details.weights summary { cursor: pointer; color: var(--up); font-weight: 600; m
 .glance li span { color: var(--muted); font-size: 0.8rem; }
 .glance li b { font-size: 1rem; font-weight: 600; }
 @media (max-width: 640px) { .glance li { flex: 1 1 calc(50% - 0.5rem); min-width: 0; } }
+
+/* ------------------------------------------------------------------ alignment fixes */
+/* a tile's figure sits at the bottom, so labels of one or two lines keep figures level */
+.tile > b { margin-top: auto; }
+/* a mover's figure and its second figure share the right-hand cell */
+.movers li { align-items: center; }
+.mv-val { display: flex; flex-direction: column; align-items: flex-end; text-align: right; line-height: 1.25; }
+.mv-val small { font-size: 0.78rem; }
+/* sector rotation: phase changes under the chart */
+.phase-changes { list-style: none; margin: 0; padding: 0; }
+.phase-changes li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; padding: 0.4rem 0; border-top: 1px solid var(--line); font-size: 0.92rem; }
+.phase-changes li:first-child { border-top: 0; }
+.phase-changes .arrow { color: var(--muted); }
+.phase-box { margin-top: 1.2rem; }
+.phase-box h3 { font-size: 1rem; margin: 0 0 0.3rem; }
