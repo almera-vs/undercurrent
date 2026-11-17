@@ -1,0 +1,63 @@
+name: annual-reports
+
+# Periodic reports (annual, half-year, quarterly) read from the exchange's own report pages
+# (gpw_importer.py): the selected financial data every ESPI periodic form carries. Then, as a
+# supplement, the ESEF files on Bankier (esef_bankier.py), which only add the lines the form
+# lacks (capex, depreciation); that step may fail without failing the run. One request a
+# second; report pages are read once, only the extracted facts are committed.
+# The first step fails the run (and GitHub e-mails) when the source or the parser breaks:
+# a known report no longer reads as it should, no form is recognised, or few reports pass
+# their checks (gpw_importer.health). What was read is committed all the same.
+on:
+  schedule:
+    - cron: "0 5 * * 6"  # Saturday morning, no session that day
+  workflow_dispatch:
+    inputs:
+      max:
+        description: "at most this many exchange report pages to read"
+        required: true
+        default: "600"
+      bankier:
+        description: "at most this many companies to look up on Bankier (0 skips it)"
+        required: true
+        default: "120"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily  # one writer to the data branch at a time, as for the nightly run
+  cancel-in-progress: false
+
+jobs:
+  annual-reports:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          ref: data
+          path: data
+          fetch-depth: 1
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --locked --no-dev
+      - name: read periodic reports from gpw.pl
+        run: uv run undercurrent --data-dir data gpw-reports --max "${{ inputs.max || '600' }}"
+      - name: ESEF lines from Bankier (supplement)
+        if: ${{ !cancelled() && (inputs.bankier || '120') != '0' }}
+        continue-on-error: true
+        run: uv run undercurrent --data-dir data esef-bankier --max "${{ inputs.bankier || '120' }}"
+      - name: agreement with ESEF filings (report only)
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: uv run undercurrent --data-dir data gpw-reconcile
+      - name: lake size check
+        if: ${{ !cancelled() }}
+        run: uv run undercurrent --data-dir data check-lake --max-mb 900
+      - name: commit
+        if: always()
+        run: scripts/commit_data.sh "periodic reports $(date -u +%F)"

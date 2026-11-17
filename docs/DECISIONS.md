@@ -727,6 +727,50 @@ options models need US yields and option prices, VPIN needs intraday trades, and
 - **Session counts read as calendar words** (1 week, 1 month, 3 months); their definition
   says they are 5, 20 and 60 sessions.
 
+## Fresh annual reports from bankier.pl (2026-11-17)
+
+- **Why.** filings.xbrl.org stopped adding Polish filings in July 2024, so free-cash-flow
+  yield, EBIT yield, the F-score, Altman's Z and the reverse DCF rested on fiscal 2022–2023.
+- **Bankier's copies of the ESEF files**, like the insider forms' portal copies: the
+  companies' own tagged statements, read with the same concepts as before, rather than a
+  data vendor's numbers (NewConnect's "Dane finansowe" tab is Notoria's, licensed, and only
+  the latest half-year).
+- **Accepted gaps.** Fiscal 2024 is mostly gone from Bankier; issuers that attach only a
+  rendered copy give nothing. Where a fresh report is missing, the page still says how old
+  the one shown is.
+
+## Periodic reports from the exchange's own pages (2026-11-17)
+
+- **Why.** The fundamentals rested on copies held by others: filings.xbrl.org (stopped in
+  July 2024) and Bankier (most files of March 2025 gone, some issuers attach only a rendered
+  copy). Neither is under the project's control, and both leave years out.
+- **The exchange's report page** already holds the selected financial data the issuer types
+  into every periodic ESPI form (SOURCES § 16): plain HTML, the same page the nightly run
+  reads for current reports, back to 2015. No attachment and no bot protection is involved.
+- **Native first, checked.** For a fiscal year, the exchange's annual report is read
+  first (consolidated form before standalone, then the latest). Every report must pass
+  internal checks (balance sheet, parts within totals, EPS against profit ÷ shares, net
+  profit against its parts, złoty against euros) or none of it is kept: a refused report
+  is visible in the state, a wrongly kept one would not be.
+- **The same report read twice.** When an ESEF filing has the same total assets (within
+  1 %; revenue for a bank's form) it is the same annual report. Its lines fill what the
+  form lacks (capex, depreciation, current assets), and where a money line disagrees by
+  more than 1 % the ESEF value wins: in 253 such pairs, every money line that disagreed was
+  one where the issuer's form says something other than its own audited statements.
+  EPS and share counts stay the form's: there ESEF files were the ones in error (grosze
+  tagged as złoty), and the form's EPS is already checked against profit ÷ shares.
+- **Never two scopes.** An ESEF filing with total assets more than 1 % away is another report
+  (the group's beside the parent's; Mostostal's are 7 % apart): it is never mixed in. Beside
+  a native standalone report a larger ESEF filing is the group's, and is read alone. The
+  old 1.5× rule only decides which scope is the group's.
+- **Interim reports** are stored (`period_kind` half / quarter) but not yet read by valuation.
+- **Failing loudly.** The weekly run fails (GitHub e-mails) when a known report no longer
+  reads as it should, or when too few reports pass; what was read is committed anyway.
+- **Bankier stays as a supplement** in the weekly run, allowed to fail.
+- **Accepted gaps.** Labels are the issuer's own words: a line worded unusually is missed
+  rather than guessed. Forms that leave both the title's and the sheet's period blank, and
+  sheets that only say "see attachment", give nothing.
+
 ## Known limitations
 
 - Insider trade details (side, volume, price) are missing for reports that no portal

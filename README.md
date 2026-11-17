@@ -105,7 +105,9 @@ Everything runs in GitHub Actions: `daily.yml` (weekdays, soon after the 18:30 W
 (`start`/`end`, one month per job, sequential; `gaps: true` re-runs only the sessions the lake
 lacks), `compact.yml` (monthly), `watchdog.yml`
 (freshness alert), `ci.yml` (lint, types, tests, dbt data tests against the real lake),
-`probe.yml` (source reachability), `logos.yml` (weekly stock icons), `esef.yml` (ESEF
+`probe.yml` (source reachability), `logos.yml` (weekly stock icons), `annual-reports.yml` (weekly: periodic reports' selected
+financial data from gpw.pl's own report pages, then ESEF lines from Bankier's copies as a
+supplement), `esef.yml` (ESEF
 reports, manual).
 
 Locally (optional):

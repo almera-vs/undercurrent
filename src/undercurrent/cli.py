@@ -121,6 +121,25 @@ def _build_parser() -> argparse.ArgumentParser:
     xl.add_argument("--days", type=int, default=45, help="stocks with events in this many days")
     xl.add_argument("--max", type=int, default=400, help="at most this many stocks per run")
 
+    gr = sub.add_parser(
+        "gpw-reports",
+        help="read periodic reports' selected financial data from the exchange's own pages",
+    )
+    gr.add_argument("--max", type=int, default=400, help="at most this many report pages per run")
+    gr.add_argument(
+        "--companies", type=int, default=40, help="at most this many company cards paged per run"
+    )
+
+    sub.add_parser(
+        "gpw-reconcile",
+        help="compare the exchange's figures with ESEF filings of the same year and scope",
+    )
+
+    eb = sub.add_parser(
+        "esef-bankier", help="read annual reports in ESEF from Bankier's copies (fiscal 2024 on)"
+    )
+    eb.add_argument("--max", type=int, default=60, help="at most this many companies per run")
+
     lg = sub.add_parser("logos", help="find each listed stock's icon (XTB, else its website)")
     lg.add_argument("--max", type=int, default=120, help="at most this many stocks per run")
 
@@ -312,6 +331,56 @@ def cmd_xtb_links(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_gpw_reports(args: argparse.Namespace) -> int:
+    """Read new periodic reports from gpw.pl's report pages (``gpw_importer.py``)."""
+    from undercurrent import esef_bankier, gpw_importer
+    from undercurrent.fetch import PoliteClient
+
+    listed = [c.isin for c in esef_bankier.listed_gpw(args.data_dir)]
+    with PoliteClient() as client:
+        out = gpw_importer.ingest(
+            client,
+            args.data_dir,
+            listed=listed,
+            max_reports=args.max,
+            max_companies=args.companies,
+        )
+    print(f"gpw periodic reports: {len(listed)} listed, {out}")
+    alarms = gpw_importer.health(out)
+    for a in alarms:
+        print(f"ALARM: {a}")
+    return 1 if alarms else 0
+
+
+def cmd_gpw_reconcile(args: argparse.Namespace) -> int:
+    """Compare the exchange's figures with ESEF filings of the same year and scope."""
+    from undercurrent import gpw_importer
+
+    summary, worst = gpw_importer.reconcile(args.data_dir)
+    if not summary.height:
+        print("nothing to compare: no fiscal year has both a native report and an ESEF filing")
+        return 0
+    import polars as pl
+
+    with pl.Config(tbl_rows=60, tbl_cols=12, fmt_str_lengths=40, tbl_width_chars=160):
+        print(summary)
+        print("largest differences:")
+        print(worst)
+    return 0
+
+
+def cmd_esef_bankier(args: argparse.Namespace) -> int:
+    """Look up main-market companies' annual reports on Bankier (``esef_bankier.py``)."""
+    from undercurrent import esef_bankier
+    from undercurrent.fetch import PoliteClient
+
+    companies = esef_bankier.listed_gpw(args.data_dir)
+    with PoliteClient() as client:
+        out = esef_bankier.ingest(client, args.data_dir, companies, max_companies=args.max)
+    print(f"esef via bankier: {len(companies)} listed, {out}")
+    return 0
+
+
 def cmd_logos(args: argparse.Namespace) -> int:
     """Fetch icons for listed stocks that have none yet or are due again (``logos.py``)."""
     from undercurrent import logos
@@ -362,6 +431,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "forms": cmd_forms,
         "xtb-links": cmd_xtb_links,
         "logos": cmd_logos,
+        "gpw-reports": cmd_gpw_reports,
+        "gpw-reconcile": cmd_gpw_reconcile,
+        "esef-bankier": cmd_esef_bankier,
         "pick": cmd_pick,
         "market-state": cmd_market_state,
         "esef": cmd_esef,

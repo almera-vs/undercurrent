@@ -29,6 +29,8 @@ requests where the server sends validators, on-disk cache in `.cache/http`.
 | 12 | api.gleif.org | LEI → ISIN for those filings | 200 | — | ✅ used, manual |
 | 13 | gpw.pl/wskazniki | shares, book value, earnings, sector | 200 | — | ✅ used |
 | 14 | logos.xtb.com, exchange company cards, company websites | stock icons | 200 | — | ✅ used, weekly |
+| 15 | bankier.pl copies of ESEF files | capex, depreciation (supplement to 16) | 200 | — | ✅ used, weekly |
+| 16 | gpw.pl report pages, selected financial data | annual, half-year, quarterly figures | 200 | — | ✅ used, weekly |
 
 ¹ The NewConnect listing uses the same `ajaxindex.php` handler on the same infrastructure as
 row 1; confirmed from the runner in the same probe run, along with a NewConnect report page.
@@ -257,6 +259,8 @@ except whether the page exists and which ISIN it shows. Checked on 2026-11-11:
 
 ## 11. filings.xbrl.org (ESEF annual reports)
 
+Fiscal 2024 on come from bankier.pl's copies instead (§ 15).
+
 Since 2021 issuers on EU regulated markets file their annual reports in ESEF: XHTML with
 every number of the financial statements tagged in iXBRL. The exchange's copy is an ESPI
 attachment, which gpw.pl serves only behind bot protection (§ 4), and the periodic-report
@@ -333,3 +337,107 @@ on 2026-11-15:
 - The logos are the companies' trademarks, shown only to identify the stock; the stock of
   the week page says so. XTB's terms for reusing its files are not stated; if XTB objects,
   dropping the first source leaves the companies' own icons and monograms.
+
+## 15. Annual reports in ESEF from bankier.pl (fiscal 2024 on)
+
+Since 2026-11-17 a supplement: the figures come from the exchange's own report pages
+(§ 16), and Bankier's files add only the lines that form lacks (capex, depreciation,
+current assets). The weekly run goes on if this step fails.
+
+filings.xbrl.org has no Polish filing added after July 2024 (§ 11), so its newest annual
+reports are fiscal 2022–2023. bankier.pl republishes every periodic report as a
+"Wyniki finansowe" page and hosts its attachments, the annual report's ESEF files among them
+(`esef_bankier.py`). Checked on 2026-11-17:
+
+- **Finding the report.** Each company's announcements, newest first:
+  `https://www.bankier.pl/gielda/notowania/akcje/<GPW short name>/komunikaty`, then `/2`,
+  `/3`… Recent annual reports are titled "Wyniki finansowe SRR /2025" (consolidated) or
+  "RR /2025" (standalone); Bankier's older pages are titled just "wyniki finansowe" and say
+  "Raport roczny RR 2024" in their text. Per year the consolidated report is read, else the
+  standalone one.
+- **The file.** On `bonnier.pl/static/att/emitent/<yyyy-mm>/…`: the ESEF package
+  (`gpw-2025-12-31-1-pl.zip`, or `.xbri`), otherwise an XHTML named the ESEF way. Some
+  issuers attach only a rendered copy without XBRL tags (11 bit studios' 2025 report), which
+  gives nothing.
+- **Identity.** The report's LEI must belong to the company: GLEIF lists the ISIN, or GLEIF
+  lists no listed share at all (it often lists only bonds; GPW's own LEI lists 15 bond ISINs
+  and no share), and then the link is added. A report whose LEI GLEIF ties to another listed
+  share is refused.
+- **Coverage.** A sample of 30 random main-market companies: fiscal 2025 statements for 17;
+  fiscal 2024 for 1, because Bankier no longer serves most files of March 2025 (404).
+- **Point in time.** `known_at` is the report's publication time on Bankier, close to the
+  issuer's own.
+- **Load.** About a dozen pages a company and one package (1–30 MB, read in memory, never
+  stored), one request a second: the `annual-reports` workflow looks up 120 companies a
+  week and each again after 30 days.
+
+## 16. Periodic reports' selected financial data (gpw.pl report pages)
+
+Every annual (`RR`, `SRR`), half-year (`P`, `PS`, `PSr`) and quarterly (`Q`, `QS`, `QSr`)
+report an issuer sends through ESPI is shown on its gpw.pl report page (§ 3) as the filled-in
+form, not only as attachments. Besides the title sheet the form has the sheet
+**"WYBRANE DANE FINANSOWE"**: the issuer's selected figures for the period and the prior
+one, in the report currency and in euros. The page is the same plain HTML as any report
+page; the attachments (§ 4) are not needed and not fetched (`gpw_importer.py`). Checked on
+2026-11-17:
+
+- **The listing's kind label is unreliable for periodic reports.** OPTEAM's annual report
+  for 2024 is listed as "Bieżący", the one for 2025 as "Kwartalny"; some annual reports have
+  no kind at all (`30-04-2026 23:57:29 | ESPI | /2025`), and those rows were dropped by the
+  listing parser until 2026-11-17 (now kept as "Okresowy"). A per-type query (`typeRaports[]=R`)
+  returns almost none of them. What is reliable: a periodic report has **no running number**
+  (`/2025`, where a current report is `12/2025`), and the form code on its title sheet.
+- **Finding them.** The rows of `bronze/reports` without a running number (2,096 main-market
+  rows since 2024-01-01 in the local copy). For companies with no annual report read for the
+  last fiscal year, the company card's ESPI tab:
+  `https://www.gpw.pl/ajaxindex.php?start=reportsTab&type=e&action=GPWListaSp&gls_isin=<ISIN>&format=html&lang=PL&offset=<n>`,
+  five reports a page whatever `limit` says, newest first, each titled by its form code
+  (`RR`, `QSr`, `P`) or, for current reports, by their subject.
+- **The title sheet** names the form, the fiscal year, the period ("obejmujący okres od
+  2025-01-01 do 2025-12-31"; some forms leave it blank, then the sheet's header gives it,
+  e.g. "3 kwartał(y) narastająco / 2026 okres od 2026-01-01 do 2026-09-30") and the
+  currency ("w walucie PLN"). A quarterly form's figures are cumulative from the start of
+  the fiscal year.
+- **The sheet.** Rows of label + four figures: period, prior period, then both in euros.
+  Labels are the issuer's own words (Polish, or English for some foreign issuers) and are
+  mapped to the concepts of `esef.CONCEPTS`; units come from the header ("w tys. PLN",
+  "w mln PLN") or a line inside the sheet ("mln PLN"). Brackets render as underscores, also
+  around negative figures (`_14 937_` is −14 937). Consolidated reports often add the parent
+  company's figures below the group's; only the group's are read.
+- **Checks** (`gpw_importer.check`). A report is kept only if all pass; otherwise nothing of
+  it is kept and `state/gpw_reports` says why (`status = failed_checks`, `checks`):
+  the złoty and euro columns agree at an exchange rate of 3.7–5.2; liabilities + equity is
+  never above total assets and at most 15 % short of them (provisions a form leaves out of
+  "zobowiązania"; 50 % when it gives only the parent's equity, the rest being minorities);
+  no part exceeds its total; total assets are at least 100 000; net profit ÷ shares gives
+  the form's EPS; continuing plus discontinued profit gives the net profit; revenue is not
+  negative. Where profit ÷ shares contradicts the EPS, the exchange's own share count
+  (`gpw.pl/wskazniki`, § 13) decides whether the share count or the money is off by a
+  thousand; without it the report is refused rather than guessed.
+- **Accuracy, measured 2026-11-17** (`undercurrent gpw-reconcile`): 120 annual reports for
+  fiscal 2025 against the same companies' ESEF statements from Bankier, line by line. Of
+  253 comparisons where both read the same report (total assets within 1 %), 248 agree
+  within 1 %: assets, liabilities, equity, operating profit, profit before tax 100 %;
+  net profit 96 %, operating cash flow 96 %, revenue 96 % (100 % within 5 %), EPS 90 %.
+  Each remaining difference is in the documents themselves, not in the reading: three
+  where the issuer's form says something other than its audited statements (Celon's net
+  profit 4 309 against 3 409, Captor's operating cash flow −4.4 m against −37.3 m,
+  Stigroup's revenue 1.8 % apart) and two ESEF files that tag EPS in grosze as złoty
+  (Prochem, Mennica), where the form is right. A fourth typo (ASMGR's net
+  profit, which its own lines contradict) is refused by the checks.
+- **Coverage.** 200 report pages of 2025–2026 read live: 193 periodic, 180 kept (assets
+  92 %, net profit 88 %, revenue 79 %, operating cash flow 91 %, EPS 86 %); 5 had an empty
+  sheet ("dane w załączeniu"), 4 gave no period anywhere, 4 failed their checks (2 with
+  columns that are not złoty and euros, 2 whose balance sheet does not add up). The form
+  has no capex or depreciation: those come from ESEF where available (§ 11, 15).
+- **Alarms.** Each run reads one known report again (OPTEAM's for 2025, `CANARY`) and
+  compares it with its known figures; the run fails when it reads wrong, when pages are
+  read but no form is recognised, when under 60 % of periodic reports pass, or when over a
+  quarter of pages fail to load. A page that fails is retried on the next runs, three times
+  at most; an error or maintenance page is never taken for a report. When the parser
+  changes (`PARSER_VERSION`), reports are read again and only the newest reading counts.
+- **Point in time.** `known_at` is the report's publication on the exchange.
+- **Not covered.** NewConnect's periodic reports are EBI files without this form. ESPI has no
+  weekly or monthly issuer reports.
+- **Load.** One request a report (~120 kB), one a second; a page is read once
+  (`state/gpw_reports`), a company card at most once a month (`state/gpw_report_companies`).

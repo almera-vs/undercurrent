@@ -72,10 +72,13 @@ class ListingRow:
         return f"{self.site}:{self.geru_id}"
 
 
+# The kind is missing on some periodic reports ("30-04-2026 23:57:29 | ESPI | /2025", an
+# annual report): such a row is kept as "Okresowy" rather than dropped.
 _DATE_LINE = re.compile(
-    r"(?P<d>\d{2}-\d{2}-\d{4})\s+(?P<t>\d{2}:\d{2}:\d{2})\s*\|\s*(?P<kind>[^|]+?)\s*\|"
+    r"(?P<d>\d{2}-\d{2}-\d{4})\s+(?P<t>\d{2}:\d{2}:\d{2})\s*\|\s*(?:(?P<kind>[^|]+?)\s*\|)?"
     r"\s*(?P<system>ESPI|EBI)\s*\|\s*(?P<num>[^|<]*)"
 )
+UNLABELLED_KIND = "Okresowy"
 _ISSUER = re.compile(r"^(?P<name>.*?)\s*\((?P<isin>[A-Z]{2}[A-Z0-9]{9}\d)\)\s*$", re.S)
 
 
@@ -109,7 +112,7 @@ def parse_listing(html: str, site: str) -> list[ListingRow]:
                 site=site,
                 geru_id=int(gm.group(1)),
                 published_at_local=published,
-                kind=m["kind"].strip(),
+                kind=(m["kind"] or UNLABELLED_KIND).strip(),
                 system=m["system"],
                 report_number=m["num"].strip(),
                 issuer_name=im["name"].strip() if im else issuer_raw,

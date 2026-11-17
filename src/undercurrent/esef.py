@@ -308,6 +308,10 @@ SNAPSHOT_SCHEMA: dict[str, Any] = {
 # different scopes: the consolidated report (the group) and the standalone one (the parent
 # company alone). Within it they are the same report filed again or corrected.
 SCOPE_RATIO = 1.5
+# Facts read from the exchange's own report pages (gpw_importer.py) have filing ids
+# "gpw:<geru_id>"; GROUP_FORMS are its consolidated annual forms.
+NATIVE_PREFIX = "gpw:"
+GROUP_FORMS = frozenset({"SRR"})
 
 
 def _value(
@@ -374,8 +378,10 @@ def _main_filing(by_filing: dict[str, list[dict[str, Any]]], fy: date) -> str:
         cur = _currency(facts)
         return None if cur is None else _value(facts, "assets", fy, cur, duration=False)
 
-    def arrived(fid: str) -> tuple[datetime, str]:
-        return max(f["known_at"] for f in by_filing[fid]), fid
+    def arrived(fid: str) -> tuple[bool, datetime, str]:
+        # the exchange's consolidated form (SRR) before the standalone one filed with it
+        group = any(f.get("form") in GROUP_FORMS for f in by_filing[fid])
+        return group, max(f["known_at"] for f in by_filing[fid]), fid
 
     with_assets = {fid: a for fid in by_filing if (a := assets(fid)) is not None and a > 0}
     if not with_assets:
@@ -383,6 +389,117 @@ def _main_filing(by_filing: dict[str, list[dict[str, Any]]], fy: date) -> str:
     largest = max(with_assets.values())
     group = [fid for fid, a in with_assets.items() if a * SCOPE_RATIO >= largest]
     return max(group, key=arrived)
+
+
+def _year_facts(by_filing: dict[str, list[dict[str, Any]]], fy: date) -> list[dict[str, Any]]:
+    """The facts a fiscal year is read from: one report, its lines in the order they win.
+
+    The exchange's own copy of the annual report (``gpw_importer``, filing ids ``gpw:…``)
+    comes first where there is one. Its form carries only the selected data, so the lines it
+    lacks (capex, depreciation, current assets…) come from an ESEF filing of the same year
+    and scope (total assets within ``SCOPE_RATIO``), never from another scope. Without a
+    native report, the ESEF filing ``_main_filing`` picks is read alone, as before.
+    """
+    native = {k: v for k, v in by_filing.items() if k.startswith(NATIVE_PREFIX)}
+    tagged = {k: v for k, v in by_filing.items() if k not in native}
+    if not native:
+        return by_filing[_main_filing(by_filing, fy)]
+    pair = native_and_tagged(by_filing, fy)
+    if pair is None:
+        return native[_main_filing(native, fy)]
+    main, other = pair
+    if other is not None:
+        return _merged(main, other)
+    # a standalone native report beside a larger ESEF filing: that is the group's report
+    cur = _currency(main)
+    a = None if cur is None else _value(main, "assets", fy, cur, duration=False)
+    if a and not any(f.get("form") in GROUP_FORMS for f in main):
+        larger = {
+            k: v
+            for k, v in tagged.items()
+            if (b := _value(v, "assets", fy, cur or "PLN", duration=False)) and b > a * 1.01
+        }
+        if larger:
+            return larger[_main_filing(larger, fy)]
+    return main
+
+
+# One annual report read twice (the exchange's form and the ESEF statements) gives the same
+# total assets, to rounding; a different report (the group's, the parent's) does not.
+SAME_REPORT = 0.01
+# Lines the ESEF statements correct when the form disagrees: money only. Per-share figures
+# stay the form's: the form's EPS is checked against profit ÷ shares, and ESEF files tag
+# grosze as złoty more often than the form misprints EPS.
+_NOT_CORRECTED = frozenset({"eps_basic", "shares_weighted"})
+
+
+def _merged(main: list[dict[str, Any]], other: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The native report's facts, corrected and completed by the ESEF reading of it.
+
+    Where both give a money line and they differ by more than ``SAME_REPORT``, the ESEF
+    statements win (they are the audited statements; the form's selected data is retyped
+    and its typos are what such differences turn out to be). Lines only ESEF gives are
+    added. ``_value`` reads the first match, so corrections go first, additions last.
+    """
+
+    def key(f: dict[str, Any]) -> tuple[Any, ...]:
+        return f["concept"], f["period_start"], f["period_end"], f["unit"]
+
+    mine = {key(f): f["value"] for f in main}
+    fixes, extra = [], []
+    for f in other:
+        v = mine.get(key(f))
+        if v is None:
+            extra.append(f)
+        elif f["concept"] not in _NOT_CORRECTED and abs(f["value"] - v) > SAME_REPORT * max(
+            abs(f["value"]), abs(v), 1.0
+        ):
+            fixes.append(f)
+    return fixes + main + extra
+
+
+def native_and_tagged(
+    by_filing: dict[str, list[dict[str, Any]]], fy: date, *, strict: bool = True
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]] | None] | None:
+    """The year's native report and the ESEF filing of the same report (None if none is).
+
+    ``strict``: the same report, total assets within ``SAME_REPORT`` (else revenue, when a
+    bank's form has no assets line). Otherwise only the same scope, total assets within
+    ``SCOPE_RATIO``: what ``reconcile`` compares, to show where the two disagree. None
+    altogether when the year has no native report or no ESEF filing at all.
+    """
+    native = {k: v for k, v in by_filing.items() if k.startswith(NATIVE_PREFIX)}
+    tagged = {k: v for k, v in by_filing.items() if k not in native}
+    if not native or not tagged:
+        return None
+    main = native[_main_filing(native, fy)]
+    cur = _currency(main)
+    if cur is None:
+        return main, None
+
+    def close(concept: str, duration: bool, tol: float) -> Any:
+        a = _value(main, concept, fy, cur, duration=duration)
+
+        def ok(fid: str) -> bool | None:
+            b = _value(tagged[fid], concept, fy, cur, duration=duration)
+            if a is None or b is None or a <= 0 or b <= 0:
+                return None
+            if tol < 1:
+                return abs(a - b) <= tol * max(a, b)
+            return max(a, b) <= tol * min(a, b)
+
+        return ok
+
+    by_assets = close("assets", False, SAME_REPORT if strict else SCOPE_RATIO)
+    by_revenue = close("revenue", True, SAME_REPORT)
+    scoped = {}
+    for k, v in tagged.items():
+        same = by_assets(k)
+        if same is None and strict:
+            same = by_revenue(k)
+        if same:
+            scoped[k] = v
+    return main, (scoped[_main_filing(scoped, fy)] if scoped else None)
 
 
 def snapshots(facts: pl.DataFrame) -> pl.DataFrame:
@@ -412,7 +529,7 @@ def snapshots(facts: pl.DataFrame) -> pl.DataFrame:
             for r in known:
                 if r["fiscal_period_end"] == fy:
                     by_filing.setdefault(r["filing_id"], []).append(r)
-            mine = by_filing[_main_filing(by_filing, fy)]
+            mine = _year_facts(by_filing, fy)
             cur = _currency(mine)
             if cur is None:
                 assets = assets_prev = op = net = cfo = None
@@ -481,7 +598,7 @@ def statements(facts: pl.DataFrame) -> list[dict[str, Any]]:
             for r in known:
                 if r["fiscal_period_end"] == fy:
                     by_filing.setdefault(r["filing_id"], []).append(r)
-            mine = by_filing[_main_filing(by_filing, fy)]
+            mine = _year_facts(by_filing, fy)
             cur = _currency(mine)
             if cur is None:
                 continue
@@ -503,16 +620,34 @@ def statements(facts: pl.DataFrame) -> list[dict[str, Any]]:
     return out
 
 
+AS_OF_SCHEMA: dict[str, Any] = {**FACT_SCHEMA, "isin": pl.String, "form": pl.String}
+
+
 def fundamentals_as_of(root: Path, as_of: datetime) -> pl.DataFrame:
-    """Facts known by ``as_of``, with every ISIN of the issuer: the point-in-time view."""
+    """Facts known by ``as_of``, with every ISIN of the issuer: the point-in-time view.
+
+    The ESEF facts (``bronze/fundamentals_esef``, by LEI, joined to the ISINs GLEIF lists)
+    and the annual reports read from the exchange's own pages (``bronze/fundamentals_gpw``,
+    by ISIN, ``form`` set). ``_year_facts`` decides which wins for a year.
+    """
+    from undercurrent import gpw_importer  # it imports this module
+
+    frames: list[pl.DataFrame] = []
     parts = sorted((root / "bronze" / TABLE).glob("*/*.parquet"))
     leis = lake.read_state(root, LEI_STATE)
-    if not parts or leis is None:
-        return pl.DataFrame(schema={**FACT_SCHEMA, "isin": pl.String})
-    facts = pl.concat([pl.read_parquet(p) for p in parts], how="diagonal_relaxed")
     ts = pl.lit(as_of).cast(pl.Datetime("us", "UTC"))
-    return (
-        facts.filter(pl.col("known_at") <= ts)
-        .join(leis.select("lei", "isin"), on="lei", how="inner")
-        .sort(["isin", "concept", "period_end", "known_at"])
+    if parts and leis is not None:
+        facts = pl.concat([pl.read_parquet(p) for p in parts], how="diagonal_relaxed")
+        frames.append(
+            facts.filter(pl.col("known_at") <= ts)
+            .join(leis.select("lei", "isin"), on="lei", how="inner")
+            .with_columns(pl.lit(None, dtype=pl.String).alias("form"))
+        )
+    native = gpw_importer.native_facts(root, as_of)
+    if native.height:
+        frames.append(native)
+    if not frames:
+        return pl.DataFrame(schema=AS_OF_SCHEMA)
+    return pl.concat([f.select(list(AS_OF_SCHEMA)).cast(AS_OF_SCHEMA) for f in frames]).sort(  # type: ignore[arg-type]
+        ["isin", "concept", "period_end", "known_at"]
     )

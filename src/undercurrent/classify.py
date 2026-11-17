@@ -17,6 +17,7 @@ SIGNAL_TYPES = ("insider_tx", "holder_threshold", "inside_info", "periodic", "ot
 PERIODIC_KINDS = frozenset(
     {
         "Kwartalny",
+        "Okresowy",  # a periodic report the listing gives no kind (ingest.UNLABELLED_KIND)
         "Półroczny",
         "Roczny",
         "Skonsolidowany kwartalny",
