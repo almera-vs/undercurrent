@@ -771,11 +771,56 @@ options models need US yields and option prices, VPIN needs intraday trades, and
   rather than guessed. Forms that leave both the title's and the sheet's period blank, and
   sheets that only say "see attachment", give nothing.
 
+## Corporate calendar and shareholders (2026-11-20)
+
+Two pages read from reports already in the lake: no new source.
+
+- **Dividends by rules, checked by the exchange.** The amount per share, record date and
+  payment date come from the exchange's dividend form, board recommendations and meeting
+  resolutions. On the ex-date the exchange lowers the reference price by the dividend, so
+  every past dividend is checked against `prev_close − reference`: on the local lake, 670 of
+  743 agree to within 3 % or a tick (0.5 % of the price; the exchange rounds the reference
+  to its tick, so 2.60 zł on a 120 zł share shows as 2.50 zł). The rest are mostly issuer
+  errors ("0,65 groszy" for 0.65 zł), dividends the meeting did not approve, and holes.
+- **The ex-date is the session before the record date** (T+2 since 6 October 2014; T+3
+  before). A record date on a closed day counts from the last session before it.
+- **One form of "dzień".** The rules read "dnia", "dniu" and "dniem" as "dzień": the record
+  date is written in every case. A date counts as labelled by what follows it only with a
+  bracket, a quote or "jako", and record and payment dates must lie between 60 days before
+  and 400 days after the report, so "zysk za okres od 1 stycznia" is never a record date.
+- **The latest report wins**, but a resolution is never undone by a later note, and fields a
+  later report leaves out are kept from earlier ones. A subsidiary's dividend to its parent
+  is skipped.
+- **The ex-date finding.** Market move taken out, prices fell by a median 81 % of the
+  dividend (95 % interval 74–86 %, 614 dividends of at least 1 % of the price that the
+  exchange confirmed): about the dividend after Poland's 19 % tax. Shown on the calendar
+  page as a measured fact, not a trading rule; it is not tested after costs.
+- **Report dates.** A company's annual schedule and later changes. A date counts as kept
+  when a periodic report came out within a day: 67 % on the local lake, 11 % early. That
+  is a floor (issuers publish early; the lake has holes). A report already out drops off.
+- **Holders from text only.** Threshold notices give the holder and, in 42 % of them, the
+  stake before and after; the rest attach the holder's letter as a PDF behind the
+  exchange's bot protection, which is not got around. General-meeting lists (Art. 70 pkt 3)
+  fill in: of a row's two percentages the smaller is the share of all votes, since votes at
+  a meeting never exceed votes in the company.
+- **Matching holders.** The first five letters of each word survive declension (Knopika /
+  Knopik); short words lose their final vowels (Jana / Jan). Legal forms are removed. The
+  large pension and investment funds are matched by group name, in either order ("PTE PZU",
+  "PZU OFE"), and a group's pension and investment arms stay separate.
+- **The register.** The last stated stake per holder; a holder whose last notice took them
+  below 5 % leaves. A stake older than three years is kept but marked old: a holder between
+  thresholds need not report, and the lake has years missing.
+- **Accuracy.** Hand-labelled real reports in `tests/fixtures/labelled_calendar/` (names of
+  people replaced): dividends 99 % of fields, threshold notices 98 %, meeting-list rows
+  100 %. The rules were written on the first batch and some misses of the second were fixed,
+  so these are optimistic, like the insider fields'.
+
 ## Known limitations
 
 - Insider trade details (side, volume, price) are missing for reports that no portal
   copies; the exchange's own copy of the notification PDF is not retrievable.
 - Size of an insider trade as a share of free float is always missing: there is no free-float
   source.
-- An ESPI cross-check of detected corporate-action factors (split and dividend reports vs
-  factors) is not implemented yet.
+- Dividend reports are checked against the exchange's factors (above); an ESPI cross-check of
+  split factors is not implemented yet.
+- Holder stakes stated only in a notice's PDF attachment stay unknown.

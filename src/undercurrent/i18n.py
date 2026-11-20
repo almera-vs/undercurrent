@@ -1183,6 +1183,179 @@ PL: dict[str, str] = {
     "Chart and indicators of {t}": "Wykres i wskaźniki {t}",
     "{t} around this report": "{t} wokół tego raportu",
     "Full chart and indicators": "Pełny wykres i wskaźniki",
+    # corporate calendar (corp_calendar.py)
+    "Calendar": "Kalendarz",
+    "Calendar · Undercurrent": "Kalendarz · Undercurrent",
+    "Ex-dividend": "Bez dywidendy",
+    "Dividend paid": "Wypłata dywidendy",
+    "Results": "Wyniki",
+    "AGM": "ZWZ",
+    "EGM": "NWZ",
+    "General meeting": "Walne zgromadzenie",
+    "Q1 {y}": "I kw. {y}",
+    "Q2 {y}": "II kw. {y}",
+    "Q3 {y}": "III kw. {y}",
+    "Q4 {y}": "IV kw. {y}",
+    "H1 {y}": "I półrocze {y}",
+    "Annual report {y}": "Raport roczny za {y}",
+    "approved": "uchwalona",
+    "proposed": "rekomendacja",
+    "interim": "zaliczka",
+    "Next {n} days": "Najbliższe {n} dni",
+    "calendar_lede": (
+        "Dywidendy, wyniki i walne zgromadzenia na najbliższe tygodnie, odczytane z raportów "
+        "bieżących spółek."
+    ),
+    "The calendar has not been built yet tonight.": "Kalendarz nie został jeszcze dziś zbudowany.",
+    "Ex-dividend dates": "Dni bez dywidendy",
+    "in the next {n} days": "w ciągu {n} dni",
+    "Results due": "Zapowiedziane wyniki",
+    "dates the companies announced": "terminy podane przez spółki",
+    "General meetings": "Walne zgromadzenia",
+    "{a} ordinary, {b} extraordinary": "zwyczajne: {a}, nadzwyczajne: {b}",
+    "Filter the calendar": "Filtruj kalendarz",
+    "Dividends": "Dywidendy",
+    "Meetings": "Zgromadzenia",
+    "amount not stated": "kwota nie podana",
+    "record date {d}": "dzień dywidendy {d}",
+    "Nothing announced for the coming weeks.": "Na najbliższe tygodnie nic nie zapowiedziano.",
+    "Dividends ahead": "Nadchodzące dywidendy",
+    "Per share": "Na akcję",
+    "Yield": "Stopa",
+    "Ex-date": "Bez prawa",
+    "Paid": "Wypłata",
+    "dividend_table_note": (
+        "Stopa: kwota na akcję wobec ostatniego kursu. „Rekomendacja” to propozycja zarządu; "
+        "decyduje walne zgromadzenie."
+    ),
+    "No dividend with an ex-date ahead.": "Brak dywidend z nadchodzącym dniem bez prawa.",
+    "What the ex-date does": "Co robi kurs w dniu bez dywidendy",
+    "drop_claim": "W dniu bez dywidendy kurs spadał o medianę <b>{m}</b> dywidendy.",
+    "drop_explain": (
+        "Po odjęciu ruchu WIG, na {n} wcześniejszych dywidendach wynoszących co najmniej 1% "
+        "kursu, potwierdzonych przez giełdę (95% przedział {lo}–{hi}). Po 19% podatku "
+        "dywidenda jest warta 81% kwoty brutto: kurs spada mniej więcej o tyle, ile dywidenda "
+        "jest warta po podatku, a nie o całą kwotę."
+    ),
+    "Not enough past dividends in the data yet.": "Za mało wcześniejszych dywidend w danych.",
+    "How far to trust the dates": "Na ile ufać terminom",
+    "Dividends checked against the exchange": "Dywidendy zgodne z giełdą",
+    "Announced report dates kept": "Dotrzymane terminy raportów",
+    "within a day; {e} early": "co do dnia; wcześniej: {e}",
+    "calendar_check_note": (
+        "W dniu bez dywidendy giełda obniża kurs odniesienia o dywidendę; kwota odczytana z "
+        "raportu jest zgodna, gdy odpowiada tej obniżce z dokładnością do ticku. Termin raportu "
+        "jest dotrzymany, gdy raport okresowy ukazał się najwyżej dzień od niego; spółki mogą "
+        "publikować wcześniej, a w danych są luki, więc to dolna granica."
+    ),
+    "How it’s read": "Jak to odczytujemy",
+    # holders (ownership.py)
+    "Shareholders": "Akcjonariusze",
+    "Shareholders · Undercurrent": "Akcjonariusze · Undercurrent",
+    "Holders of 5% or more": "Posiadacze co najmniej 5%",
+    "owners_lede": (
+        "Kto ma co najmniej 5% głosów i kto właśnie kupił lub sprzedał, z zawiadomień o "
+        "przekroczeniu progów i list akcjonariuszy z walnych zgromadzeń."
+    ),
+    "The holder register has not been built yet tonight.": (
+        "Rejestr akcjonariuszy nie został jeszcze dziś zbudowany."
+    ),
+    "Stake changes, last {n} days": "Zmiany udziałów, ostatnie {n} dni",
+    "Major holders on record": "Znaczni akcjonariusze w rejestrze",
+    "in {n} companies, stated in the last three years": "w {n} spółkach, z ostatnich trzech lat",
+    "Notices that state the stake": "Zawiadomienia z podanym udziałem",
+    "the rest only in an attachment": "reszta tylko w załączniku",
+    "Who bought and who sold": "Kto kupował, kto sprzedawał",
+    "threshold notices, newest first": "zawiadomienia o progach, od najnowszych",
+    "Holder": "Akcjonariusz",
+    "Before": "Przed",
+    "After": "Po",
+    "not named in the text": "nie wymieniony w treści",
+    "up": "wzrost",
+    "down": "spadek",
+    "across {t}%": "próg {t}%",
+    "No threshold notices in the last {n} days.": (
+        "Brak zawiadomień o progach w ostatnich {n} dniach."
+    ),
+    "The largest holders across the market": "Najwięksi akcjonariusze na rynku",
+    "holders with 5% or more in at least three companies": (
+        "co najmniej 5% głosów w co najmniej trzech spółkach"
+    ),
+    "Not enough holders on record yet.": "Za mało akcjonariuszy w rejestrze.",
+    "owners_note": (
+        "Udział w ogólnej liczbie głosów z ostatniego zawiadomienia lub listy z walnego "
+        "zgromadzenia ({lists} list). Akcjonariusz między progami nie musi się zgłaszać, więc "
+        "udział może być starszy niż dzisiejszy. Kto zszedł poniżej 5%, wypada z rejestru."
+    ),
+    "Coming up": "Nadchodzące",
+    "Major shareholders": "Znaczni akcjonariusze",
+    "Votes": "Głosy",
+    "As of": "Stan na",
+    "5% or more": "5% lub więcej",
+    "old": "stare",
+    "No holder of 5% or more named in the reports of the last three years.": (
+        "Raporty z ostatnich trzech lat nie wymieniają akcjonariusza z co najmniej 5% głosów."
+    ),
+    "{n} older records (over three years)": "Starsze wpisy (ponad trzy lata): {n}",
+    "holders_table_note": (
+        "Udział w ogólnej liczbie głosów, z ostatniego zawiadomienia lub listy z walnego "
+        "zgromadzenia, które wymieniają akcjonariusza."
+    ),
+    "No holder of 5% or more named in the reports.": (
+        "Raporty nie wymieniają akcjonariusza z co najmniej 5% głosów."
+    ),
+    # how it works: calendar and holders
+    "Shareholders and calendar": "Akcjonariusze i kalendarz",
+    "Dividends and their dates": "Dywidendy i ich terminy",
+    "Checked against the exchange": "Sprawdzenie z giełdą",
+    "Price on the ex-date": "Kurs w dniu bez dywidendy",
+    "Report dates and meetings": "Terminy raportów i walne zgromadzenia",
+    "Threshold notices": "Zawiadomienia o progach",
+    "General-meeting lists": "Listy z walnych zgromadzeń",
+    "Matching holders": "Łączenie akcjonariuszy",
+    "g_dividends": (
+        "Kwotę na akcję, dzień dywidendy i termin wypłaty odczytujemy regułami z raportów "
+        "bieżących: formularza giełdy „Decyzja o wypłacie dywidendy”, rekomendacji zarządu i "
+        "uchwały walnego zgromadzenia. Najnowszy raport o danej dywidendzie zastępuje "
+        "wcześniejsze. Dywidenda spółki zależnej dla spółki matki nie jest dywidendą emitenta i "
+        "jest pomijana. Dzień bez dywidendy to sesja przed dniem dywidendy (rozliczenie T+2)."
+    ),
+    "g_dividend_check": (
+        "Każdą przeszłą dywidendę sprawdzamy z giełdą: w dniu bez dywidendy kurs odniesienia "
+        "spada o dywidendę, więc różnica między poprzednim zamknięciem a kursem odniesienia "
+        "odtwarza kwotę, którą przyjął rynek. Zgodność do ticku liczymy jako trafienie. "
+        "Rozbieżności to najczęściej błąd w raporcie (gr zamiast zł), dywidenda, której walne "
+        "nie uchwaliło, albo luka w danych."
+    ),
+    "g_drop": (
+        "Współczynnik spadku to (poprzednie zamknięcie − zamknięcie − ruch WIG) ÷ dywidenda. "
+        "Tylko dywidendy potwierdzone przez giełdę i wynoszące co najmniej 1% kursu, gdzie "
+        "zaokrąglenie do ticku nie zagłusza wyniku. Przedział 95% mediany z bootstrapu."
+    ),
+    "g_report_dates": (
+        "Na początku roku spółki podają terminy raportów kwartalnych, półrocznych i rocznych; "
+        "późniejsze raporty przesuwają pojedyncze daty. Raport, który ukazał się wcześniej, "
+        "znika z kalendarza. Walne zgromadzenia pochodzą z ogłoszeń o zwołaniu; odwołane są "
+        "pomijane."
+    ),
+    "g_notices": (
+        "Akcjonariusz, który przekroczy 5, 10, 15, 20, 25, 33, 50, 75 lub 90% głosów, musi "
+        "zawiadomić spółkę, a ta publikuje raport. Odczytujemy akcjonariusza, udział przed i po "
+        "oraz kierunek. Wiele spółek tylko załącza pismo akcjonariusza w PDF, który giełda "
+        "udostępnia za ochroną przed botami; wtedy w treści jest często tylko nazwa, a udział "
+        "zostaje pusty."
+    ),
+    "g_lists": (
+        "Po każdym walnym zgromadzeniu spółka publikuje listę akcjonariuszy z co najmniej 5% "
+        "głosów na zgromadzeniu, zwykle z udziałem w ogólnej liczbie głosów. Udział na "
+        "zgromadzeniu nigdy nie jest mniejszy niż w ogólnej liczbie głosów, więc z dwóch "
+        "procentów w wierszu mniejszy to udział w ogólnej liczbie."
+    ),
+    "g_holder_match": (
+        "Ten sam akcjonariusz w różnych raportach dostaje ten sam klucz: pierwsze pięć liter "
+        "każdego słowa nazwy, bez form prawnych, co przetrwa odmianę („Pawła Knopika” to „Paweł "
+        "Knopik”). Duże fundusze emerytalne i inwestycyjne łączymy po nazwie grupy."
+    ),
 }
 
 EN_OVERRIDES: dict[str, str] = {
@@ -1644,6 +1817,84 @@ EN_OVERRIDES: dict[str, str] = {
         "not seen. The live record is the picks as they were made. A backtest can flatter; "
         "the live record cannot."
     ),
+    "calendar_lede": (
+        "Dividends, results and general meetings of the coming weeks, read from the companies' "
+        "own current reports."
+    ),
+    "dividend_table_note": (
+        "Yield: the amount per share against the last close. “Proposed” is the board’s "
+        "recommendation; the general meeting decides."
+    ),
+    "drop_claim": "On the ex-date the price fell by a median <b>{m}</b> of the dividend.",
+    "drop_explain": (
+        "Market move taken out, over {n} past dividends of at least 1% of the price that the "
+        "exchange confirmed (95% interval {lo}–{hi}). After Poland's 19% tax a dividend is "
+        "worth 81% of its gross amount: the price falls by about what the dividend is worth "
+        "after tax, not by all of it."
+    ),
+    "calendar_check_note": (
+        "On the ex-date the exchange lowers the reference price by the dividend; an amount read "
+        "from a report agrees when it matches that cut to within a tick. A report date counts as "
+        "kept when a periodic report came out within a day of it; companies may publish earlier "
+        "and the lake has holes, so this is a floor."
+    ),
+    "owners_lede": (
+        "Who holds 5% or more of the votes, and who has just bought or sold, from threshold "
+        "notices and general-meeting lists."
+    ),
+    "owners_note": (
+        "Share of all votes from the latest notice or general-meeting list ({lists} lists). A "
+        "holder between thresholds need not report, so a stake can be older than today. A "
+        "holder who fell below 5% leaves the register."
+    ),
+    "holders_table_note": (
+        "Share of all votes, from the last threshold notice or general-meeting list that names "
+        "the holder."
+    ),
+    "g_dividends": (
+        "The amount per share, the record date and the payment date are read by rules from "
+        "current reports: the exchange's dividend form, the board's recommendation and the "
+        "general meeting's resolution. The latest report about a dividend replaces earlier ones. "
+        "A subsidiary paying its parent is not the issuer's dividend and is skipped. The "
+        "ex-date is the session before the record date (T+2 settlement)."
+    ),
+    "g_dividend_check": (
+        "Every past dividend is checked against the exchange: on the ex-date the reference price "
+        "drops by the dividend, so the previous close minus the reference price recovers the "
+        "amount the market used. A match to within a tick counts as agreeing. Mismatches are "
+        "mostly errors in the report (grosze for złoty), a dividend the meeting did not approve, "
+        "or a hole in the data."
+    ),
+    "g_drop": (
+        "The drop-off ratio is (previous close − close − the WIG move) ÷ dividend. Only "
+        "dividends the exchange confirmed and of at least 1% of the price, where tick rounding "
+        "cannot swamp the result. A bootstrap 95% interval of the median."
+    ),
+    "g_report_dates": (
+        "Early in the year companies announce the dates of their quarterly, half-year and "
+        "annual reports; later reports move single dates. A report that came out early drops "
+        "off the calendar. General meetings come from the notices convening them; cancelled "
+        "ones are left out."
+    ),
+    "g_notices": (
+        "A holder who crosses 5, 10, 15, 20, 25, 33, 50, 75 or 90% of the votes must notify the "
+        "company, which publishes a report. We read the holder, the stake before and after, and "
+        "the direction. Many companies only attach the holder's letter as a PDF, which the "
+        "exchange serves behind bot protection; then the text often names only the holder and "
+        "the stake stays empty."
+    ),
+    "g_lists": (
+        "After each general meeting the company lists the holders with at least 5% of the votes "
+        "at the meeting, usually with their share of all votes. A share at the meeting is never "
+        "below the share of all votes, so of a row's two percentages the smaller is the share of "
+        "all votes."
+    ),
+    "g_holder_match": (
+        "The same holder in different reports gets the same key: the first five letters of each "
+        "word of the name, legal forms removed, which survives Polish declension (“Pawła "
+        "Knopika” is “Paweł Knopik”). Large pension and investment funds are matched by their "
+        "group's name."
+    ),
 }
 
 # Polish plural forms: (1, 2–4, 5+), keyed by the English singular.
@@ -1660,12 +1911,14 @@ PL_PLURALS: dict[str, tuple[str, str, str]] = {
         "zdarzeń wartych uwagi dziś",
     ),
     "session": ("sesja", "sesje", "sesji"),
+    "company": ("spółka", "spółki", "spółek"),
 }
 EN_PLURALS: dict[str, str] = {
     "report": "reports",
     "event of a kind that has moved prices": "events of kinds that have moved prices",
     "event worth a look today": "events worth a look today",
     "session": "sessions",
+    "company": "companies",
 }
 
 SIGNAL_LABELS: dict[str, dict[str, str]] = {

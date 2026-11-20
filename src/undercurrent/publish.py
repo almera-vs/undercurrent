@@ -242,6 +242,10 @@ class SiteContext:
     preset_setups: dict[str, dict[str, Any]] = field(default_factory=dict)
     # ISIN → its icon file (logos.py), copied to the site's logos/
     logos: dict[str, Path] = field(default_factory=dict)
+    # dividends, meetings and report dates ahead (corp_calendar.context); None before a run
+    calendar: dict[str, Any] | None = None
+    # major holders and their recent moves (ownership.context); None before a run
+    owners: dict[str, Any] | None = None
 
 
 def headline_horizon(key: str, by_key_h: dict[tuple[str, int], dict[str, Any]]) -> int:
@@ -562,6 +566,12 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
     slugs = tool.slug_by_isin
     for item in (*feed, *events):
         item["stock_slug"] = slugs.get(item.get("isin") or "")
+    from undercurrent import corp_calendar, ownership
+
+    stock_meta = {st["isin"]: st for st in tool.stocks if st.get("listed")}
+    closes = {r["isin"]: r["close"] for r in tool.screener if r.get("close")}
+    calendar_ctx = corp_calendar.context(work, day, stock_meta, closes)
+    owners_ctx = ownership.context(work, day, stock_meta)
 
     runs_df = lake.read_state(data_dir, "runs")
     runs = runs_df.sort("started_at", descending=True).to_dicts() if runs_df is not None else []
@@ -652,6 +662,8 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
         setups=setups_by_h,
         preset_setups=preset_setups,
         logos=logo_files,
+        calendar=calendar_ctx,
+        owners=owners_ctx,
     )
 
 
@@ -1362,6 +1374,8 @@ def _render_lang(ctx: SiteContext, out: Path, lang: str) -> list[Path]:
                 rk=tool.risk.get(st["isin"]),
                 val=tool.valuation.get(st["isin"]),
                 kinds=kinds,
+                cal=(ctx.calendar or {}).get("by_isin", {}).get(st["isin"], []),
+                own=(ctx.owners or {}).get("by_isin", {}).get(st["isin"], []),
             )
     for h in ctx.stats:
         write(f"signals-{h}d.html", "signals.html", page="signals", horizon=h)
@@ -1371,6 +1385,8 @@ def _render_lang(ctx: SiteContext, out: Path, lang: str) -> list[Path]:
     write("glossary.html", "glossary.html", page="glossary")
     write("how.html", "how.html", page="how")
     write("pick.html", "pick.html", page="pick")
+    write("calendar.html", "calendar.html", page="calendar")
+    write("owners.html", "owners.html", page="owners")
     for e in ctx.events:
         write(f"event/{e['slug']}.html", "event.html", depth=1, page="event", e=e, kinds=kinds)
     return written

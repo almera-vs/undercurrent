@@ -30,10 +30,12 @@
     <a href="{{ root }}screener.html" {% if page == 'screener' %}aria-current="page"{% endif %}>{{ _('Screener') }}</a>
     <a href="{{ root }}reports.html" {% if page in ('reports', 'today') %}aria-current="page"{% endif %}>{{ _('Reports') }}</a>
     <a href="{{ root }}signals.html" {% if page == 'signals' %}aria-current="page"{% endif %}>{{ _('Signals') }}</a>
+    <a href="{{ root }}calendar.html" {% if page == 'calendar' %}aria-current="page"{% endif %}>{{ _('Calendar') }}</a>
     <a href="{{ root }}pick.html" {% if page == 'pick' %}aria-current="page"{% endif %}>★ {{ _('Stock of the week') }}</a>
     <details class="more">
-      <summary {% if page in ('archive', 'pipeline', 'glossary', 'how') %}aria-current="page"{% endif %}>{{ _('More') }}</summary>
+      <summary {% if page in ('archive', 'pipeline', 'glossary', 'how', 'owners') %}aria-current="page"{% endif %}>{{ _('More') }}</summary>
       <div class="more-menu">
+        <a href="{{ root }}owners.html" {% if page == 'owners' %}aria-current="page"{% endif %}>{{ _('Shareholders') }}</a>
         <a href="{{ root }}how.html" {% if page == 'how' %}aria-current="page"{% endif %}>{{ _('How it works') }}</a>
         <a href="{{ root }}glossary.html" {% if page == 'glossary' %}aria-current="page"{% endif %}>{{ _('Glossary') }}</a>
         <a href="{{ root }}archive.html" {% if page == 'archive' %}aria-current="page"{% endif %}>{{ _('Archive') }}</a>

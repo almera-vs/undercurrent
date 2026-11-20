@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Shareholders · Undercurrent') }}{% endblock %}
+{% macro sym(st) %}<a href="stock/{{ st.slug }}.html" class="sym-link">{{ icon(st.isin, st.ticker, assets) }}<span class="tick-sym">{{ st.ticker }}</span></a>{% endmacro %}
+{% macro stake(x) %}{% if x is not none %}{{ x|decimal(2) }}%{% else %}<span class="muted">—</span>{% endif %}{% endmacro %}
+{% block main %}
+{% set o = ctx.owners %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">{{ _('Holders of 5% or more') }} · GPW + NewConnect</p>
+    <h1>{{ _('Shareholders') }}</h1>
+  </div>
+  <p class="lede">{{ _('owners_lede') }}</p>
+</section>
+{% if not o %}
+<section class="panel"><p class="muted">{{ _('The holder register has not been built yet tonight.') }}</p></section>
+{% else %}
+{% set cv = o.coverage %}
+<div class="kpis">
+  <div class="kpi"><span>{{ _('Stake changes, last {n} days', n=o.days) }}</span><b class="mono">{{ o.recent|length }}</b><small><span class="up">▲ {{ o.ups }}</span> · <span class="down">▼ {{ o.downs }}</span></small></div>
+  <div class="kpi"><span>{{ _('Major holders on record') }}</span><b class="mono">{{ cv.holders }}</b><small>{{ _('in {n} companies, stated in the last three years', n=cv.companies) }}</small></div>
+  <div class="kpi"><span>{{ _('Notices that state the stake') }}</span><b class="mono">{{ cv.stake|share if cv.stake is not none else '—' }}</b><small>{{ _('the rest only in an attachment') }}</small></div>
+</div>
+
+<section class="panel">
+  <div class="card-head"><h2>{{ _('Who bought and who sold') }}</h2><span class="muted small">{{ _('threshold notices, newest first') }}</span></div>
+  {% if o.recent %}
+  <div class="scroll"><table class="owners-table">
+    <thead><tr><th>{{ _('Date') }}</th><th>{{ _('Stock') }}</th><th>{{ _('Holder') }}</th><th class="r">{{ _('Before') }}</th><th class="r">{{ _('After') }}</th><th></th></tr></thead>
+    <tbody>
+    {% for r in o.recent %}
+    <tr>
+      <td class="mono">{{ r.published|dm }}</td>
+      <td>{{ sym(r.stock) }}</td>
+      <td>{% if r.name %}{{ r.name }}{% else %}<span class="muted">{{ _('not named in the text') }}</span>{% endif %}</td>
+      <td class="r mono">{{ stake(r.pct_before) }}</td>
+      <td class="r mono">{% if r.direction %}<span class="{{ 'up' if r.direction == 'up' else 'down' }}" aria-label="{{ _('up') if r.direction == 'up' else _('down') }}">{{ '▲' if r.direction == 'up' else '▼' }}</span> {% endif %}{{ stake(r.pct_after) }}{% if r.pct_after is none and r.threshold %} <small class="muted">{{ _('across {t}%', t=r.threshold|decimal(0)) }}</small>{% endif %}</td>
+      <td>{% if r.source_url %}<a class="ext small" href="{{ r.source_url }}" rel="noopener" lang="pl">{{ _('report') }} ↗</a>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<p class="muted">{{ _('No threshold notices in the last {n} days.', n=o.days) }}</p>{% endif %}
+</section>
+
+<section class="panel">
+  <div class="card-head"><h2>{{ _('The largest holders across the market') }}</h2><span class="muted small">{{ _('holders with 5% or more in at least three companies') }}</span></div>
+  {% if o.index %}
+  <ul class="holder-grid">
+    {% for h in o.index %}
+    <li class="holder-card">
+      <p class="holder-name"><b>{{ h.name }}</b> <span class="muted small">{{ h.companies }} {{ plural(h.companies, 'company') }}</span></p>
+      <p class="holder-stakes">
+        {% for s in h.stakes %}<a class="stake-chip" href="stock/{{ s.stock.slug }}.html"><span class="mono">{{ s.stock.ticker }}</span> <small class="mono muted">{{ (s.pct|decimal(1) ~ '%') if s.pct is not none else '5%+' }}</small></a>{% endfor %}
+      </p>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="muted">{{ _('Not enough holders on record yet.') }}</p>{% endif %}
+  <p class="muted small">{{ _('owners_note', lists=cv.lists) }} <a href="how.html#owners">{{ _('How it’s read') }}</a></p>
+</section>
+{% endif %}
+{% endblock %}

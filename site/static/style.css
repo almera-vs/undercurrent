@@ -791,3 +791,32 @@ details.weights summary { cursor: pointer; color: var(--up); font-weight: 600; m
 .phase-changes .arrow { color: var(--muted); }
 .phase-box { margin-top: 1.2rem; }
 .phase-box h3 { font-size: 1rem; margin: 0 0 0.3rem; }
+
+/* corporate calendar and shareholders (calendar.html, owners.html, stock panels) */
+.cal-day + .cal-day { margin-top: 1.1rem; }
+.cal-day h3 { font-size: 0.95rem; color: var(--muted); font-weight: 600; margin: 0 0 0.3rem; text-transform: capitalize; }
+.cal-day[hidden], .cal-list li[hidden] { display: none; }
+.cal-list { list-style: none; margin: 0; padding: 0; }
+.cal-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.5rem 0; border-top: 1px solid var(--line); }
+.cal-list li:first-child { border-top: 0; }
+.cal-what { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem; }
+.cal-chip { min-width: 7.5rem; text-align: center; }
+.cal-ex, .cal-pay { background: var(--good-bg); color: var(--good); }
+.cal-results { background: var(--chip-insider); color: #a9d1ff; }
+.cal-zwz, .cal-nwz, .cal-wz { background: var(--chip-holdings); color: #e3c4f5; }
+.big-claim { font-size: 1.15rem; margin: 0 0 0.6rem; }
+.big-claim b { font-family: var(--mono); font-size: 1.5rem; }
+.owners-table td { vertical-align: middle; }
+.owners-table .ext { white-space: nowrap; }
+.older-holders summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; margin-top: 0.6rem; }
+.owners-table tr.stale td { color: var(--muted); }
+.holder-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 0.9rem; }
+.holder-card { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 0.8rem 1rem; min-width: 0; }
+.holder-name { margin: 0 0 0.5rem; }
+.holder-stakes { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0; }
+.stake-chip { display: inline-flex; gap: 0.3rem; align-items: baseline; padding: 0.1rem 0.5rem; border-radius: 999px; border: 1px solid var(--line); color: var(--text); font-size: 0.85rem; }
+.stake-chip:hover { border-color: var(--up); text-decoration: none; }
+@media (max-width: 640px) {
+  .cal-chip { min-width: 0; }
+  .holder-grid { grid-template-columns: 1fr; }
+}

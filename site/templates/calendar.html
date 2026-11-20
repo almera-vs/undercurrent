@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Calendar · Undercurrent') }}{% endblock %}
+{% macro kind_chip(kind) %}<span class="chip cal-chip cal-{{ kind }}">{{ _({'ex': 'Ex-dividend', 'pay': 'Dividend paid', 'results': 'Results', 'zwz': 'AGM', 'nwz': 'EGM', 'wz': 'General meeting'}[kind]) }}</span>{% endmacro %}
+{% macro period(p, y) %}{{ _({'q1': 'Q1 {y}', 'q2': 'Q2 {y}', 'q3': 'Q3 {y}', 'q4': 'Q4 {y}', 'h1': 'H1 {y}', 'annual': 'Annual report {y}'}[p], y=y) }}{% endmacro %}
+{% macro stage(s) %}<span class="badge {{ 'badge-thin' if s == 'proposed' else 'badge-ok' }}">{{ _({'resolved': 'approved', 'proposed': 'proposed', 'interim': 'interim'}.get(s, s)) }}</span>{% endmacro %}
+{% macro sym(st) %}<a href="stock/{{ st.slug }}.html" class="sym-link">{{ icon(st.isin, st.ticker, assets) }}<span class="tick-sym">{{ st.ticker }}</span></a>{% endmacro %}
+{% block main %}
+{% set c = ctx.calendar %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">{{ _('Next {n} days', n=45) }} · GPW + NewConnect</p>
+    <h1>{{ _('Calendar') }}</h1>
+  </div>
+  <p class="lede">{{ _('calendar_lede') }}</p>
+</section>
+{% if not c %}
+<section class="panel"><p class="muted">{{ _('The calendar has not been built yet tonight.') }}</p></section>
+{% else %}
+{% set n = c.counts %}
+<div class="kpis">
+  <div class="kpi"><span>{{ term('ex_date', _('Ex-dividend dates')) }}</span><b class="mono">{{ n.ex }}</b><small>{{ _('in the next {n} days', n=45) }}</small></div>
+  <div class="kpi"><span>{{ _('Results due') }}</span><b class="mono">{{ n.results }}</b><small>{{ _('dates the companies announced') }}</small></div>
+  <div class="kpi"><span>{{ _('General meetings') }}</span><b class="mono">{{ n.zwz + n.nwz + n.wz }}</b><small>{{ _('{a} ordinary, {b} extraordinary', a=n.zwz + n.wz, b=n.nwz) }}</small></div>
+</div>
+
+<section class="panel">
+  <div class="filters" role="group" aria-label="{{ _('Filter the calendar') }}">
+    {% for f, name, cnt in [('all', 'All', c.days|map(attribute='entries')|map('length')|sum), ('div', 'Dividends', n.ex + n.pay), ('results', 'Results', n.results), ('meeting', 'Meetings', n.zwz + n.nwz + n.wz)] %}
+    <button type="button" data-filter="{{ f }}" aria-pressed="{{ 'true' if f == 'all' else 'false' }}">{{ _(name) }} <span class="mono">{{ cnt }}</span></button>
+    {% endfor %}
+  </div>
+  {% for d in c.days %}
+  <div class="cal-day" data-day>
+    <h3>{{ d.date|longdate }}</h3>
+    <ul class="cal-list">
+      {% for e in d.entries %}
+      <li data-type="{{ 'div' if e.kind in ('ex', 'pay') else 'results' if e.kind == 'results' else 'meeting' }}">
+        {{ kind_chip(e.kind) }}
+        {{ sym(e.stock) }}
+        <span class="cal-what">
+        {% if e.kind in ('ex', 'pay') %}{% set v = e.div %}
+          {% if v.dps %}<b class="mono">{{ v.dps|decimal(2) }} {{ v.currency }}</b>{% else %}<span class="muted">{{ _('amount not stated') }}</span>{% endif %}
+          {% if v.yield %}<span class="muted mono">· {{ v.yield|share }}</span>{% endif %}
+          {{ stage(v.stage) }}
+          {% if e.kind == 'ex' and v.record_date %}<small class="muted">{{ _('record date {d}', d=v.record_date|dm) }}</small>{% endif %}
+        {% elif e.kind == 'results' %}{{ period(e.period, e.fiscal_year) }}
+        {% else %}<span class="muted">{{ e.stock.name|company }}</span>{% endif %}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% else %}
+  <p class="muted">{{ _('Nothing announced for the coming weeks.') }}</p>
+  {% endfor %}
+</section>
+
+<div class="split halves">
+  <section class="panel">
+    <h2>{{ _('Dividends ahead') }}</h2>
+    {% if c.dividends %}
+    <div class="scroll"><table>
+      <thead><tr><th>{{ _('Stock') }}</th><th class="r">{{ _('Per share') }}</th><th class="r">{{ term('dy', _('Yield')) }}</th><th class="r">{{ term('ex_date', _('Ex-date')) }}</th><th class="r">{{ _('Paid') }}</th></tr></thead>
+      <tbody>
+      {% for v in c.dividends %}
+      <tr>
+        <td>{{ sym(v.stock) }} {{ stage(v.stage) }}</td>
+        <td class="r mono">{% if v.dps %}{{ v.dps|decimal(2) }}{% if v.currency != 'PLN' %} {{ v.currency }}{% endif %}{% else %}—{% endif %}</td>
+        <td class="r mono">{{ v['yield']|share if v['yield'] else '—' }}</td>
+        <td class="r mono">{{ v.ex_date|dm if v.ex_date else '—' }}</td>
+        <td class="r mono">{{ v.pay_date|dm if v.pay_date else '—' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    <p class="muted small">{{ _('dividend_table_note') }}</p>
+    {% else %}<p class="muted">{{ _('No dividend with an ex-date ahead.') }}</p>{% endif %}
+  </section>
+  <section class="panel">
+    <h2>{{ _('What the ex-date does') }}</h2>
+    {% set s = c.stats %}{% set dr = s.drop %}
+    {% if dr.median is defined %}
+    <p class="big-claim">{{ _('drop_claim', m=dr.median|share)|safe }}</p>
+    <p>{{ _('drop_explain', lo=dr.lo|share, hi=dr.hi|share, n=dr.n) }}</p>
+    {% else %}<p class="muted">{{ _('Not enough past dividends in the data yet.') }}</p>{% endif %}
+    <h3>{{ _('How far to trust the dates') }}</h3>
+    <dl class="kv kv-tight">
+      <dt>{{ _('Dividends checked against the exchange') }}</dt>
+      <dd class="mono">{% if s.checked %}{{ s.agree }} {{ _('of') }} {{ s.checked }} <small class="muted">({{ (s.agree / s.checked)|share }})</small>{% else %}—{% endif %}</dd>
+      <dt>{{ _('Announced report dates kept') }}</dt>
+      <dd class="mono">{% if s.dates.kept is defined and s.dates.n %}{{ (s.dates.kept / s.dates.n)|share }} <small class="muted">{{ _('within a day; {e} early', e=(s.dates.early / s.dates.n)|share) }}</small>{% else %}—{% endif %}</dd>
+    </dl>
+    <p class="muted small">{{ _('calendar_check_note') }} <a href="how.html#calendar">{{ _('How it’s read') }}</a></p>
+  </section>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+/* Filter the agenda by kind; a day with nothing left is hidden. Without JS all is shown. */
+(function () {
+  var buttons = document.querySelectorAll('.filters button');
+  var days = document.querySelectorAll('[data-day]');
+  buttons.forEach(function (b) {
+    b.addEventListener('click', function () {
+      var f = b.getAttribute('data-filter');
+      buttons.forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+      days.forEach(function (d) {
+        var any = false;
+        d.querySelectorAll('li[data-type]').forEach(function (li) {
+          var show = f === 'all' || li.getAttribute('data-type') === f;
+          li.hidden = !show;
+          any = any || show;
+        });
+        d.hidden = !any;
+      });
+    });
+  });
+})();
+</script>
+{% endblock %}

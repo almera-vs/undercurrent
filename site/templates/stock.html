@@ -173,6 +173,50 @@
 </section>
 {% endif %}
 
+{% if cal or own %}
+<div class="split halves">
+  <section class="panel">
+    <div class="card-head"><h2>{{ _('Coming up') }}</h2><a class="small" href="../calendar.html">{{ _('Calendar') }} →</a></div>
+    {% if cal %}
+    <ul class="cal-list">
+      {% for e in cal %}
+      <li><span class="mono muted">{{ e.date|dm }}</span>
+        <span class="chip cal-chip cal-{{ e.kind }}">{{ _({'ex': 'Ex-dividend', 'pay': 'Dividend paid', 'results': 'Results', 'zwz': 'AGM', 'nwz': 'EGM', 'wz': 'General meeting'}[e.kind]) }}</span>
+        <span class="cal-what">{% if e.kind in ('ex', 'pay') %}{% if e.div.dps %}<b class="mono">{{ e.div.dps|decimal(2) }} {{ e.div.currency }}</b>{% endif %}{% if e.div['yield'] %} <span class="muted mono">· {{ e.div['yield']|share }}</span>{% endif %} <span class="muted small">{{ _({'resolved': 'approved', 'proposed': 'proposed', 'interim': 'interim'}.get(e.div.stage, '')) }}</span>{% elif e.kind == 'results' %}{{ _({'q1': 'Q1 {y}', 'q2': 'Q2 {y}', 'q3': 'Q3 {y}', 'q4': 'Q4 {y}', 'h1': 'H1 {y}', 'annual': 'Annual report {y}'}[e.period], y=e.fiscal_year) }}{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="muted">{{ _('Nothing announced for the coming weeks.') }}</p>{% endif %}
+  </section>
+  <section class="panel">
+    <div class="card-head"><h2>{{ _('Major shareholders') }}</h2><a class="small" href="../owners.html">{{ _('Shareholders') }} →</a></div>
+    {% macro holder_rows(rows) %}
+    <table class="owners-table">
+      <thead><tr><th>{{ _('Holder') }}</th><th class="r">{{ _('Votes') }}</th><th class="r">{{ _('As of') }}</th></tr></thead>
+      <tbody>
+      {% for h in rows %}
+      <tr{% if h.stale %} class="stale"{% endif %}>
+        <td>{{ h.name }}</td>
+        <td class="r mono">{% if h.pct is not none %}{{ h.pct|decimal(2) }}%{% else %}<span class="muted">{{ _('5% or more') }}</span>{% endif %}</td>
+        <td class="r mono small">{{ h.as_of.strftime('%m.%Y') }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endmacro %}
+    {% if own %}
+    {% set current = own|rejectattr('stale')|list %}
+    {% set older = own|selectattr('stale')|list %}
+    {% if current %}{{ holder_rows(current) }}{% else %}<p class="muted">{{ _('No holder of 5% or more named in the reports of the last three years.') }}</p>{% endif %}
+    {% if older %}
+    <details class="older-holders"><summary>{{ _('{n} older records (over three years)', n=older|length) }}</summary>{{ holder_rows(older) }}</details>
+    {% endif %}
+    <p class="muted small">{{ _('holders_table_note') }}</p>
+    {% else %}<p class="muted">{{ _('No holder of 5% or more named in the reports.') }}</p>{% endif %}
+  </section>
+</div>
+{% endif %}
+
 <section class="panel">
   <h2>{{ _('Reports of this company') }}</h2>
   <ul class="feed wide compact" id="stock-events"><li class="muted">{{ _('Loading…') }}</li></ul>

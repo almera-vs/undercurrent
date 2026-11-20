@@ -260,6 +260,7 @@ def run_day(
             snapshot_gold(data_dir, stats_path, day)
             _run_setups(work_dir, transform.duckdb_path(work_dir), day, data_dir)
             _run_market_state(work_dir, transform.duckdb_path(work_dir), day)
+            _run_calendar_and_owners(work_dir, transform.duckdb_path(work_dir), day)
             _run_pick(work_dir, data_dir, transform.duckdb_path(work_dir), day)
             _refresh_xtb_links(client, data_dir, transform.duckdb_path(work_dir), clock())
         res.status = "ok" if not res.problems else "degraded"
@@ -382,6 +383,26 @@ def _run_market_state(work_dir: Path, duckdb_file: Path, day: date) -> None:
         market_state.run_market_state(duckdb_file, work_dir, day)
     except Exception as exc:  # the digest must not wait on it
         log.warning("market state not computed: %s: %s", type(exc).__name__, exc)
+
+
+def _run_calendar_and_owners(work_dir: Path, duckdb_file: Path, day: date) -> None:
+    """Corporate calendar and holder register. Optional: a failure is only logged.
+
+    Tables from an earlier run are removed first, so the site never shows yesterday's.
+    """
+    from undercurrent import corp_calendar, ownership
+
+    gold = work_dir / "gold"
+    for name in (*corp_calendar.GOLD.values(), corp_calendar.STATS_FILE, ownership.GOLD_FILE):
+        (gold / name).unlink(missing_ok=True)
+    for label, step in (
+        ("corporate calendar", corp_calendar.run_calendar),
+        ("holder register", ownership.run_ownership),
+    ):
+        try:
+            step(duckdb_file, work_dir, day)
+        except Exception as exc:  # the digest must not wait on it
+            log.warning("%s not computed: %s: %s", label, type(exc).__name__, exc)
 
 
 def _run_pick(work_dir: Path, data_dir: Path, duckdb_file: Path, day: date) -> None:

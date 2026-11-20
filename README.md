@@ -69,6 +69,11 @@ flowchart LR
    TradingView's Lightweight Charts (vendored). Indicators are computed in Python and, for
    changed parameters, by the same formulas in the browser. Each screener preset is tested
    as a chart setup with the event study.
+   **Calendar and shareholders** (`corp_calendar.py`, `ownership.py`): dividends (amount,
+   record, ex- and payment dates), general meetings and announced report dates read from the
+   reports, every past dividend checked against the exchange's own ex-date adjustment; and
+   the holders of 5 % or more, from threshold notices and general-meeting lists, with who
+   bought and who sold. Each stock page shows its own.
 6. **Publish** (`publish.py`, `pages.py`, `i18n.py`): Jinja2 site in Polish and English with
    inline SVG charts, plain-language summaries, the report's own text, the stock's price and
    liquidity, a glossary, and a Telegram digest via the Bot API. Event pages link to the

@@ -11,7 +11,7 @@
 {% set k = ctx.pick %}
 {% set s = k.summary if k else none %}
 <nav class="how-toc panel" aria-label="{{ _('On this page') }}">
-  {% for id, title in [('market', 'The market page'), ('signals', 'Reports and signals'), ('setups', 'Chart setups'), ('stocks', 'Stock pages'), ('pick', 'Stock of the week'), ('sources', 'Data and links')] %}
+  {% for id, title in [('market', 'The market page'), ('signals', 'Reports and signals'), ('setups', 'Chart setups'), ('stocks', 'Stock pages'), ('calendar', 'Shareholders and calendar'), ('pick', 'Stock of the week'), ('sources', 'Data and links')] %}
   <a href="#{{ id }}">{{ _(title) }}</a>
   {% endfor %}
 </nav>
@@ -66,6 +66,18 @@
   {{ item('dcf', 'Reverse DCF', ['g_dcf', 'dcf_note']) }}
   {{ item('fscore', 'Piotroski F-score', ['g_fscore']) }}
   {{ item('altman', 'Altman Z', ['g_altman']) }}
+</section>
+
+<section class="panel how" id="calendar">
+  <h2>{{ _('Shareholders and calendar') }}</h2>
+  {{ item('dividends', 'Dividends and their dates', ['g_dividends']) }}
+  {{ item('dividend-check', 'Checked against the exchange', ['g_dividend_check']) }}
+  {{ item('ex-date', 'Price on the ex-date', ['g_drop']) }}
+  {{ item('report-dates', 'Report dates and meetings', ['g_report_dates']) }}
+  <span id="owners"></span>
+  {{ item('notices', 'Threshold notices', ['g_notices']) }}
+  {{ item('lists', 'General-meeting lists', ['g_lists']) }}
+  {{ item('holder-match', 'Matching holders', ['g_holder_match']) }}
 </section>
 
 <section class="panel how" id="pick">

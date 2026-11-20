@@ -287,6 +287,15 @@ TERMS: dict[str, tuple[str, str, str, str]] = {
         "Dividend yield",
         "The yearly dividend per share divided by the price.",
     ),
+    "ex_date": (
+        "Dzień bez dywidendy",
+        "Pierwsza sesja, na której akcję kupuje się już bez prawa do najbliższej dywidendy. "
+        "Przypada sesję przed dniem dywidendy, bo transakcja rozlicza się dwa dni robocze.",
+        "Ex-dividend date",
+        "The first session on which a share is bought without the right to the coming "
+        "dividend: the session before the record date, since a trade settles two business "
+        "days later.",
+    ),
     "fcfy": (
         "Stopa FCF",
         "Wolne przepływy pieniężne (gotówka z działalności minus inwestycje) podzielone "
@@ -492,6 +501,7 @@ HOW: dict[str, str] = {
     "bp": "valuation",
     "dy": "valuation",
     "fcfy": "valuation",
+    "ex_date": "ex-date",
     "ebit_yield": "valuation",
     "percentile": "valuation",
     "value_rank": "valuation",

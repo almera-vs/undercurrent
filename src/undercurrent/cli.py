@@ -105,6 +105,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     st.add_argument("--date", type=_parse_date, default=_parse_date("today"))
 
+    cal = sub.add_parser(
+        "calendar",
+        help="extract dividends, meetings, report dates and holders (needs a built work dir)",
+    )
+    cal.add_argument("--date", type=_parse_date, default=_parse_date("today"))
+
     es = sub.add_parser(
         "esef", help="read ESEF annual reports (filings.xbrl.org) into bronze fundamentals"
     )
@@ -329,6 +335,16 @@ def cmd_market_state(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_calendar(args: argparse.Namespace) -> int:
+    """Corporate calendar and holder register from the work dir's DuckDB."""
+    from undercurrent import corp_calendar, ownership, transform
+
+    db = transform.duckdb_path(args.work_dir)
+    corp_calendar.run_calendar(db, args.work_dir, args.date)
+    ownership.run_ownership(db, args.work_dir, args.date)
+    return 0
+
+
 def cmd_bad_prints(args: argparse.Namespace) -> int:
     """List what the price gates caught, with drafted override rows. Exit 1 if any is open."""
     from undercurrent import bad_prints, transform
@@ -476,6 +492,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "esef-bankier": cmd_esef_bankier,
         "pick": cmd_pick,
         "market-state": cmd_market_state,
+        "calendar": cmd_calendar,
         "esef": cmd_esef,
         "bad-prints": cmd_bad_prints,
         "lake-gaps": cmd_lake_gaps,
