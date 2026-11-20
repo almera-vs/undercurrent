@@ -81,6 +81,7 @@ jobs:
           key: http-${{ github.run_id }}
           restore-keys: http-
       - name: undercurrent run
+        id: run
         env:
           # Scheduled runs do not wait for the NewConnect file (it can appear as late as
           # 19:50 Warsaw time): the digest goes out first, the next run fills the day in.
@@ -97,11 +98,14 @@ jobs:
           fi
           uv run undercurrent --data-dir data run --date "$DATE" $flags
       - name: lake size check
+        id: lake
         run: uv run undercurrent --data-dir data check-lake --max-mb 900
       - name: commit data
+        id: commit_data
         if: always()
         run: scripts/commit_data.sh "daily ${DATE} (run ${{ github.run_id }})"
       - name: commit digest archive to main (keeps scheduled workflows alive)
+        id: digest
         if: success()
         run: |
           git config user.name "almera-vs"
@@ -115,6 +119,7 @@ jobs:
           done
           exit 1
       - uses: actions/upload-pages-artifact@v5
+        id: pages
         if: success()
         with:
           path: _site
@@ -123,14 +128,25 @@ jobs:
         with:
           path: .cache/http
           key: http-${{ github.run_id }}
+      # The alert says why (failures.py): the run records its reason in state/runs, and the
+      # first step that failed is named when it is not the run itself. Should the reason
+      # itself fail, the plain alert still goes out.
       - name: alert on failure
         if: failure()
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MSG: "Nightly run for ${{ needs.gate.outputs.date }} failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          FAILED: >-
+            ${{ steps.run.outcome == 'failure' && 'undercurrent run'
+            || steps.lake.outcome == 'failure' && 'lake size check'
+            || steps.commit_data.outcome == 'failure' && 'commit data'
+            || steps.digest.outcome == 'failure' && 'commit digest archive'
+            || steps.pages.outcome == 'failure' && 'upload pages'
+            || 'setup' }}
         run: |
-          uv run undercurrent --data-dir data alert \
-            "Nightly run for ${DATE} failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+          uv run undercurrent --data-dir data alert "$MSG" --run-date "$DATE" --failed-step "$FAILED" \
+            || uv run undercurrent --data-dir data alert "$MSG" \
             || true
 
   deploy:

@@ -83,6 +83,10 @@ def _build_parser() -> argparse.ArgumentParser:
     al = sub.add_parser("alert", help="send a Telegram alert (job failure / stale data)")
     al.add_argument("message", nargs="?", default=None)
     al.add_argument("--if-stale", action="store_true", help="only alert if data is stale")
+    al.add_argument(
+        "--run-date", type=date.fromisoformat, help="add why that day's nightly run failed"
+    )
+    al.add_argument("--failed-step", help="the workflow step that failed")
 
     cp = sub.add_parser("compact", help="merge daily bronze partitions of past months")
     cp.add_argument(
@@ -240,8 +244,44 @@ def cmd_alert(args: argparse.Namespace) -> int:
         if reason is None:
             return 0
         msg = f"Data is stale: {reason}."
-    publish.send_alert(msg or "The nightly job failed. See the Actions log.")
+    msg = msg or "The nightly job failed. See the Actions log."
+    if args.run_date is not None:
+        msg = f"{msg}\n{failure_details(args.data_dir, args.run_date, args.failed_step)}"
+    publish.send_alert(msg)
     return 0
+
+
+def failure_details(data_dir: Path, day: date, failed_step: str | None) -> str:
+    """Why the nightly run for ``day`` failed, and what happens next, for its alert."""
+    import polars as pl
+
+    from undercurrent import failures, lake
+
+    runs = lake.read_state(data_dir, "runs")
+    last = None
+    if runs is not None and runs.height:
+        mine = runs.filter(pl.col("run_date") == day).sort("started_at")
+        last = mine.row(-1, named=True) if mine.height else None
+    lines: list[str] = []
+    if last is not None and last["status"] == "failed":
+        reason = last.get("failure") or last.get("notes") or "not recorded"
+        lines.append(f"Reason: {reason}")
+        if now := failures.reachable_now(reason):
+            lines.append(now)
+    elif last is not None:
+        step = f' "{failed_step}"' if failed_step else ""
+        lines.append(
+            f"Reason: the data run itself finished ({last['status']}); a later step{step} "
+            "failed. See the log."
+        )
+    else:
+        step = f' at "{failed_step}"' if failed_step else ""
+        lines.append(f"Reason: the job stopped{step} before the run recorded anything.")
+    lines.append(
+        "The next attempt, within 30 minutes, retries the day; the watchdog alerts at 20:15 "
+        "Warsaw time if it is still missing."
+    )
+    return "\n".join(lines)
 
 
 def cmd_compact(args: argparse.Namespace) -> int:

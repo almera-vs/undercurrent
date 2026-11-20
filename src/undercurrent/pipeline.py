@@ -20,7 +20,7 @@ from zoneinfo import ZoneInfo
 import httpx
 import polars as pl
 
-from undercurrent import gpw_calendar, ingest, lake
+from undercurrent import failures, gpw_calendar, ingest, lake
 from undercurrent.fetch import PoliteClient
 
 log = logging.getLogger(__name__)
@@ -64,6 +64,7 @@ RUNS_SCHEMA: dict[str, Any] = {
     "prices_nc_rows": pl.Int64,
     "nc_pending": pl.Boolean,
     "notes": pl.String,
+    "failure": pl.String,  # why a failed run stopped, in words (failures.explain)
 }
 
 
@@ -82,6 +83,7 @@ class RunResult:
     prices_nc_rows: int = 0
     nc_pending: bool = False
     notes: list[str] = field(default_factory=list)
+    failure: str | None = None
 
     @property
     def problems(self) -> list[str]:
@@ -106,6 +108,7 @@ class RunResult:
             "prices_nc_rows": self.prices_nc_rows,
             "nc_pending": self.nc_pending,
             "notes": "; ".join(self.notes) or None,
+            "failure": self.failure,
         }
 
 
@@ -289,7 +292,9 @@ def run_day(
     except Exception as exc:
         res.status = "failed"
         res.notes.append(f"{type(exc).__name__}: {exc}")
+        res.failure = failures.explain(exc)
         log.exception("run %s failed", day)
+        log.error("reason: %s", res.failure)
         from undercurrent import transform as _transform
 
         if run_transform and isinstance(exc, _transform.DbtError):

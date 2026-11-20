@@ -31,6 +31,7 @@ MAX_JITTER_S = 0.5
 # A dropped connection or timeout is retried after these pauses (seconds) before giving up.
 RETRY_PAUSES_S = (5.0, 30.0, 120.0)
 DEFAULT_CACHE_DIR = Path(".cache/http")
+REQUEST_NOTE = "request: "  # the note _send adds to a request it gave up on
 
 # Markers of bot-protection interstitials seen on the official sites.
 _BLOCK_MARKERS: tuple[bytes, ...] = (
@@ -133,6 +134,8 @@ class PoliteClient:
                 return self._client.request(method, url, content=content, headers=headers)
             except httpx.TransportError as exc:
                 if pause is None:
+                    # named for failures.explain, whatever httpx attached to the exception
+                    exc.add_note(f"{REQUEST_NOTE}{method} {url}")
                     raise
                 log.warning("%s %s: %s; retrying in %.0fs", method, url, type(exc).__name__, pause)
                 self._sleep(pause)
