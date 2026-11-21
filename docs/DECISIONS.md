@@ -868,6 +868,47 @@ Two pages read from reports already in the lake: no new source.
   row also stores the name's rank, so the page can show the week's best forecast when all
   weights are equal.
 
+## Reports move prices; the digest said they did not (2026-11-22)
+
+- **What was wrong.** Every evening the digest said "No event today is of a type that has
+  moved prices significantly", while quarterly reports visibly moved stocks, sometimes by
+  10 % or more. Three things together:
+  - The event study's verdicts answer another question: does the *signed* mean excess
+    return *after the entry close* (the session after the digest) beat a 2 % round trip?
+    A report's move happens on its own session, before any reader can buy, and goes up for
+    one company and down for the next, so it averages to about zero and sits outside the
+    window anyway. On the full lake every kind came out "noise" at every horizon, so the
+    digest's "worth a look" list was always empty.
+  - Periodic reports (quarterly, half-year, annual) were not tested at all: they stayed
+    outside `events` so the study's kinds would not change.
+  - The sentence said "moved prices", which the study never measured.
+- **The fix: measure the move itself** (`reactions.py`). Per report, the market state's
+  surprise (residual return ÷ forecast σ) summed from day 0 to the entry close, ÷ √sessions;
+  per kind, the mean squared surprise against ordinary windows of the same length on the same
+  tiers with no report within two sessions. The market state's σ is calibrated, so an
+  ordinary window gives 0.92–0.96 on the full lake, close to 1. It reads L2 and runs after
+  it; it changes nothing the study, the pick or the market state compute.
+- **Squared, not signed.** "Does it move the price" is a question about size. The sign is the
+  study's question, and its answer stays as it was.
+- **Verdict.** `moves` when a two-way clustered (stock, month) one-sided t of z² ÷ ordinary − 1
+  gives q < 5 % across kinds *and* the ratio is at least 1.5. With tens of thousands of
+  reports almost anything is significant (insider sells: 1.2 times an ordinary day, q < 1 %),
+  so the ratio is what makes it "clearly". 1.5 is a prior, chosen before looking.
+- **First result (full lake, 2015-01 to 2026-11, liquid and tradable stocks).** 11 of 16 kinds
+  clearly move prices. Periodic reports: 9,864 reports, 2.9 times an ordinary day, 15.8 % of
+  them beyond ±2σ (about 5 % on ordinary days), t = 14. Strategy 3.5×, profit warnings 3.1×,
+  dividend changes 2.5×, M&A 2.3×, large contracts 2.1×, insider buys 1.6×. No clear move:
+  holder thresholds (1.4×), insider sells (1.2×), ratings (1.0×) and unclassified reports
+  (1.4×). The move does not carry on: the day-0 surprise and the next 20 sessions' residual
+  return are uncorrelated for every kind (|r| < 0.05; annual reports −0.2 on 132 cases).
+  That is why the study, which starts after the move, finds nothing to trade.
+- **The digest now says what happened.** Its first line counts today's reports of kinds that
+  move prices and today's big moves (beyond ±2σ by the close), and lists the big moves, one
+  per stock, biggest first, with the move against the market in percent and in σ. A report
+  published after the close is measured the next evening. The study's "kept moving after the
+  digest" list follows only when a kind qualifies. The reports page marks big moves, and the
+  signals page shows the reaction table above the study's.
+
 ## Known limitations
 
 - Insider trade details (side, volume, price) are missing for reports that no portal

@@ -33,7 +33,8 @@
       <time class="mono muted">{{ r.pub_time }}{% if r.pub_day %}<small>{{ r.pub_day }}</small>{% endif %}</time>
       <div class="s-main">
         <div class="s-head">
-          <span class="chip chip-{{ r.filter }}">{{ r.label_key|label }}</span>
+          <span class="chip chip-{{ r.filter }}"{% if r.reaction and r.reaction.verdict == 'moves' %} title="{{ _('Reports of this kind move the price {x}× as much as an ordinary day.', x=r.reaction.ratio|decimal(1)) }}"{% endif %}>{{ r.label_key|label }}</span>
+          {% if r.move and r.move.day0 == ctx.day and (r.move.z|abs) >= 2 %}<span class="badge badge-move {{ r.move.move|tone }}" title="{{ _('Today’s move against the market, in the stock’s own σ: a big move is beyond ±2σ.') }}">{{ r.move.move|pct }} · {{ r.move.z|decimal(1) }}σ</span>{% endif %}
           {% if r.stat %}<span class="verdict v-{{ r.stat.verdict }}">{{ tip(r.stat.verdict|verdict, r.stat.verdict|explain) }}</span>{% endif %}
           {% if c and c.buyable == false %}<span class="badge badge-thin">{{ term('thin') }}</span>{% endif %}
         </div>

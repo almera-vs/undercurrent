@@ -212,6 +212,7 @@ td.sig small, td.r small { display: block; font-size: 0.8rem; }
 .badge { font-size: 0.78rem; font-weight: 600; padding: 0.1rem 0.5rem; border-radius: 999px; white-space: nowrap; }
 .badge-thin { background: var(--warn-bg); color: var(--down); }
 .badge-ok { background: var(--good-bg); color: var(--good); }
+.badge-move { background: var(--noise-bg); font-family: var(--mono, ui-monospace, monospace); }
 
 /* Event page */
 .verdict-box { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--muted); border-radius: 12px; padding: 1rem 1.4rem; margin: 1.2rem 0 0; }

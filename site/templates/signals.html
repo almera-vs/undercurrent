@@ -50,6 +50,32 @@
   {% if note %}<p class="muted small"><a href="how.html#{{ note }}">{{ _('How it’s measured') }}</a></p>{% endif %}
 </section>
 {% endmacro %}
+{% if ctx.reactions %}
+<section class="panel">
+  <div class="table-head"><h2 id="reaction">{{ _('Do reports move the price on the day?') }}</h2></div>
+  <p class="muted small">{{ _('reaction_note') }}</p>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>{{ _('Kind of report') }}</th><th>{{ _('Verdict') }}</th><th class="r">{{ _('Reports') }}</th><th class="r wide">{{ _('Size of the day’s move, ordinary day = 1') }}</th><th class="r wide">{{ _('Moves beyond ±2σ') }}</th><th class="r wide">{{ _('Typical move') }}</th><th class="r">{{ term('q') }}</th></tr></thead>
+    <tbody>
+    {% set rv = {'moves': (_('Moves the price'), 'holds_up'), 'no_clear_move': (_('No clear move'), 'noise'), 'too_few': (_('Too few reports'), 'too_few')} %}
+    {% for r in ctx.reactions %}
+      <tr>
+        <td class="sig">{{ r.signal_key|label }}</td>
+        <td><span class="verdict v-{{ rv[r.verdict][1] }}">{{ rv[r.verdict][0] }}</span></td>
+        <td class="r mono">{{ r.n|num }}</td>
+        <td class="r mono">{{ r.ratio|decimal(1) }}×</td>
+        <td class="r mono">{{ r.big_share|share }} <small class="muted">{{ _('ordinary {x}', x=r.base_big_share|share) }}</small></td>
+        <td class="r mono">{{ r.median_move|share }} <small class="muted">{{ _('ordinary {x}', x=r.base_median_move|share) }}</small></td>
+        <td class="r mono">{{ r.q_value|qval }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="muted small scroll-hint">{{ _('Scroll sideways for all columns.') }}</p>
+</section>
+{% endif %}
 {{ library(rows, _('Signal library'), 'reports', 'study') }}
 {% set setup_rows = ctx.setups.get(horizon, []) %}
 {% if setup_rows %}

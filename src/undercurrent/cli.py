@@ -105,6 +105,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     st.add_argument("--date", type=_parse_date, default=_parse_date("today"))
 
+    rx = sub.add_parser(
+        "reactions",
+        help="measure how much each kind of report moves the price (needs the market state)",
+    )
+    rx.add_argument("--date", type=_parse_date, default=_parse_date("today"))
+
     cal = sub.add_parser(
         "calendar",
         help="extract dividends, meetings, report dates and holders (needs a built work dir)",
@@ -335,6 +341,14 @@ def cmd_market_state(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_reactions(args: argparse.Namespace) -> int:
+    """Reaction of the price to each kind of report, from the market state."""
+    from undercurrent import reactions, transform
+
+    reactions.run_reactions(transform.duckdb_path(args.work_dir), args.work_dir, args.date)
+    return 0
+
+
 def cmd_calendar(args: argparse.Namespace) -> int:
     """Corporate calendar and holder register from the work dir's DuckDB."""
     from undercurrent import corp_calendar, ownership, transform
@@ -492,6 +506,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "esef-bankier": cmd_esef_bankier,
         "pick": cmd_pick,
         "market-state": cmd_market_state,
+        "reactions": cmd_reactions,
         "calendar": cmd_calendar,
         "esef": cmd_esef,
         "bad-prints": cmd_bad_prints,

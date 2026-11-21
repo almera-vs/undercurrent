@@ -26,7 +26,7 @@ import polars as pl
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
-from undercurrent import i18n, lake, logos, pages, sectors, terms, xtb
+from undercurrent import i18n, lake, logos, pages, reactions, sectors, terms, xtb
 
 log = logging.getLogger(__name__)
 WARSAW = ZoneInfo("Europe/Warsaw")
@@ -246,6 +246,10 @@ class SiteContext:
     calendar: dict[str, Any] | None = None
     # major holders and their recent moves (ownership.context); None before a run
     owners: dict[str, Any] | None = None
+    # how much each kind of report moves the price on its day (reactions.py), biggest first
+    reactions: list[dict[str, Any]] = field(default_factory=list)
+    # today's reports whose stock moved beyond ±2 σ by the close, one per stock, biggest first
+    moves: list[dict[str, Any]] = field(default_factory=list)
 
 
 def headline_horizon(key: str, by_key_h: dict[tuple[str, int], dict[str, Any]]) -> int:
@@ -407,6 +411,7 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
         )
         by_h[h] = rows
     stat20 = {r["signal_key"]: r for r in by_h.get(HORIZON_DEFAULT, [])}
+    reaction_rows, reaction_by_key, report_moves = _reaction_rows(work)
     setups_by_h, preset_setups = _setup_rows(work)
     by_key_h = {(r["signal_key"], int(r["horizon"])): r for r in stats_rows}
     summary = {
@@ -452,6 +457,12 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
             }.get(r["signal_type"], "other"),
             "slug": r["report_id"].replace(":", "-"),
             "is_event": r["signal_type"] in ("insider_tx", "holder_threshold", "inside_info"),
+            # how much reports of this kind move the price on their day (reactions.py)
+            "reaction": reaction_by_key.get(
+                reactions.kind_of(r["signal_type"], r["subtype"], r["insider_side"]) or ""
+            ),
+            # this report's own move, once its day 0 has closed (None before, or too thin)
+            "move": report_moves.get(r["report_id"]),
         }
         if item["is_event"]:
             h = headline_horizon(key, by_key_h)
@@ -505,6 +516,7 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
         return (VERDICT_ORDER.get(st["verdict"], 9), -strength, i["report_id"])
 
     worth.sort(key=rank)
+    moves = big_moves(feed, day)
 
     # detail pages: path chart + closest past events of the same signal
     for e in events:
@@ -619,6 +631,10 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
         "holder": today.filter(pl.col("signal_type") == "holder_threshold").height,
         "inside": today.filter(pl.col("signal_type") == "inside_info").height,
         "other": today.filter(pl.col("signal_type").is_in(["other", "periodic"])).height,
+        # today's reports of kinds that clearly move the price on their day
+        "moving_kinds": sum(
+            1 for i in feed if i["reaction"] and i["reaction"]["verdict"] == "moves"
+        ),
     }
     status = run.get("status", "unknown")
     health_bits: list[tuple[str, dict[str, Any]]] = [("Run {s}", {"s": status})]
@@ -664,7 +680,50 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
         logos=logo_files,
         calendar=calendar_ctx,
         owners=owners_ctx,
+        reactions=reaction_rows,
+        moves=moves,
     )
+
+
+def _reaction_rows(
+    work: Path,
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Per-kind reaction statistics, the same by kind, and each report's known move.
+
+    A report's move is kept only when some of its window is known and the stock was liquid
+    or tradable on day 0 (a thin stock's surprise is meaningless). Empty without the tables.
+    """
+    gold = work / "gold"
+    spath, rpath = gold / reactions.STATS_FILE, gold / reactions.REPORTS_FILE
+    rows = pl.read_parquet(spath).to_dicts() if spath.exists() else []
+    for r in rows:
+        r["label"] = label_for(r["signal_key"])
+    by_key = {r["signal_key"]: r for r in rows}
+    moves: dict[str, dict[str, Any]] = {}
+    if rpath.exists():
+        df = pl.read_parquet(rpath).filter(
+            (pl.col("known") > 0) & pl.col("tier").is_in(reactions.TIERS) & pl.col("z").is_finite()
+        )
+        moves = {r["report_id"]: r for r in df.to_dicts()}
+    return rows, by_key, moves
+
+
+def big_moves(feed: list[dict[str, Any]], day: date) -> list[dict[str, Any]]:
+    """Today's reports whose stock moved beyond ±``reactions.BIG`` σ on today's session.
+
+    One per stock (its report of the kind that moves prices most), biggest move first.
+    Only reports whose day 0 is ``day``: a report after the close is measured tomorrow.
+    """
+    best: dict[str, dict[str, Any]] = {}
+    for i in feed:
+        m = i.get("move")
+        if not m or m["day0"] != day or abs(m["z"]) < reactions.BIG:
+            continue
+        ratio = (i.get("reaction") or {}).get("ratio") or 0.0
+        cur = best.get(m["isin"])
+        if cur is None or ratio > ((cur.get("reaction") or {}).get("ratio") or 0.0):
+            best[m["isin"]] = i
+    return sorted(best.values(), key=lambda i: (-abs(i["move"]["z"]), i["report_id"]))
 
 
 def _setup_rows(
@@ -1416,11 +1475,23 @@ def digest_message(ctx: SiteContext, max_items: int = 5) -> tuple[str, dict[str,
     """Telegram HTML message + inline keyboard for the nightly digest."""
     e = html.escape
     d = ctx.day
-    lines = [
-        f"<b>GPW digest · {d:%a} {d.day} {d:%b}</b>",
-        f"{ctx.counts['reports']} reports · {len(ctx.worth)} of kinds that have moved prices",
-        "",
-    ]
+    head = f"{ctx.counts['reports']} reports"
+    if ctx.reactions:
+        head += (
+            f" · {ctx.counts.get('moving_kinds', 0)} of kinds that move prices"
+            f" · {len(ctx.moves)} big {'move' if len(ctx.moves) == 1 else 'moves'} today"
+        )
+    lines = [f"<b>GPW digest · {d:%a} {d.day} {d:%b}</b>", head, ""]
+    # What happened: today's reports that came with a big move by the close.
+    for item in ctx.moves[:max_items]:
+        m = item["move"]
+        lines.append(f"<b>{e(item['ticker'])}</b> · {e(item['label'])}: {e(item['fact'][:120])}")
+        lines.append(f"Today: {pct(m['move'])} vs market ({m['z']:+.1f}σ)")
+    if ctx.reactions and not ctx.moves:
+        lines.append("No report today came with a big move (beyond ±2σ) by the close.")
+    # What may still pay: kinds whose drift after the digest has held up in the past.
+    if ctx.worth:
+        lines += ["", "<i>Kinds that kept moving after the digest:</i>"]
     for item in ctx.worth[:max_items]:
         st = item["stat"]
         verdict = {
@@ -1434,8 +1505,6 @@ def digest_message(ctx: SiteContext, max_items: int = 5) -> tuple[str, dict[str,
         lines.append(f"<b>{e(item['ticker'])}</b> · {e(item['label'])}: {e(item['fact'][:120])}")
         h = item.get("horizon", HORIZON_DEFAULT)
         lines.append(f"Past: {pct(st['mean_car'])} / {h}d after entry · n={st['n']} · {verdict}")
-    if not ctx.worth:
-        lines.append("No event today is of a type that has moved prices significantly.")
     pk = ctx.pick
     if pk and pk.get("ready") and pk.get("pick"):
         verdict = i18n.PICK_VERDICTS["en"].get(pk["summary"]["verdict"], "")
@@ -1445,8 +1514,10 @@ def digest_message(ctx: SiteContext, max_items: int = 5) -> tuple[str, dict[str,
         ]
     lines += ["", f"<i>{e(ctx.health)}</i>", "Not investment advice. Historical statistics only."]
     buttons = [{"text": "Tonight's reports", "url": f"{ctx.site_url}reports.html"}]
-    if ctx.worth:
-        first = ctx.worth[0]
+    # an event page for the first item that has one (only signal events have pages)
+    linked = [i for i in ctx.moves if i.get("is_event")] + list(ctx.worth)
+    if linked:
+        first = linked[0]
         buttons.append(
             {
                 "text": f"{first['ticker']} details",

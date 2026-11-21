@@ -260,6 +260,7 @@ def run_day(
             snapshot_gold(data_dir, stats_path, day)
             _run_setups(work_dir, transform.duckdb_path(work_dir), day, data_dir)
             _run_market_state(work_dir, transform.duckdb_path(work_dir), day)
+            _run_reactions(work_dir, transform.duckdb_path(work_dir), day)
             _run_calendar_and_owners(work_dir, transform.duckdb_path(work_dir), day)
             _run_pick(work_dir, data_dir, transform.duckdb_path(work_dir), day)
             _refresh_xtb_links(client, data_dir, transform.duckdb_path(work_dir), clock())
@@ -383,6 +384,25 @@ def _run_market_state(work_dir: Path, duckdb_file: Path, day: date) -> None:
         market_state.run_market_state(duckdb_file, work_dir, day)
     except Exception as exc:  # the digest must not wait on it
         log.warning("market state not computed: %s: %s", type(exc).__name__, exc)
+
+
+def _run_reactions(work_dir: Path, duckdb_file: Path, day: date) -> None:
+    """How much each kind of report moves the price (``reactions.py``). Optional.
+
+    It reads the market state, so it runs after it; tables from an earlier run are removed
+    first, and without them the digest and pages leave the reaction out.
+    """
+    from undercurrent import reactions
+
+    for name in (reactions.STATS_FILE, reactions.REPORTS_FILE):
+        (work_dir / "gold" / name).unlink(missing_ok=True)
+    if not (work_dir / "gold" / "market_state.parquet").exists():
+        log.warning("reactions not computed: no market state")
+        return
+    try:
+        reactions.run_reactions(duckdb_file, work_dir, day)
+    except Exception as exc:  # the digest must not wait on it
+        log.warning("reactions not computed: %s: %s", type(exc).__name__, exc)
 
 
 def _run_calendar_and_owners(work_dir: Path, duckdb_file: Path, day: date) -> None:

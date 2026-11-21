@@ -60,7 +60,9 @@ flowchart LR
    page reads one set of numbers. The stock of the week reads it, puts a self-correcting 90 %
    band on every forecast, keeps an append-only ledger of them, and holds a weekly basket of
    the 15 best forecasts, each kept until it leaves the best 45 (`basket.py`); event pages
-   show the same forecast.
+   show the same forecast. **Reactions** (`reactions.py`) measure how much each kind of
+   report, quarterly reports included, moves the price on its own day against days without
+   news; the digest lists the day's reports that came with a big move.
 5. **Analysis pages** (`ta.py`, `stock_export.py`, `setups.py`, `risk.py`, `sectors.py`,
    `valuation.py`, `indicators.py`, `site/static/js/`): the market page with sector rotation,
    the screener and one chart page per stock with its risk (Student-t VaR and expected

@@ -641,7 +641,30 @@ PL: dict[str, str] = {
     "screener_lede_short": "Wszystkie notowane spółki. Sortuj, filtruj albo wybierz gotowy zestaw.",
     "reports_lede_short": "Wszystkie raporty ESPI i EBI z dzisiejszego wieczoru, od najnowszego.",
     "signals_lede_short": (
-        "Które rodzaje raportów i układów na wykresie naprawdę ruszały kursem po kosztach."
+        "Które rodzaje raportów ruszają kursem w dniu publikacji, a które jeszcze zarabiają "
+        "po podsumowaniu, po kosztach."
+    ),
+    "Do reports move the price on the day?": "Czy raporty ruszają kursem w dniu publikacji?",
+    "reaction_note": (
+        "Ruch kursu wobec rynku od dnia raportu do sesji, na której czytelnik podsumowania może "
+        "pierwszy raz kupić, w jednostkach zwykłej zmienności spółki, porównany z dniami bez "
+        "żadnego raportu. Ruch bywa w górę i w dół, więc średnia wynosi około zera; liczy się "
+        "jego wielkość. Tabela niżej mierzy co innego: czy po podsumowaniu da się jeszcze "
+        "zarobić po kosztach."
+    ),
+    "Kind of report": "Rodzaj raportu",
+    "Size of the day’s move, ordinary day = 1": "Wielkość ruchu, zwykły dzień = 1",
+    "Moves beyond ±2σ": "Ruchy powyżej ±2σ",
+    "Typical move": "Typowy ruch",
+    "ordinary {x}": "zwykle {x}",
+    "Moves the price": "Rusza kursem",
+    "No clear move": "Brak wyraźnego ruchu",
+    "Too few reports": "Za mało raportów",
+    "Reports of this kind move the price {x}× as much as an ordinary day.": (
+        "Raporty tego rodzaju ruszają kursem {x}× mocniej niż zwykły dzień."
+    ),
+    "Today’s move against the market, in the stock’s own σ: a big move is beyond ±2σ.": (
+        "Dzisiejszy ruch wobec rynku, w jednostkach zmienności spółki: duży ruch to ponad ±2σ."
     ),
     "setups_lede_short": "Każdy zestaw ze skanera, sprawdzony na historii GPW.",
     "archive_lede_short": "Wcześniejsze podsumowania i jak ich spółki radzą sobie od tamtej pory.",
@@ -1371,7 +1394,17 @@ EN_OVERRIDES: dict[str, str] = {
     "rrg_caption": "Sectors on the right beat WIG; at the top their lead is growing.",
     "screener_lede_short": "Every listed stock. Sort, filter or start from a preset.",
     "reports_lede_short": "Every ESPI and EBI report from tonight, newest first.",
-    "signals_lede_short": "Which kinds of report and chart setup really moved prices, after costs.",
+    "signals_lede_short": (
+        "Which kinds of report move the price on the day, and which still pay after the "
+        "digest, after costs."
+    ),
+    "reaction_note": (
+        "The move against the market from the report's day to the first session a reader of "
+        "the digest can buy at, in the stock's own usual volatility, compared with days without "
+        "any report. Moves go up and down, so their average is about zero; what counts is "
+        "their size. The table below measures something else: whether there is anything left "
+        "to earn after the digest, net of costs."
+    ),
     "setups_lede_short": "Every screener preset, tested on GPW's history.",
     "archive_lede_short": "Earlier digests and how their stocks have done since.",
     "record_note_short": "Result against WIG from entry to today.",

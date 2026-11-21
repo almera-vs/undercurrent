@@ -172,6 +172,35 @@ the numbers of the horizon behind the verdict: the holding period of the latest 
 rule for `holds_up` / `unconfirmed` / `eaten_by_costs`, the most significant horizon for `untested`, and 20
 sessions otherwise.
 
+These verdicts say whether a kind of report is worth *trading after the digest*. They do not
+say whether it moves the price: that is § 5a.
+
+## 5a. Does a report move the price? (`reactions.py`)
+
+- **Question.** How big is the price's move on the report itself, whichever way it goes?
+  The study above starts at the entry close and averages signed returns, so it sees neither
+  the move (it happens before entry) nor its size (ups and downs cancel).
+- **Every report** of every kind: the study's keys, plus `periodic` (quarterly, half-year,
+  annual reports) and `other`. Stocks that are `liquid` or `tradable` in the market state on
+  day 0 (§ 10); a thin stock's surprise is meaningless.
+- **Window:** from day 0 to the entry close inclusive (1 or 2 sessions, at most 3): exactly
+  the sessions the study leaves out. A window across a hole in the lake is dropped.
+- **Size:** z = (sum of the market state's surprises over the window) ÷ √sessions, so an
+  ordinary window is about ±1 whatever its length; the move in percent is the sum of the
+  residual returns.
+- **Yardstick:** windows of the same length on the same tiers with no report of any kind
+  within two sessions of them. On the full lake their mean z² is 0.92–0.96.
+- **Per kind:** ratio = mean z² ÷ ordinary mean z² for each report's window length (1 = no
+  bigger than an ordinary day); the share of reports beyond ±2 against the ordinary share; the
+  median absolute move against the ordinary median. One report per (kind, stock, day 0).
+- **Test:** one-sided t of z² ÷ ordinary − 1, standard errors clustered two ways (stock,
+  month of day 0); Benjamini–Hochberg q-values across kinds.
+- **Verdict:** `moves` when q < 0.05 and the ratio is at least 1.5; `no_clear_move`
+  otherwise; `too_few` under 30 reports. Windows not yet closed never enter the statistics.
+- **In the digest:** today's reports whose stock moved beyond ±2σ against the market by the
+  close, one per stock, with the move in percent and in σ. A report after the close is
+  measured the next evening.
+
 ## 6. Point-in-time correctness
 
 - Every input row (events, returns, benchmark) carries `known_at`. Price rows are known at
