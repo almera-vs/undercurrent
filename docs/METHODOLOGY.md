@@ -304,17 +304,18 @@ Code: `src/undercurrent/pick_features.py` (features), `src/undercurrent/pick.py`
   1 %–50 %. The percentiles become α/2 and 1 − α/2. The history is the walk-forward's own
   out-of-sample weeks until the first live week, and the forecast ledger's after it. The
   step of 0.05 is fixed in advance, not fitted.
-- **The basket** (`basket.py`). From the same weekly forecasts: up to 10 stocks whose
-  expected excess beats their own round-trip cost, best first; a held stock stays while it
-  is in the best 20 and still beats its cost. Weights by hierarchical risk parity on the
-  covariance of the names' Kalman residual returns over the last 120 sessions (at least 60
-  known), shrunk halfway to its diagonal, at most 25 % per name; inverse variance from σ
-  when the window is too short. With fewer than 10 names the basket invests names / 10 and
-  the rest stays in WIG. Every increase of a weight pays that stock's round-trip cost on the
-  increase. It is walked forward week by week beside the single pick, with the same verdict
-  rule, and appended weekly to `state/basket.parquet`, never rewritten. **It is the
-  decision:** the stock of the week is its largest position, the verdict on the page is the
-  basket's, and its weekly record is the live record (the single pick stays as a comparison).
+- **The basket** (`basket.py`, a rank band). From the same weekly forecasts: the 15 stocks
+  with the highest expected excess are bought; a held stock stays while it ranks inside the
+  best 45, and is then replaced by the best stock not yet held. Only the ranking is read,
+  never the forecast's level. Equal weights (1/15), always fully invested. Every increase of
+  a weight pays that stock's round-trip cost on the increase; between weekly rebalances the
+  weights are taken as constant. It is walked forward week by week beside the single pick,
+  with the same verdict rule, against WIG and against the equal-weighted liquid universe
+  (its net result minus the universe's on the money invested), and appended weekly to
+  `state/basket.parquet` with each name's rank, never rewritten. **It is the decision:** the
+  stock of the week is its best forecast, the verdict on the page is the basket's, and its
+  weekly record is the live record (the single pick stays as a comparison). Why a band and
+  how the numbers were measured: DECISIONS, "The basket is a rank band".
 - **Forecast ledger.** On the first session of each week every scored stock's expected
   excess, band, α, regime and cost are appended to `state/forecasts.parquet` and never
   rewritten. Its realized coverage is shown on the page next to the backtest's.

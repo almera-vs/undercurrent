@@ -12,39 +12,39 @@ from undercurrent import basket, pages, pick, publish
 from undercurrent import pick_features as pf
 
 
-def test_choose_keeps_held_names_inside_the_buffer_and_drops_losers():
+def test_choose_buys_the_best_and_keeps_held_names_inside_the_band():
+    stocks = np.arange(100, 160)  # panel rows need not be positions
+    expected = np.linspace(0.06, -0.03, 60)  # stock 100 best
+    fresh = basket.choose({}, stocks, expected)
+    assert fresh == list(range(100, 100 + basket.N))
+    # rank 30 is outside the top N but inside the band: a holder keeps it, best first
+    kept = basket.choose({130: 1 / basket.N}, stocks, expected)
+    assert len(kept) == basket.N and 130 in kept and kept[-1] == 130
+    assert 100 + basket.N - 1 not in kept  # the last fresh name makes room for it
+    # rank 50 is outside the band: it is sold
+    assert 150 not in basket.choose({150: 1 / basket.N}, stocks, expected)
+    # a held stock that left the universe is sold
+    assert 999 not in basket.choose({999: 1 / basket.N}, stocks, expected)
+
+
+def test_the_forecasts_level_never_decides_whether_to_invest():
+    """Only the ranking counts: a negative intercept (the universe's past drift) or a cost
+    above every forecast does not leave the basket in WIG."""
     stocks = np.arange(30)
-    expected = np.linspace(0.06, -0.03, 30)  # stock 0 best, the last ones negative
-    cost = np.full(30, 0.01)
-    fresh = basket.choose({}, stocks, expected, cost)
-    assert fresh == list(range(basket.K))
-    # stock 15 is outside the top 10 but inside the top 20: a holder keeps it
-    kept = basket.choose({15: 0.1}, stocks, expected, cost)
-    assert 15 in kept and len(kept) == basket.K
-    # stock 25 is outside the buffer: it goes
-    assert 25 not in basket.choose({25: 0.1}, stocks, expected, cost)
-    # nothing beats its cost: nothing is held
-    assert basket.choose({}, stocks, np.zeros(30), cost) == []
+    expected = np.linspace(-0.01, -0.05, 30)
+    f = basket.Forecast(0, date(2020, 1, 6), 5, stocks, expected, np.full(30, 0.1), np.ones(30))
+    new, cost = basket.step(f, {})
+    assert list(new) == list(range(basket.N))
+    assert sum(new.values()) == pytest.approx(1.0)
+    assert list(new.values()) == pytest.approx([1 / basket.N] * basket.N)
+    assert cost == pytest.approx(0.1)  # every name bought: its own round trip on all of it
+    # nothing moved: nothing is traded and nothing is paid again
+    again, cost2 = basket.step(f, new)
+    assert again == new and cost2 == 0.0
 
 
-def test_hrp_gives_an_independent_name_more_than_two_twins():
-    cov = np.array([[1.0, 0.95, 0.0], [0.95, 1.0, 0.0], [0.0, 0.0, 1.0]]) * 1e-4
-    w = basket.hrp(cov)
-    assert w.sum() == pytest.approx(1.0) and (w > 0).all()
-    assert w[2] > w[0] and w[2] > w[1]
-    assert w[0] == pytest.approx(w[1])
-    assert basket.hrp(np.array([[2e-4]]))[0] == 1.0
-
-
-def test_cap_and_partial_investment():
-    w = basket._cap(np.array([0.6, 0.2, 0.2]), 0.4)
-    assert w.max() <= 0.4 + 1e-12 and w.sum() == pytest.approx(1.0)
-    prices, bench, events, cal = market(n_stocks=20, n_sessions=400)
-    panel = pf.build_panel(pf.cut_inputs(prices, bench, events, _as_of(cal[-1])))
-    resid = basket.daily_residuals(panel)
-    out = basket.weights(panel, resid, len(cal) - 1, [0, 1, 2], {0: 0.05, 1: 0.05, 2: 0.05})
-    assert sum(out.values()) == pytest.approx(3 / basket.K)  # the rest stays in WIG
-    assert max(out.values()) <= basket.MAX_WEIGHT
+def test_weights_of_nothing_is_nothing():
+    assert basket.weights([]) == {}
 
 
 def test_trades_pay_only_on_increases():
@@ -66,9 +66,13 @@ def test_basket_is_walked_forward_net_of_its_trades(with_basket):
     out, _ = with_basket
     bt = out["basket_backtest"]
     assert bt.height == out["backtest"].height
-    assert (bt["names"] <= basket.K).all() and (bt["invested"] <= 1 + 1e-9).all()
+    assert (bt["names"] == basket.N).all()
+    assert ((bt["invested"] - 1).abs() < 1e-9).all()  # always fully invested
     ok = bt.filter(pl.col("gross").is_not_nan())
     assert ((ok["net"] - (ok["gross"] - ok["cost"])).abs() < 1e-12).all()
+    # against the universe: net minus the universe's result on the money invested
+    active = ok["net"] - ok["invested"] * ok["universe"]
+    assert ((ok["active"] - active).abs() < 1e-12).all()
     first = out["basket_weights"].filter(pl.col("day") == bt["day"][0])
     assert bt["cost"][0] == pytest.approx(first["weight"].sum() * 0.005)
     s = out["summary"]
@@ -80,6 +84,10 @@ def test_basket_is_walked_forward_net_of_its_trades(with_basket):
     }
     # momentum is planted: holding several of the best names beats the whole universe
     assert s["basket_total_net"] > s["basket_total"]
+    assert s["basket_active_mean_net"] > 0 and s["basket_active_verdict"] in {
+        "beats_wig",
+        "unconfirmed",
+    }
 
 
 def test_basket_is_recorded_once_per_week(tmp_path):
@@ -170,6 +178,8 @@ def test_headline_is_the_baskets_largest_position(with_basket):
         assert s["headline_source"] == "basket"
         assert s["headline_isin"] == now["isin"][0]
         assert s["headline_weight"] == now["weight"].max()
+        # equal weights: the headline is the basket's best forecast
+        assert now["expected"][0] == now["expected"].max()
     assert s["verdict"] == s["basket_verdict"]
     assert s["single_verdict"] in {"beats_wig", "unconfirmed", "no_edge", "too_short"}
 

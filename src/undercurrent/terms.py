@@ -420,10 +420,11 @@ TERMS: dict[str, tuple[str, str, str, str]] = {
     ),
     "basket": (
         "Koszyk",
-        "Do 10 spółek wybranych przez model na dany tydzień, ważonych według ryzyka; reszta "
-        "zostaje w WIG.",
+        "15 spółek z najlepszą prognozą modelu, po równo; spółka zostaje, dopóki nie wypadnie "
+        "z najlepszych 45.",
         "Basket",
-        "Up to 10 stocks the model picks for a week, weighted by risk; the rest stays in WIG.",
+        "The 15 stocks with the model's best forecast, in equal parts; a stock stays until it "
+        "drops out of the best 45.",
     ),
     "out_of_sample": (
         "Poza próbą",

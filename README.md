@@ -58,8 +58,9 @@ flowchart LR
    and session with GARCH volatility, Kalman betas to WIG and bonds, the session's surprise,
    the market regime, liquidity and a per-stock trading cost: the one shared input, so every
    page reads one set of numbers. The stock of the week reads it, puts a self-correcting 90 %
-   band on every forecast, keeps an append-only ledger of them, and builds a weekly basket
-   weighted by hierarchical risk parity (`basket.py`); event pages show the same forecast.
+   band on every forecast, keeps an append-only ledger of them, and holds a weekly basket of
+   the 15 best forecasts, each kept until it leaves the best 45 (`basket.py`); event pages
+   show the same forecast.
 5. **Analysis pages** (`ta.py`, `stock_export.py`, `setups.py`, `risk.py`, `sectors.py`,
    `valuation.py`, `indicators.py`, `site/static/js/`): the market page with sector rotation,
    the screener and one chart page per stock with its risk (Student-t VaR and expected

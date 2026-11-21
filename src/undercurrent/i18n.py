@@ -497,10 +497,10 @@ PL: dict[str, str] = {
     "Every feature and its weight": "Wszystkie cechy i ich wagi",
     "pick_lede": (
         "Model prognozuje wynik każdej płynnej spółki z WIG wobec WIG w ciągu 20 sesji. Raz "
-        "w tygodniu do koszyka trafia do 10 spółek, których prognoza przewyższa ich własny "
-        "koszt transakcji; spółka tygodnia to jego największa pozycja. Poniżej wszystko, na "
-        "czym to się opiera, i jak koszyk oraz pojedynczy wybór wypadały na danych, których "
-        "model nie widział."
+        "w tygodniu koszyk kupuje 15 spółek z najlepszą prognozą i trzyma każdą, dopóki nie "
+        "wypadnie z najlepszych 45; spółka tygodnia to ta z najlepszą prognozą. Poniżej "
+        "wszystko, na czym to się opiera, i jak koszyk oraz pojedynczy wybór wypadały na "
+        "danych, których model nie widział."
     ),
     "The model so far": "Model do tej pory",
     "Held since {d}": "Trzymana od {d}",
@@ -565,7 +565,7 @@ PL: dict[str, str] = {
     "Live record": "Zapis na żywo",
     "live_note": (
         "Koszyki zapisane w chwili ich złożenia, nigdy nie poprawiane; obok każdego tygodnia "
-        "jego największa pozycja. Tylko ten wynik naprawdę się liczy."
+        "spółka z najlepszą prognozą. Tylko ten wynik naprawdę się liczy."
     ),
     "Week": "Tydzień",
     "Switch": "Zamiana",
@@ -663,16 +663,16 @@ PL: dict[str, str] = {
     "only for liquid WIG stocks": "tylko dla płynnych spółek z WIG",
     "xtb_short": "Undercurrent nie jest powiązany z XTB.",
     "How it’s measured": "Jak to liczymy",
-    "Largest position in this week’s basket": "Największa pozycja koszyka w tym tygodniu",
-    ("Top score this week. No stock beats its cost, so the basket stays in WIG."): (
-        "Najwyższa ocena modelu w tym tygodniu. Żadna spółka nie pokonuje kosztów, więc "
-        "koszyk zostaje w WIG."
+    "Best forecast in this week’s basket": "Najlepsza prognoza w koszyku na ten tydzień",
+    "Top score this week. There is no basket this week.": (
+        "Najwyższa ocena modelu w tym tygodniu. W tym tygodniu nie ma koszyka."
     ),
+    "vs all liquid stocks: {a}": "wobec wszystkich płynnych spółek: {a}",
     "{r} vs WIG after costs": "{r} wzgl. WIG po kosztach",
     "Not in the live record yet.": "Jeszcze nie w zapisie na żywo.",
     "{w} weeks on unseen data": "{w} tyg. na nowych danych",
-    "Up to {k} stocks, weighted by risk. {wig} stays in WIG.": (
-        "Do {k} spółek, ważonych ryzykiem. {wig} zostaje w WIG."
+    "{k} stocks in equal parts. A stock stays until it drops out of the best {m}.": (
+        "{k} spółek po równo. Spółka zostaje, dopóki nie wypadnie z najlepszych {m}."
     ),
     "Weight in the basket; beside each name, the expected result vs WIG over 20 sessions.": (
         "Waga w koszyku; obok spółki jej oczekiwany wynik wzgl. WIG w ciągu 20 sesji."
@@ -1762,8 +1762,9 @@ EN_OVERRIDES: dict[str, str] = {
     "Avg excess [0,+{h}]": "Avg excess, {h} sessions after entry",
     "pick_lede": (
         "The model forecasts every liquid WIG stock's result against WIG over the next 20 "
-        "sessions. Once a week up to 10 stocks whose forecast beats their own trading cost go "
-        "into the basket; the stock of the week is its largest position. Below is everything "
+        "sessions. Once a week the basket buys the 15 stocks with the best forecast and keeps "
+        "each until it drops out of the best 45; the stock of the week is the one with the "
+        "best forecast. Below is everything "
         "this rests on, and how the basket and a single pick did on data the model had not "
         "seen."
     ),
@@ -1784,8 +1785,8 @@ EN_OVERRIDES: dict[str, str] = {
         "same rule: {mom} in total."
     ),
     "live_note": (
-        "Baskets recorded when they were made, never corrected; beside each week, its largest "
-        "position. Only this result really counts."
+        "Baskets recorded when they were made, never corrected; beside each week, its best "
+        "forecast. Only this result really counts."
     ),
     "pick_limits": (
         "No company financials (earnings, market value, ratios): the model sees only prices, "
@@ -2159,7 +2160,7 @@ PICK_EXPLAIN: dict[str, dict[str, str]] = {
         ),
         "no_edge": (
             "Built week by week on data it had not seen, the model's basket did not beat WIG "
-            "after costs. This stock is the basket's largest position, not a proven winner."
+            "after costs. This stock is the basket's best forecast, not a proven winner."
         ),
         "too_short": (
             "The model has not yet been tested on enough weeks it had not seen to say "
@@ -2177,7 +2178,7 @@ PICK_EXPLAIN: dict[str, dict[str, str]] = {
         ),
         "no_edge": (
             "Składany co tydzień na danych, których model nie widział, koszyk modelu nie "
-            "pokonywał WIG po kosztach. Ta spółka to największa pozycja koszyka, a nie "
+            "pokonywał WIG po kosztach. Ta spółka to najlepsza prognoza koszyka, a nie "
             "sprawdzony zwycięzca."
         ),
         "too_short": (

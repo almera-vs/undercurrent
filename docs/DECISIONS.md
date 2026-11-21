@@ -815,6 +815,59 @@ Two pages read from reports already in the lake: no new source.
   100 %. The rules were written on the first batch and some misses of the second were fixed,
   so these are optimistic, like the insider fields'.
 
+## The basket is a rank band (2026-11-22)
+
+- **Why it changed.** On the full lake (out of sample 2017-01 to 2026-11, 516 weeks) the
+  ranking works: rank IC 0.120, and its t stays at 9–10 with Newey–West errors from 3 to
+  26 weeks of lag. The basket did not turn that into money: −5 % against WIG in total, 3.1
+  names and 31 % invested on average. Three faults, all in the decision layer:
+  - **It decided whether to invest from the forecast's level.** A name entered only when
+    its expected excess over WIG beat its round trip. That excess includes the model's
+    intercept, which is the training years' average drift of the liquid universe against
+    WIG (a size effect, about −1 % per 20 sessions in 2018–2020). The model has no skill in
+    it. In 2018–2020 almost no stock-week (0.0–0.1 %) cleared its cost, and the basket sat
+    in WIG because of a past drift, not a forecast.
+  - **It charged a held stock its cost again.** A held name stayed only while its forecast
+    still beat a fresh round trip, though its own was paid when it was bought. Fixing only
+    this took the old basket from −0.4 % to +2.7 % a year.
+  - **It held for weeks; the edge lasts months.** Measured on the forecasts themselves, the
+    best ten's excess over the universe is about 0.27 % in the first week and fades slowly:
+    1.0 % after 4 weeks, 2.1 % after 12, 2.8 % after 20, nothing more after about 24. A round
+    trip costs 1.2–2 % for these names, more than the first 20 sessions earn. Bought and
+    sold on the weekly top ten, the edge is +13 % a year before costs and −11.8 % after.
+- **The rule.** Buy the 15 best forecasts; keep a held stock while it ranks inside the best
+  45; equal weights; always fully invested. Only the ranking is read. Costs enter through
+  the band: a stock is not sold until it is clearly no longer above average, so turnover
+  falls to 1.6 times a year one way and positions live about as long as the edge does.
+- **Equal weights, not risk weights.** Weighting by inverse σ held the alpha back (with 20
+  names in a 60 band: +1.1 % a year against +3.2 % with equal weights). The edge is not in
+  the steadier stocks; and with 15 names and noisy forecasts, 1/N is the robust choice.
+- **Not a mean-variance optimiser.** A one-period optimiser with a quadratic risk penalty,
+  linear costs and a no-trade band (solved exactly with a diagonal residual covariance, γ
+  from a target tracking error) did as well as the band at a tracking error of 8 % (+4.1 %
+  a year) and worse at 4–6 %. Same result, two more inputs to estimate (γ, Σ) and an
+  alpha scaling that rests on the score's autocorrelation (0.963 a week), which overstates
+  how long the edge lasts by about 2.5 times.
+- **Two benchmarks.** WIG is what an investor holds instead; the equal-weighted liquid
+  universe is what the ranking is chosen from. The page shows both. Hedging with WIG20
+  futures was rejected: the universe's drift against WIG is a size effect, and a short in
+  the largest stocks keeps it.
+- **Result** (same forecasts and costs as before): +7.9 % a year before costs, 3.4 % of
+  costs, **+4.4 % a year after costs against WIG** (+48 % in total, p = 0.089, verdict
+  "unconfirmed"; the old basket's was "no edge"), +5.7 % a year against the universe
+  (p = 0.079). Not proven: a 15-name long-only basket uses a sliver of the cross-section,
+  and the years differ. Against the universe it lost in 2019 (−13 %) and 2020 (−35 %, when
+  the universe rose 43 % against WIG) and won in the other eight years.
+- **This was chosen after looking.** Twelve constructions were run on the same out-of-sample
+  weeks (the old basket, it with the cost fixed, the weekly top ten, five band sizes from
+  10/30 to 30/60, inverse σ, and the optimiser at three tracking errors). Every band size
+  came out between +2.8 % and +4.4 % a year against WIG, so 15/45 is not a lone peak, but
+  it is the best of them, and the backtest flatters it. The live record, from the first
+  live week, is the test that counts. N and KEEP are fixed from here on.
+- **The live record.** Weeks recorded before the change keep their rows. From now on each
+  row also stores the name's rank, so the page can show the week's best forecast when all
+  weights are equal.
+
 ## Known limitations
 
 - Insider trade details (side, volume, price) are missing for reports that no portal

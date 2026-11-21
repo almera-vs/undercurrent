@@ -1,24 +1,33 @@
 """The decision layer (L4 in DECISIONS, "One source of truth"): a weekly basket.
 
 It reads only what the forecast (``pick.py``) produced for each week: every eligible stock's
-expected excess over WIG, its round-trip cost and its forecast σ. Nothing here forecasts.
+expected excess over WIG and its round-trip cost. Nothing here forecasts.
 
-* **Which names.** Up to ``K`` stocks with a positive expected excess *after* their own
-  round-trip cost, best first. A stock already held stays while it is still in the best
-  ``BUFFER × K`` and still positive after cost, so a small change in rank does not cost a
-  trade.
-* **How much of each.** Hierarchical risk parity (López de Prado 2016) on the covariance of
-  the names' residual returns over the last ``COV_WINDOW`` sessions (the market state's
-  Kalman residuals; returns against WIG without it), shrunk halfway to its diagonal. HRP
-  needs no matrix inversion, so ten names with a few months of data give stable weights.
-  No name gets more than ``MAX_WEIGHT``. With fewer than ``K`` names the basket invests
-  ``names / K`` and leaves the rest in WIG, which earns nothing against WIG and costs nothing.
-* **Costs.** Every increase of a weight pays that stock's round-trip cost on the increase,
-  the same rule as the single pick (a purchase pays its way in and out). Between weekly
-  rebalances the weights are taken as constant.
+A rank band (DECISIONS, "The basket is a rank band", 2026-11-22):
+
+* **Which names.** The ``N`` stocks with the highest forecast are bought. A stock already
+  held stays while it is still among the best ``KEEP``; only then is it sold, and the best
+  stock not yet held takes its place. The ranking is all the rule reads: the forecast's
+  level (its intercept, the universe's past drift against WIG) never decides whether to
+  invest, because the model has no skill in it.
+* **Why a band.** The forecast's edge fades slowly (out of sample, the best ten's excess over
+  the universe is about 1 % in the first 4 weeks and 2.8 % in 20), while a round trip costs
+  1.2–2 %. Buying a stock pays only if it is held for months, so a stock is kept while it is
+  still clearly above average, not sold when it slips out of the top ``N``. A held stock's
+  cost was paid when it was bought; it never counts against keeping it.
+* **How much of each.** ``1 / N`` each, always fully invested. Weighting by risk gave the
+  steadier stocks more and the forecast's edge is not in them; with 15 names and noisy
+  forecasts equal weights are the robust choice.
+* **Costs.** Every increase of a weight pays that stock's round-trip cost on the increase (a
+  purchase pays its way in and out). Between weekly rebalances the weights are taken as
+  constant.
+* **Against what.** The result is measured against WIG (what an investor could hold
+  instead) and against the equal-weighted liquid universe it is chosen from (what the
+  ranking adds). The two differ by the universe's own drift against WIG, a size effect the
+  ranking does not forecast.
 
 Everything is a function of its inputs; the walk-forward and the nightly run use the same
-``choose`` and ``weights``.
+``choose`` and ``step``.
 """
 
 from __future__ import annotations
@@ -35,12 +44,8 @@ from undercurrent.pick_features import Panel, hold_excess
 FloatArray = npt.NDArray[np.float64]
 IntArray = npt.NDArray[np.int64]
 
-K = 10
-BUFFER = 2
-MAX_WEIGHT = 0.25
-COV_WINDOW = 120
-MIN_COV_DAYS = 60
-SHRINK = 0.5
+N = 15  # names held
+KEEP = 45  # a held name stays while it ranks inside this many
 
 
 @dataclass(frozen=True)
@@ -56,117 +61,23 @@ class Forecast:
     scale: FloatArray  # forecast 20-session σ
 
 
-def choose(
-    held: dict[int, float], stocks: IntArray, expected: FloatArray, cost: FloatArray
-) -> list[int]:
-    """Panel rows to hold this week (see the module docstring)."""
-    net = expected - cost
-    order = [int(i) for i in np.argsort(-net, kind="stable") if net[i] > 0]
-    buffer = set(order[: BUFFER * K])
-    keep = [int(stocks[i]) for i in order if int(stocks[i]) in held and i in buffer]
-    out = keep[:K]
-    for i in order:
-        if len(out) >= K:
+def choose(held: dict[int, float], stocks: IntArray, expected: FloatArray) -> list[int]:
+    """Panel rows to hold this week, best forecast first (see the module docstring)."""
+    order = [int(stocks[i]) for i in np.argsort(-expected, kind="stable")]
+    rank = {s: r for r, s in enumerate(order)}
+    keep = sorted((s for s in held if rank.get(s, KEEP) < KEEP), key=rank.__getitem__)[:N]
+    out = list(keep)
+    for s in order:
+        if len(out) >= N:
             break
-        if int(stocks[i]) not in out:
-            out.append(int(stocks[i]))
-    return out
+        if s not in keep:
+            out.append(s)
+    return sorted(out, key=rank.__getitem__)
 
 
-def daily_residuals(panel: Panel) -> FloatArray:
-    """Stocks × sessions residual returns: the market state's, else the return minus WIG's."""
-    n_known = np.diff(panel.n_resid, axis=1)
-    resid = np.where(n_known > 0, np.diff(panel.resid, axis=1), np.nan)
-    if np.isfinite(resid).any():
-        return np.asarray(resid, dtype=np.float64)
-    return np.asarray(panel.ret - panel.mkt[None, :], dtype=np.float64)
-
-
-def covariance(resid: FloatArray, rows: list[int], t: int, seg: IntArray) -> FloatArray | None:
-    """Shrunk covariance of ``rows``' residual returns over the window ending at ``t``."""
-    lo = max(0, t - COV_WINDOW + 1)
-    while lo < t and seg[lo] != seg[t]:
-        lo += 1
-    x = resid[rows, lo : t + 1]
-    known = np.isfinite(x)
-    if known.sum(axis=1).min(initial=0) < MIN_COV_DAYS:
-        return None
-    x0 = np.where(known, x, 0.0)
-    both = known.astype(float) @ known.T.astype(float)
-    s = (x0 @ x0.T) / np.maximum(both, 1.0)
-    d = np.diag(np.diag(s))
-    return np.asarray(SHRINK * s + (1 - SHRINK) * d, dtype=np.float64)
-
-
-def _cluster_var(cov: FloatArray, idx: list[int]) -> float:
-    sub = cov[np.ix_(idx, idx)]
-    ivp = 1 / np.diag(sub)
-    ivp /= ivp.sum()
-    return float(ivp @ sub @ ivp)
-
-
-def hrp(cov: FloatArray) -> FloatArray:
-    """Hierarchical risk parity weights (sum 1) for a covariance matrix."""
-    n = cov.shape[0]
-    if n == 1:
-        return np.ones(1)
-    from scipy.cluster.hierarchy import leaves_list, linkage
-    from scipy.spatial.distance import squareform
-
-    sd = np.sqrt(np.diag(cov))
-    corr = np.clip(cov / np.outer(sd, sd), -1.0, 1.0)
-    dist = np.sqrt(np.maximum((1 - corr) / 2, 0.0))
-    np.fill_diagonal(dist, 0.0)
-    order = [int(i) for i in leaves_list(linkage(squareform(dist, checks=False), "single"))]
-    w = np.ones(n)
-    clusters = [order]
-    while clusters:
-        nxt = []
-        for c in clusters:
-            if len(c) < 2:
-                continue
-            a, b = c[: len(c) // 2], c[len(c) // 2 :]
-            va, vb = _cluster_var(cov, a), _cluster_var(cov, b)
-            share = 1 - va / (va + vb)
-            w[a] *= share
-            w[b] *= 1 - share
-            nxt += [a, b]
-        clusters = nxt
-    return np.asarray(w / w.sum(), dtype=np.float64)
-
-
-def _cap(w: FloatArray, cap: float) -> FloatArray:
-    """Weights summing to ``w.sum()`` with none above ``cap`` (excess spread pro rata)."""
-    total = float(w.sum())
-    w = w.copy()
-    for _ in range(len(w)):
-        over = w > cap + 1e-12
-        if not over.any():
-            break
-        spare = float((w[over] - cap).sum())
-        w[over] = cap
-        free = ~over & (w < cap)
-        if not free.any():
-            break
-        w[free] += spare * w[free] / w[free].sum()
-    return np.asarray(w * (total / w.sum()) if w.sum() > 0 else w, dtype=np.float64)
-
-
-def weights(
-    panel: Panel, resid: FloatArray, t: int, names: list[int], sigma: dict[int, float]
-) -> dict[int, float]:
-    """Weight of each name: HRP on the residual covariance, inverse variance without one."""
-    if not names:
-        return {}
-    cov = covariance(resid, names, t, panel.seg)
-    if cov is None or not np.all(np.diag(cov) > 0):
-        var = np.array([max(sigma.get(i, 0.0), 1e-4) ** 2 for i in names])
-        w = (1 / var) / (1 / var).sum()
-    else:
-        w = hrp(cov)
-    invested = min(1.0, len(names) / K)
-    w = _cap(w * invested, MAX_WEIGHT)
-    return {i: float(x) for i, x in zip(names, w, strict=True)}
+def weights(names: list[int]) -> dict[int, float]:
+    """Equal weights, fully invested."""
+    return {i: 1 / len(names) for i in names} if names else {}
 
 
 def trade_cost(old: dict[int, float], new: dict[int, float], cost: dict[int, float]) -> float:
@@ -174,14 +85,9 @@ def trade_cost(old: dict[int, float], new: dict[int, float], cost: dict[int, flo
     return float(sum(max(w - old.get(i, 0.0), 0.0) * cost.get(i, 0.0) for i, w in new.items()))
 
 
-def step(
-    panel: Panel, resid: FloatArray, f: Forecast, held: dict[int, float]
-) -> tuple[dict[int, float], float]:
+def step(f: Forecast, held: dict[int, float]) -> tuple[dict[int, float], float]:
     """The week's weights, and the cost of getting there from ``held``."""
-    names = choose(held, f.stocks, f.expected, f.cost)
-    pos = {int(s): k for k, s in enumerate(f.stocks)}
-    sigma = {i: float(f.scale[pos[i]]) for i in names}
-    new = weights(panel, resid, f.t, names, sigma)
+    new = weights(choose(held, f.stocks, f.expected))
     costs = {int(s): float(c) for s, c in zip(f.stocks, f.cost, strict=True)}
     return new, trade_cost(held, new, costs)
 
@@ -189,31 +95,36 @@ def step(
 def walk(
     panel: Panel, forecasts: list[Forecast]
 ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
-    """Weekly basket results (gross, cost, net against WIG) and the weights behind them."""
-    resid = daily_residuals(panel)
+    """Weekly basket results (gross, cost, net against WIG and the universe) and weights."""
     held: dict[int, float] = {}
     rows: list[dict[str, object]] = []
     wrows: list[dict[str, object]] = []
     for f in forecasts:
-        new, cost = step(panel, resid, f, held)
+        new, cost = step(f, held)
         g = [(w, hold_excess(panel, i, f.t, f.nxt)) for i, w in new.items()]
         known = [(w, x) for w, x in g if math.isfinite(x)]
         gross = float(sum(w * x for w, x in known)) if known or not g else math.nan
+        univ = [hold_excess(panel, int(i), f.t, f.nxt) for i in f.stocks]
+        universe = float(np.nanmean(univ)) if np.isfinite(univ).any() else math.nan
+        invested = float(sum(new.values()))
         turnover = float(sum(abs(new.get(i, 0.0) - held.get(i, 0.0)) for i in set(new) | set(held)))
         rows.append(
             {
                 "day": f.day,
                 "names": len(new),
-                "invested": float(sum(new.values())),
+                "invested": invested,
                 "turnover": turnover,
                 "cost": cost,
                 "gross": gross,
                 "net": gross - cost,
+                "universe": universe,
+                # what the ranking added: net minus the universe's result on the money invested
+                "active": gross - cost - invested * universe,
             }
         )
         wrows += [
             {"day": f.day, "isin": panel.isins[i], "ticker": panel.tickers[i], "weight": w}
-            for i, w in sorted(new.items(), key=lambda kv: -kv[1])
+            for i, w in new.items()
         ]
         held = new
     return rows, wrows

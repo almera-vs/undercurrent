@@ -43,11 +43,12 @@ Method (details in ``docs/METHODOLOGY.md`` § Stock of the week):
   history is the walk-forward's own weeks, and from the first live week on, the forecast
   ledger's.
 * **Basket** (``basket.py``, the decision layer): the same weekly forecasts also feed a
-  basket of up to ten names, weighted by hierarchical risk parity and charged each stock's
-  own cost. **The basket is the decision**: the stock of the week is its largest position
-  (the top score, flagged, in a week when nothing beats its cost), the headline verdict is
-  the basket's, and its weekly record, ``state/basket.parquet``, is the live record. The
-  single pick is still walked forward, as a comparison.
+  rank band of 15 equal-weighted names (bought from the top 15, kept while in the top 45),
+  always fully invested and charged each stock's own cost. **The basket is the decision**:
+  the stock of the week is its best-ranked name, the headline verdict is the basket's, and
+  its weekly record, ``state/basket.parquet``, is the live record. Its result is reported
+  against WIG and against the liquid universe it is chosen from. The single pick is still
+  walked forward, as a comparison.
 * **Forecast ledger:** on the first session of each week every eligible stock's expected
   excess and band are appended to ``state/forecasts.parquet`` and never rewritten. Its
   realized coverage is the live check of the band, and its misses set α for later weeks.
@@ -893,7 +894,7 @@ def _basket_now(
     held: dict[int, float],
 ) -> tuple[pl.DataFrame, float]:
     f = basket.Forecast(t_now, panel.cal[t_now], t_now, rows, exp, costs, scale)
-    new, cost = basket.step(panel, basket.daily_residuals(panel), f, held)
+    new, cost = basket.step(f, held)
     pos = {int(s): k for k, s in enumerate(rows)}
     df = pl.DataFrame(
         [
@@ -905,7 +906,8 @@ def _basket_now(
                 "cost": float(costs[pos[i]]),
                 "held_before": held.get(i, 0.0),
             }
-            for i, w in sorted(new.items(), key=lambda kv: -kv[1])
+            # equal weights: the best forecast first, so the first row is the headline
+            for i, w in sorted(new.items(), key=lambda kv: (-kv[1], -exp[pos[kv[0]]]))
         ],
         schema={
             "isin": pl.String,
@@ -920,7 +922,7 @@ def _basket_now(
 
 
 def _headline(basket_now: pl.DataFrame, scores: pl.DataFrame) -> dict[str, Any]:
-    """The stock of the week: the basket's largest position, else the top score."""
+    """The stock of the week: the basket's first row (its best forecast), else the top score."""
     if basket_now.height:
         r = basket_now.row(0, named=True)  # sorted by weight
         return {
@@ -994,7 +996,9 @@ def basket_live_results(panel: Panel, live: pl.DataFrame | None) -> pl.DataFrame
         known = [(w, x) for w, x in parts if math.isfinite(x)]
         gross = float(sum(w * x for w, x in known)) if known else math.nan
         paid = float(g["trade_cost"][0]) if "trade_cost" in g.columns else 0.0
-        top = g.sort("weight", descending=True)["ticker"][0]
+        # the best-ranked name; weeks recorded before ranks were kept: the largest weight
+        has_rank = "rank" in g.columns and g["rank"].null_count() < g.height
+        top = (g.sort("rank") if has_rank else g.sort("weight", descending=True))["ticker"][0]
         out.append(
             {
                 "week": wk,
@@ -1018,6 +1022,7 @@ def record_basket(
     if not now.height or not is_rebalance_day(panel, day) or panel.cal[-1] != day:
         return old
     new = now.select("isin", "ticker", "weight").with_columns(
+        pl.int_range(1, now.height + 1, dtype=pl.Int64).alias("rank"),  # now is best first
         pl.lit(day).alias("week"),
         pl.lit(cost, dtype=pl.Float64).alias("trade_cost"),
         pl.lit(as_of).cast(pl.Datetime("us", "UTC")).alias("as_of"),
@@ -1140,14 +1145,21 @@ def _compute(
     b_rows, b_weights = basket.walk(panel, bt.forecasts)
     basket_bt = pl.DataFrame(b_rows) if b_rows else pl.DataFrame()
     if basket_bt.height:
-        bv = net_verdict(basket_bt["net"].to_numpy().astype(np.float64), basket_bt["day"].to_list())
-        summary |= {f"basket_{k}": v for k, v in bv.items()} | {
-            "basket_turnover": float(basket_bt["turnover"].mean()),  # type: ignore[arg-type]
-            "basket_names": float(basket_bt["names"].mean()),  # type: ignore[arg-type]
-            "basket_cost_total": float(basket_bt["cost"].sum()),
-        }
+        days = basket_bt["day"].to_list()
+        bv = net_verdict(basket_bt["net"].to_numpy().astype(np.float64), days)
+        # against the universe it is chosen from: what the ranking itself added
+        av = net_verdict(basket_bt["active"].to_numpy().astype(np.float64), days)
+        summary |= (
+            {f"basket_{k}": v for k, v in bv.items()}
+            | {f"basket_active_{k}": av[k] for k in ("verdict", "mean_net", "p_value", "total_net")}
+            | {
+                "basket_turnover": float(basket_bt["turnover"].mean()),  # type: ignore[arg-type]
+                "basket_names": float(basket_bt["names"].mean()),  # type: ignore[arg-type]
+                "basket_cost_total": float(basket_bt["cost"].sum()),
+            }
+        )
     # The basket is the decision (DECISIONS, 2026-11-12): its verdict is the headline one,
-    # and the stock of the week is its largest position.
+    # and the stock of the week is its first row (equal weights: its best forecast).
     summary["single_verdict"] = summary["verdict"]
     summary["verdict"] = summary.get("basket_verdict", "too_short")
     summary |= _headline(basket_now, scores)

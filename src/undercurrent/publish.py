@@ -821,7 +821,8 @@ def _pick_context(
         "rows": brows,
         "invested": invested,
         "wig": max(0.0, 1.0 - invested),
-        "max_names": basket.K,
+        "max_names": basket.N,
+        "keep": basket.KEEP,
         "live_total": float((1 + blive).product() - 1)
         if blive is not None and blive.len()
         else None,
@@ -864,8 +865,8 @@ def _pick_context(
         r["spark"] = pages.spark_svg(sparks.get(r["isin"], []))
         r["bar"] = round(abs(r["expected"]) / best * 100)
     ctx["top"] = top
-    # The stock of the week is the pick's decision, not the page's: the basket's largest
-    # position (or the top score, flagged, when nothing beats its cost).
+    # The stock of the week is the pick's decision, not the page's: the basket's best-ranked
+    # name (or the top score, flagged, in a week without a basket).
     isin = summary.get("headline_isin") or top[0]["isin"]
     ctx["is_live"] = bool(summary.get("headline_live"))
     ctx["held_since"] = summary.get("headline_since")
