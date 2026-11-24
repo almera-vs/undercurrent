@@ -20,6 +20,44 @@
 </a>
 {% endif %}
 
+{% if ctx.movers %}
+<section class="panel bigmoves" aria-labelledby="bigmoves-h">
+  <h2 id="bigmoves-h">{{ _('Big moves today') }}</h2>
+  <p class="muted small tier-note">{{ _('movers_lede') }}</p>
+  <ol class="mover-list">
+    {% for m in ctx.movers %}
+    <li class="mover">
+      <details{% if loop.index <= 3 %} open{% endif %}>
+        <summary class="mover-head">
+          {% if m.stock_slug %}<a href="stock/{{ m.stock_slug }}.html" class="sym-link">{{ icon(m.isin, m.ticker, assets) }}<span class="tick-sym">{{ m.ticker }}</span></a>{% else %}{{ icon(m.isin, m.ticker, assets) }}<span class="tick-sym">{{ m.ticker }}</span>{% endif %}
+          <span class="muted mover-name">{{ m.name|company }}</span>
+          <span class="badge badge-move {{ m.z|tone }}" title="{{ _('Today’s move against the market, in the stock’s own σ: a big move is beyond ±2σ.') }}">{% if m.move is not none %}{{ m.move|pct }} · {% endif %}{{ m.z|decimal(1) }}σ</span>
+          <span class="muted small">{{ m.timeline|length }} {{ plural(m.timeline|length, 'item') }}</span>
+        </summary>
+        {% if m.timeline %}
+        <ol class="tl">
+          {% for e in m.timeline %}
+          <li class="tl-item{% if e.routine %} tl-routine{% endif %}">
+            <time class="mono muted">{{ e.time or '—' }}<small>{{ e.date }}</small></time>
+            <span class="tl-src{% if e.kind == 'filing' %} tl-filing{% endif %}">{{ e.source }}</span>
+            <div class="tl-main">
+              <a href="{{ e.url }}" rel="noopener" lang="pl">{{ e.title }}</a>
+              {% if e.after_close %}<span class="pill-mini">{{ _('after the close') }}</span>{% endif %}
+              {% if e.routine %}<span class="pill-mini">{{ _('routine notice') }}</span>{% endif %}
+            </div>
+          </li>
+          {% endfor %}
+        </ol>
+        {% else %}
+        <p class="muted small tl-empty">{{ _('Nothing was published about the company since the previous close.') }}</p>
+        {% endif %}
+      </details>
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+{% endif %}
+
 <section class="panel stream">
   <div class="filters" role="group" aria-label="{{ _('Filter reports by type') }}">
     {% for f, name, cnt in [('all', 'All', ctx.counts.reports), ('insider', 'Insider', ctx.counts.insider), ('inside', 'Inside info', ctx.counts.inside), ('holdings', 'Holdings', ctx.counts.holder), ('other', 'Other', ctx.counts.other)] %}

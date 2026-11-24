@@ -640,6 +640,17 @@ PL: dict[str, str] = {
     "rrg_caption": "Sektory po prawej biją WIG; u góry ich przewaga rośnie.",
     "screener_lede_short": "Wszystkie notowane spółki. Sortuj, filtruj albo wybierz gotowy zestaw.",
     "reports_lede_short": "Wszystkie raporty ESPI i EBI z dzisiejszego wieczoru, od najnowszego.",
+    "Big moves today": "Duże ruchy dziś",
+    "movers_lede": (
+        "Spółki, które dziś poszły ponad ±2σ względem rynku, i wszystko, co o nich "
+        "opublikowano od poprzedniego zamknięcia: raporty i nagłówki, od najnowszego. To nie "
+        "jest wyjaśnienie ruchu."
+    ),
+    "after the close": "po zamknięciu",
+    "routine notice": "raport rutynowy",
+    "Nothing was published about the company since the previous close.": (
+        "Od poprzedniego zamknięcia nic o spółce nie opublikowano."
+    ),
     "signals_lede_short": (
         "Które rodzaje raportów ruszają kursem w dniu publikacji, a które jeszcze zarabiają "
         "po podsumowaniu, po kosztach."
@@ -1394,6 +1405,11 @@ EN_OVERRIDES: dict[str, str] = {
     "rrg_caption": "Sectors on the right beat WIG; at the top their lead is growing.",
     "screener_lede_short": "Every listed stock. Sort, filter or start from a preset.",
     "reports_lede_short": "Every ESPI and EBI report from tonight, newest first.",
+    "movers_lede": (
+        "Stocks that moved beyond ±2σ against the market today, and everything published "
+        "about them since the previous close: filings and headlines, newest first. This is "
+        "not an explanation of the move."
+    ),
     "signals_lede_short": (
         "Which kinds of report move the price on the day, and which still pay after the "
         "digest, after costs."
@@ -1934,6 +1950,7 @@ EN_OVERRIDES: dict[str, str] = {
 # Polish plural forms: (1, 2–4, 5+), keyed by the English singular.
 PL_PLURALS: dict[str, tuple[str, str, str]] = {
     "report": ("raport", "raporty", "raportów"),
+    "item": ("pozycja", "pozycje", "pozycji"),
     "event of a kind that has moved prices": (
         "zdarzenie z typu, który ruszał kursem",
         "zdarzenia z typów, które ruszały kursem",
@@ -1949,6 +1966,7 @@ PL_PLURALS: dict[str, tuple[str, str, str]] = {
 }
 EN_PLURALS: dict[str, str] = {
     "report": "reports",
+    "item": "items",
     "event of a kind that has moved prices": "events of kinds that have moved prices",
     "event worth a look today": "events worth a look today",
     "session": "sessions",

@@ -14,6 +14,7 @@ import logging
 import math
 import os
 import shutil
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -250,6 +251,8 @@ class SiteContext:
     reactions: list[dict[str, Any]] = field(default_factory=list)
     # today's reports whose stock moved beyond ±2 σ by the close, one per stock, biggest first
     moves: list[dict[str, Any]] = field(default_factory=list)
+    # every stock beyond ±2 σ today with what was published about it (news_timeline.py)
+    movers: list[dict[str, Any]] = field(default_factory=list)
 
 
 def headline_horizon(key: str, by_key_h: dict[tuple[str, int], dict[str, Any]]) -> int:
@@ -583,6 +586,7 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
     stock_meta = {st["isin"]: st for st in tool.stocks if st.get("listed")}
     closes = {r["isin"]: r["close"] for r in tool.screener if r.get("close")}
     calendar_ctx = corp_calendar.context(work, day, stock_meta, closes)
+    movers_ctx = _movers(work, data_dir, day, slugs)
     owners_ctx = ownership.context(work, day, stock_meta)
 
     runs_df = lake.read_state(data_dir, "runs")
@@ -682,7 +686,32 @@ def gather(work: Path, data_dir: Path, day: date, site_url: str = DEFAULT_SITE_U
         owners=owners_ctx,
         reactions=reaction_rows,
         moves=moves,
+        movers=movers_ctx,
     )
+
+
+def _movers(work: Path, data_dir: Path, day: date, slugs: dict[str, str]) -> list[dict[str, Any]]:
+    """Today's big movers with their news timeline. Empty without the state.
+
+    Optional like the other context blocks: a failure is logged and the page goes without.
+    """
+    from undercurrent import news_timeline
+    from undercurrent.transform import duckdb_path
+
+    path = work / "gold" / "market_state.parquet"
+    if not path.exists():
+        return []
+    try:
+        state = pl.read_parquet(
+            path, columns=["isin", "trade_date", "surprise", "resid", "liquidity_tier"]
+        )
+        out = news_timeline.build(data_dir, duckdb_path(work), state, day)
+    except Exception as exc:  # the site must not wait on the news
+        log.warning("news timeline not built: %s: %s", type(exc).__name__, exc)
+        return []
+    for m in out:
+        m["stock_slug"] = slugs.get(m["isin"])
+    return out
 
 
 def _reaction_rows(
@@ -1471,6 +1500,29 @@ def render_site(ctx: SiteContext, out: Path) -> list[Path]:
 # --------------------------------------------------------------------------- telegram
 
 
+def mover_line(timeline: Sequence[dict[str, Any]]) -> str:
+    """The digest's line under a big mover: its first filing of the session, or a count.
+
+    A filing in the session (not routine, before the close) comes from the company itself and
+    is the likeliest trigger; the earliest one is shown. Without one, only the number of items
+    published since the previous close, so a headline is never set beside the move as if it
+    explained it.
+    """
+    filings = [
+        x
+        for x in timeline
+        if x.get("kind") == "filing" and not x.get("routine") and not x.get("after_close")
+    ]
+    if filings:
+        first = min(filings, key=lambda x: x["at"])
+        at = f" {first['time']}" if first.get("time") else ""
+        return f"{first['source']}{at}: {first['title'][:110]}"
+    n = sum(1 for x in timeline if not x.get("routine"))
+    if n == 0:
+        return "Nothing published since the previous close."
+    return f"{n} {'item' if n == 1 else 'items'} published since the previous close, no filing."
+
+
 def digest_message(ctx: SiteContext, max_items: int = 5) -> tuple[str, dict[str, Any]]:
     """Telegram HTML message + inline keyboard for the nightly digest."""
     e = html.escape
@@ -1489,6 +1541,16 @@ def digest_message(ctx: SiteContext, max_items: int = 5) -> tuple[str, dict[str,
         lines.append(f"Today: {pct(m['move'])} vs market ({m['z']:+.1f}σ)")
     if ctx.reactions and not ctx.moves:
         lines.append("No report today came with a big move (beyond ±2σ) by the close.")
+    # Other big movers: a filing from the session if there is one, else only how much was
+    # published. A headline next to a move reads as its cause, which the timeline never claims.
+    shown = {i["move"]["isin"] for i in ctx.moves[:max_items]}
+    others = [m for m in ctx.movers if m["isin"] not in shown][:max_items]
+    if others:
+        lines += ["", "<i>Other big moves:</i>"]
+    for m in others:
+        move = f"{pct(m['move'])} vs market " if m["move"] is not None else ""
+        lines.append(f"<b>{e(m['ticker'] or '')}</b> {move}({m['z']:+.1f}σ)")
+        lines.append(e(mover_line(m["timeline"])))
     # What may still pay: kinds whose drift after the digest has held up in the past.
     if ctx.worth:
         lines += ["", "<i>Kinds that kept moving after the digest:</i>"]
@@ -1524,6 +1586,8 @@ def digest_message(ctx: SiteContext, max_items: int = 5) -> tuple[str, dict[str,
                 "url": f"{ctx.site_url}event/{first['slug']}.html",
             }
         )
+    if ctx.movers:
+        buttons.append({"text": "Big moves", "url": f"{ctx.site_url}reports.html#bigmoves-h"})
     return "\n".join(lines), {"inline_keyboard": [buttons]}
 
 

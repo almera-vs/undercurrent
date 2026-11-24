@@ -111,6 +111,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     rx.add_argument("--date", type=_parse_date, default=_parse_date("today"))
 
+    ntl = sub.add_parser(
+        "news-timeline",
+        help="the big movers' news timeline for a session (nightly step)",
+    )
+    ntl.add_argument("--date", type=_parse_date, default=None, help="default: last state day")
+    ntl.add_argument("--no-fetch", action="store_true", help="only show what the lake holds")
+
     nc = sub.add_parser(
         "news-coverage",
         help="measure how often a big move's cause can be found (the news feature's gate)",
@@ -390,6 +397,43 @@ def cmd_reactions(args: argparse.Namespace) -> int:
     return 0
 
 
+def _last_state_day(work_dir: Path) -> date:
+    import polars as pl
+
+    d = (
+        pl.scan_parquet(work_dir / "gold" / "market_state.parquet")
+        .select(pl.col("trade_date").max())
+        .collect()
+        .item()
+    )
+    assert isinstance(d, date)
+    return d
+
+
+def cmd_news_timeline(args: argparse.Namespace) -> int:
+    """Collect and show the session's big movers with what was published about them."""
+    import polars as pl
+
+    from undercurrent import news_timeline, transform
+
+    day = args.date or _last_state_day(args.work_dir)
+    if not args.no_fetch:
+        for note in news_timeline.run(args.data_dir, args.work_dir, day):
+            print(f"note: {note}")
+    state = pl.read_parquet(args.work_dir / "gold" / "market_state.parquet")
+    built = news_timeline.build(args.data_dir, transform.duckdb_path(args.work_dir), state, day)
+    for m in built:
+        move = f"{m['move']:+.1%} " if m["move"] is not None else ""
+        print(f"\n{m['ticker']}  {move}({m['z']:+.1f} sigma)  {m['name']}")
+        if not m["timeline"]:
+            print("    nothing published since the previous close")
+        for e in m["timeline"]:
+            when = f"{e['date']} {e['time'] or '--:--'}"
+            flag = " [after close]" if e["after_close"] else (" [routine]" if e["routine"] else "")
+            print(f"    {when}  {e['source'][:14]:14}  {e['title'][:90]}{flag}")
+    return 0
+
+
 def cmd_news_coverage(args: argparse.Namespace) -> int:
     """The news feature's deploy gate: collect news, report coverage, score precision."""
     import polars as pl
@@ -637,6 +681,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "market-state": cmd_market_state,
         "reactions": cmd_reactions,
         "news-coverage": cmd_news_coverage,
+        "news-timeline": cmd_news_timeline,
         "calendar": cmd_calendar,
         "esef": cmd_esef,
         "bad-prints": cmd_bad_prints,

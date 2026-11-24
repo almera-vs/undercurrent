@@ -821,3 +821,25 @@ details.weights summary { cursor: pointer; color: var(--up); font-weight: 600; m
   .cal-chip { min-width: 0; }
   .holder-grid { grid-template-columns: 1fr; }
 }
+
+/* big moves: a news timeline per mover (news_timeline.py), terminal style */
+.bigmoves { margin-bottom: 1.6rem; }
+.bigmoves h2 { margin: 0 0 0.3rem; }
+.mover-list, .tl { list-style: none; margin: 0; padding: 0; }
+.mover { border-top: 1px solid var(--line); }
+.mover-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; padding: 0.7rem 0; cursor: pointer; }
+.mover-name { min-width: 0; overflow-wrap: anywhere; }
+.tl { margin: 0 0 0.9rem; border-left: 2px solid var(--line); }
+.tl-item { display: grid; grid-template-columns: 4.2rem 7.5rem minmax(0, 1fr); gap: 0.2rem 0.8rem; padding: 0.45rem 0 0.45rem 0.8rem; }
+.tl-item time small { display: block; font-size: 0.75rem; }
+.tl-src { font-family: var(--mono, ui-monospace, monospace); font-size: 0.78rem; color: var(--muted); overflow-wrap: anywhere; }
+.tl-filing { color: #f7c999; }
+.tl-routine .tl-main > a { color: var(--muted); }
+.tl-main { min-width: 0; overflow-wrap: anywhere; }
+.tl-main .pill-mini { margin-left: 0.4rem; }
+.tl-empty { margin: 0 0 0.9rem; }
+@media (max-width: 640px) {
+  .tl-item { grid-template-columns: 3.6rem minmax(0, 1fr); }
+  .tl-src { grid-column: 2; }
+  .tl-main { grid-column: 1 / -1; }
+}

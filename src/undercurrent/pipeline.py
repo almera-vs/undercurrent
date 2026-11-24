@@ -260,6 +260,8 @@ def run_day(
             snapshot_gold(data_dir, stats_path, day)
             _run_setups(work_dir, transform.duckdb_path(work_dir), day, data_dir)
             _run_market_state(work_dir, transform.duckdb_path(work_dir), day)
+            if not closed:
+                _run_news(work_dir, data_dir, day, res)
             _run_reactions(work_dir, transform.duckdb_path(work_dir), day)
             _run_calendar_and_owners(work_dir, transform.duckdb_path(work_dir), day)
             _run_pick(work_dir, data_dir, transform.duckdb_path(work_dir), day)
@@ -384,6 +386,21 @@ def _run_market_state(work_dir: Path, duckdb_file: Path, day: date) -> None:
         market_state.run_market_state(duckdb_file, work_dir, day)
     except Exception as exc:  # the digest must not wait on it
         log.warning("market state not computed: %s: %s", type(exc).__name__, exc)
+
+
+def _run_news(work_dir: Path, data_dir: Path, day: date, res: RunResult) -> None:
+    """Collect the big movers' news for the timeline (``news_timeline.run``). Optional.
+
+    A source that is down is a note; any other failure is logged and noted, and the site
+    goes without the timeline's new items.
+    """
+    from undercurrent import news_timeline
+
+    try:
+        res.notes += news_timeline.run(data_dir, work_dir, day)
+    except Exception as exc:  # the digest must not wait on the news
+        log.warning("news timeline not collected: %s: %s", type(exc).__name__, exc)
+        res.notes.append(f"news timeline not collected ({type(exc).__name__})")
 
 
 def _run_reactions(work_dir: Path, duckdb_file: Path, day: date) -> None:

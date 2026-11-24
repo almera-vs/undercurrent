@@ -889,7 +889,7 @@ Two pages read from reports already in the lake: no new source.
   digest" list follows only when a kind qualifies. The reports page marks big moves, and the
   signals page shows the reaction table above the study's.
 
-## News around big moves: can a cause be found? (2026-11-24)
+## News around big moves: a timeline, not a cause (2026-11-24)
 
 - **The question first.** Before building "why did it move", `news_coverage.py` measured
   whether a cause can be found: for every liquid stock-day beyond ±3σ from 12 Nov 2025 to
@@ -902,6 +902,19 @@ Two pages read from reports already in the lake: no new source.
   holdout (2.5 ≤ |z| < 3). Most remaining errors are direction mismatches (good news on a
   falling day), which keyword rules cannot see. Another round of rules would not pass, so no
   cause is named anywhere.
+- **What is shown instead** (`news_timeline.py`). For each liquid or tradable stock beyond
+  ±2σ, everything published about it from the previous session's close to the next open:
+  its filings and the headlines that name it, newest first, each with time, source and link,
+  marked when it came after the close. A stock with nothing published says so. Beyond 15
+  items the ones least likely to bear on the move go first: routine filings, then the
+  evening, then the session's latest headlines.
+- **The digest sets no headline beside a move.** Under each big mover it gives the
+  session's first filing that can move a price, or only the number of items published.
+  A headline next to a move reads as its cause, which the timeline does not claim.
+- **No tone model.** A Polish financial-sentiment model was tried on each item. Against the
+  rate for any item, its labels added 4–12 points for positive and negative headlines and
+  nothing or less than nothing for neutral ones and for filings, while torch and the model
+  cost about 0.7 GB in every install. It was left out.
 - **Parsers are tested on real pages.** Trimmed copies of a BiznesRadar, a Bankier and a
   Google News listing (`tests/fixtures/news`); `tests/network` checks the live pages from
   the probe workflow. The copies showed that BiznesRadar's own filing copies (`/a/…`
