@@ -9,7 +9,14 @@ import sys
 from collections.abc import Sequence
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
+
+if TYPE_CHECKING:
+    import polars as pl
+
+    from undercurrent import news_coverage
+    from undercurrent.news_common import NameIndex
 
 WARSAW = ZoneInfo("Europe/Warsaw")
 log = logging.getLogger("undercurrent")
@@ -124,9 +131,10 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     nc.add_argument(
         "action",
-        choices=("collect", "report", "score"),
+        choices=("collect", "report", "score", "sheet"),
         help="collect: fetch news for the moves; report: coverage tables and the hand-check "
-        "sample; score: precision from a labelled sample",
+        "sample; score: precision from a labelled sample; sheet: a blind labelling sheet of "
+        "moves and their news, for scoring a judge (news_sheet.py)",
     )
     nc.add_argument("--since", type=_parse_date, default=None, help="default: 12 months back")
     nc.add_argument("--until", type=_parse_date, default=None, help="default: last state day")
@@ -158,6 +166,16 @@ def _build_parser() -> argparse.ArgumentParser:
     nc.add_argument("--per-class", type=int, default=40, help="report: sample size per cause kind")
     nc.add_argument("--seed", type=int, default=7)
     nc.add_argument("--sample", type=Path, default=None, help="score: the labelled sample CSV")
+    nc.add_argument(
+        "--sheet-band",
+        type=float,
+        nargs=2,
+        default=(2.0, 2.5),
+        metavar=("MIN_Z", "MAX_Z"),
+        help="sheet: liquid moves with MIN_Z <= |z| < MAX_Z (default 2 2.5: never labelled)",
+    )
+    nc.add_argument("--per-sign", type=int, default=75, help="sheet: rises and falls sampled")
+    nc.add_argument("--check", action="store_true", help="sheet: count what is labelled")
 
     cal = sub.add_parser(
         "calendar",
@@ -461,6 +479,9 @@ def cmd_news_coverage(args: argparse.Namespace) -> int:
         )
         return 0
 
+    if args.action == "sheet" and args.check:
+        return _sheet_check(root / "judge" / "sheet.csv")
+
     since, until = nc.default_window(args.work_dir)
     since, until = args.since or since, args.until or until
     store = nc.Store(root)
@@ -507,19 +528,75 @@ def cmd_news_coverage(args: argparse.Namespace) -> int:
         return 0
 
     attr = nc.attribute(inp, store, names, google_min_z=args.google_min_z)
+    if args.action == "sheet":
+        return _sheet_build(args, attr, inp, store, names, db, root / "judge")
     out.mkdir(parents=True, exist_ok=True)
     attr.write_csv(out / "moves.csv")
     attr.filter(pl.col("cause") == "none").write_csv(out / "no_cause.csv")
     sample = nc.sample_for_check(attr, args.per_class, args.seed)
-    sample.write_csv(out / "sample.csv")
+    sample_path = nc.write_sheet(sample, out / "sample.csv", "correct")
     md = nc.report_markdown(
         attr, since, until, args.google_min_z, nc.fetch_summary(store), store.sources()
     )
     (out / "coverage.md").write_text(md, encoding="utf-8")
     print(md)
     print()
-    print(f"written to {out}: coverage.md, moves.csv, no_cause.csv, sample.csv")
+    print(f"written to {out}: coverage.md, moves.csv, no_cause.csv, {sample_path.name}")
     return 0
+
+
+def _sheet_build(
+    args: argparse.Namespace,
+    attr: pl.DataFrame,
+    inp: news_coverage.Inputs,
+    store: news_coverage.Store,
+    names: NameIndex,
+    db: Path,
+    out: Path,
+) -> int:
+    """Draw the blind labelling sheet (``news_sheet``) and write it with its instructions."""
+    from undercurrent import news_coverage as nc
+    from undercurrent import news_sheet, news_timeline
+    from undercurrent.news_common import close_at, previous_session
+
+    lo, hi = args.sheet_band
+    moves = news_sheet.candidates(attr, tier="liquid", min_z=lo, max_z=hi)
+    if moves.height == 0:
+        print("no moves in the band")
+        return 1
+    first: date = moves["trade_date"].min()  # type: ignore[assignment]
+    since = close_at(previous_session(first))
+    reports = news_timeline.filings(db, sorted(set(moves["isin"].to_list())), since)
+    sheet, pop = news_sheet.build(
+        moves, store, inp.companies, reports, names, per_sign=args.per_sign, seed=args.seed
+    )
+    path = nc.write_sheet(sheet, out / "sheet.csv", news_sheet.LABEL, bom=True)
+    band = f"liquid stocks, {lo:g} <= |z| < {hi:g}"
+    (out / f"{path.stem}.md").write_text(
+        news_sheet.instructions(pop, band, path.name), encoding="utf-8"
+    )
+    print(
+        f"{pop.moves} moves in the band, {pop.with_items} with news before the close; "
+        f"sampled {pop.sampled_up} up and {pop.sampled_down} down"
+    )
+    print(f"written: {path} and {path.stem}.md")
+    return 0
+
+
+def _sheet_check(path: Path) -> int:
+    """Print how much of the labelling sheet is done."""
+    import polars as pl
+
+    from undercurrent import news_sheet
+
+    if not path.exists():
+        print(f"no sheet at {path}")
+        return 1
+    p = news_sheet.check(pl.read_csv(path, infer_schema_length=0))
+    print(f"{p.labelled} of {p.moves} moves labelled ({p.nothing} as nothing)")
+    for m in p.errors:
+        print(f"  more than one row marked: {m}")
+    return 1 if p.errors else 0
 
 
 def cmd_calendar(args: argparse.Namespace) -> int:

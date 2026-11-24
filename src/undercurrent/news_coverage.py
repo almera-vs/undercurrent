@@ -960,6 +960,38 @@ def sample_for_check(attr: pl.DataFrame, per_class: int, seed: int) -> pl.DataFr
     ).with_columns(correct=pl.lit(None, dtype=pl.String), note=pl.lit(None, dtype=pl.String))
 
 
+def has_labels(path: Path, label: str) -> bool:
+    """Whether the sheet at ``path`` has anything in its ``label`` column."""
+    if not path.exists():
+        return False
+    df = pl.read_csv(path, infer_schema_length=0)
+    if label not in df.columns:
+        return False
+    return df.filter(pl.col(label).str.strip_chars().str.len_chars() > 0).height > 0
+
+
+def write_sheet(
+    df: pl.DataFrame,
+    path: Path,
+    label: str,
+    *,
+    bom: bool = False,
+    now: Callable[[], datetime] = datetime.now,
+) -> Path:
+    """Write a hand-check sheet, never over one that has labels. Returns the path written.
+
+    A labelled sheet at ``path`` is someone's work (a report run on 2026-11-24 overwrote the
+    gate's labelled sample): the new sheet goes next to it, with the time in its name.
+    """
+    if has_labels(path, label):
+        new = path.with_name(f"{path.stem}-{now():%Y%m%d-%H%M%S}{path.suffix}")
+        log.warning("%s has labels; the new sheet is %s", path, new.name)
+        path = new
+    path.parent.mkdir(parents=True, exist_ok=True)
+    df.write_csv(path, include_bom=bom)
+    return path
+
+
 @dataclass(frozen=True)
 class Precision:
     """Weighted precision of a labelled sample, with a normal 95 % interval."""

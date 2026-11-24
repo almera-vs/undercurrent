@@ -915,6 +915,13 @@ Two pages read from reports already in the lake: no new source.
   regulator and the like (`news.EVENT`). Headlines naming no event (features, interviews,
   the move itself) were most of the wrong causes in the study, so they are only counted. The
   newest item, which an earlier draft showed, is usually commentary on the move.
+- **A blind sheet for the next judge** (`news-coverage sheet`, `news_sheet.py`). The gate's
+  hand labels were lost: `report` rewrote `sample.csv` on 2026-11-24. Labelled sheets are
+  now never overwritten (`write_sheet`). A judge that checks direction is to be scored on
+  liquid moves of 2 ≤ |z| < 2.5, which no one has labelled or tuned on: 150 of them (75
+  up, 75 down), each with the items before the close and a "nothing" row, the rules'
+  cause hidden. Only 246 of the band's 790 moves (31 %) had anything published before the
+  close, so no source-reading judge can explain more than that share of them.
 - **No tone model.** A Polish financial-sentiment model was tried on each item. Against the
   rate for any item, its labels added 4–12 points for positive and negative headlines and
   nothing or less than nothing for neutral ones and for filings, while torch and the model
