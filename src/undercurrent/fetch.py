@@ -1,14 +1,3 @@
-"""Polite HTTP client shared by every ingest step.
-
-Rules enforced here (see README → Design principles):
-
-* at most one request per second per process, plus random jitter;
-* a fixed, honest User-Agent that names the project (never a browser impersonation);
-* conditional requests (``If-None-Match`` / ``If-Modified-Since``) against an on-disk cache;
-* WAF / bot-protection pages are detected and raised as :class:`SourceBlockedError`.
-  We never try to get around them; the caller records the block and moves on.
-"""
-
 from __future__ import annotations
 
 import hashlib

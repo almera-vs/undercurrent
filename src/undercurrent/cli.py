@@ -111,6 +111,47 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     rx.add_argument("--date", type=_parse_date, default=_parse_date("today"))
 
+    nc = sub.add_parser(
+        "news-coverage",
+        help="measure how often a big move's cause can be found (the news feature's gate)",
+    )
+    nc.add_argument(
+        "action",
+        choices=("collect", "report", "score"),
+        help="collect: fetch news for the moves; report: coverage tables and the hand-check "
+        "sample; score: precision from a labelled sample",
+    )
+    nc.add_argument("--since", type=_parse_date, default=None, help="default: 12 months back")
+    nc.add_argument("--until", type=_parse_date, default=None, help="default: last state day")
+    nc.add_argument(
+        "--news-dir", type=Path, default=None, help="scratch lake for news (default: work dir/news)"
+    )
+    nc.add_argument(
+        "--indicators", type=Path, default=None, help="a GPW indicators file for the sectors"
+    )
+    nc.add_argument("--google-min-z", type=float, default=3.0)
+    nc.add_argument(
+        "--interval",
+        type=float,
+        default=0.0,
+        help="seconds between requests to BiznesRadar and Bankier (default: no pause)",
+    )
+    nc.add_argument(
+        "--google-interval",
+        type=float,
+        default=3.0,
+        help="seconds between Google News queries (it bans quickly)",
+    )
+    nc.add_argument("--limit", type=int, default=None, help="collect: at most this many companies")
+    nc.add_argument(
+        "--gate-only",
+        action="store_true",
+        help="collect: only companies with a gate move (liquid, |z| >= 3)",
+    )
+    nc.add_argument("--per-class", type=int, default=40, help="report: sample size per cause kind")
+    nc.add_argument("--seed", type=int, default=7)
+    nc.add_argument("--sample", type=Path, default=None, help="score: the labelled sample CSV")
+
     cal = sub.add_parser(
         "calendar",
         help="extract dividends, meetings, report dates and holders (needs a built work dir)",
@@ -349,6 +390,94 @@ def cmd_reactions(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_news_coverage(args: argparse.Namespace) -> int:
+    """The news feature's deploy gate: collect news, report coverage, score precision."""
+    import polars as pl
+
+    from undercurrent import news, transform
+    from undercurrent import news_coverage as nc
+    from undercurrent.fetch import PoliteClient
+    from undercurrent.news_common import NameIndex
+
+    root = args.news_dir or (args.work_dir / "news")
+    out = root / "coverage"
+    if args.action == "score":
+        sample = args.sample or out / "sample.csv"
+        prec = nc.score(pl.read_csv(sample, infer_schema_length=0))
+        for kind, (k, n, w) in sorted(prec.by_kind.items()):
+            print(f"{kind:12} {k}/{n} correct, {w:.0%} of the causes found")
+        verdict = (
+            "passes"
+            if prec.low >= nc.GATE_PRECISION
+            else ("fails" if prec.high < nc.GATE_PRECISION else "is not settled by this sample")
+        )
+        print(
+            f"precision {prec.value:.1%} (95% {prec.low:.1%}-{prec.high:.1%}); "
+            f"target {nc.GATE_PRECISION:.0%}: {verdict}"
+        )
+        return 0
+
+    since, until = nc.default_window(args.work_dir)
+    since, until = args.since or since, args.until or until
+    store = nc.Store(root)
+    db = transform.duckdb_path(args.work_dir)
+
+    def inputs() -> nc.Inputs:
+        return nc.load_inputs(
+            args.work_dir,
+            args.data_dir,
+            db,
+            store,
+            since=since,
+            until=until,
+            indicators_file=args.indicators,
+        )
+
+    inp = inputs()
+    names = NameIndex({i: c.company() for i, c in inp.companies.items()})
+    if args.action == "collect":
+        p = nc.plan(inp.companies, inp.moves)
+        if args.gate_only:
+            gate = set(nc.gate_rows(inp.moves)["isin"].to_list())
+            p.order = [i for i in p.order if i in gate]
+        if args.limit is not None:
+            p.order = p.order[: args.limit]
+        keep = set(p.order)
+        p.companies = {i: c for i, c in p.companies.items() if i in keep}
+        with nc.collect_lock(root):
+            nc.collect(
+                store,
+                p,
+                attribute_now=lambda: nc.attribute(inputs(), store, names),
+                google_min_z=args.google_min_z,
+                # short timeout and one retry: a host that stops answering is noticed in under a
+                # minute (news_coverage.MAX_UNREACHABLE_IN_A_ROW), not after minutes of retries
+                make_client=lambda source: PoliteClient(
+                    min_interval_s=args.google_interval if source == news.GOOGLE else args.interval,
+                    max_jitter_s=0.5 if source == news.GOOGLE else 0.0,
+                    timeout_s=20.0,
+                    retry_pauses_s=(5.0,),
+                ),
+            )
+            print(f"bronze news rows written: {store.publish_bronze()}")
+        return 0
+
+    attr = nc.attribute(inp, store, names, google_min_z=args.google_min_z)
+    out.mkdir(parents=True, exist_ok=True)
+    attr.write_csv(out / "moves.csv")
+    attr.filter(pl.col("cause") == "none").write_csv(out / "no_cause.csv")
+    sample = nc.sample_for_check(attr, args.per_class, args.seed)
+    sample.write_csv(out / "sample.csv")
+    md = nc.report_markdown(
+        attr, since, until, args.google_min_z, nc.fetch_summary(store), store.sources()
+    )
+    (out / "coverage.md").write_text(md, encoding="utf-8")
+    print(md)
+    print()
+    print(f"written to {out}: coverage.md, moves.csv, no_cause.csv, sample.csv")
+    return 0
+
+
 def cmd_calendar(args: argparse.Namespace) -> int:
     """Corporate calendar and holder register from the work dir's DuckDB."""
     from undercurrent import corp_calendar, ownership, transform
@@ -507,6 +636,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "pick": cmd_pick,
         "market-state": cmd_market_state,
         "reactions": cmd_reactions,
+        "news-coverage": cmd_news_coverage,
         "calendar": cmd_calendar,
         "esef": cmd_esef,
         "bad-prints": cmd_bad_prints,

@@ -32,3 +32,8 @@ jobs:
         with:
           name: probe-results
           path: probe.json
+      # the news portals' listing markup, checked live (tests/network)
+      - name: news sources still parse
+        env:
+          UNDERCURRENT_NETWORK: "1"
+        run: uv sync --locked && uv run pytest -q tests/network

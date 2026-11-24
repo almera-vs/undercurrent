@@ -1,0 +1,39 @@
+sector_code,index_name,sector
+111,WIG-BANKI,Finanse - banki komercyjne
+141,WIG-NRCHOM,Finanse - sprzedaż nieruchomości
+142,WIG-NRCHOM,Finanse - wynajem nieruchomości
+149,WIG-NRCHOM,Finanse - nieruchomości - pozostałe
+211,WIG-PALIWA,Paliwa i Energia - wydobycie i produkcja
+212,WIG-PALIWA,Paliwa i Energia - dystrybucja paliw i gazu
+221,WIG-ENERG,Paliwa i Energia - energetyka
+222,WIG-ENERG,Paliwa i Energia - energia odnawialna
+229,WIG-ENERG,Paliwa i Energia - energia - pozostałe
+311,WIG-CHEMIA,Chemia i surowce - chemia podstawowa
+312,WIG-CHEMIA,Chemia i surowce - chemia specjalistyczna
+321,WIG-GORNIC,Chemia i surowce - górnictwo węgla
+322,WIG-GORNIC,Chemia i surowce - górnictwo metali
+411,WIG-BUDOW,Produkcja przemysłowa i budowlano-montażowa - budownictwo ogólne
+412,WIG-BUDOW,Produkcja przemysłowa i budowlano-montażowa - budownictwo przemysłowe
+413,WIG-BUDOW,Produkcja przemysłowa i budowlano-montażowa - inżynieria lądowa i wodna
+414,WIG-BUDOW,Produkcja przemysłowa i budowlano-montażowa - materiały budowlane
+415,WIG-BUDOW,Produkcja przemysłowa i budowlano-montażowa - instalacje budowlane i telekomunikacyjne
+419,WIG-BUDOW,Produkcja przemysłowa i budowlano-montażowa - budownictwo - pozostałe
+424,WIG-MOTO,Produkcja przemysłowa i budowlano-montażowa - środki transportu
+511,WIG-SPOZYW,Dobra konsumpcyjne - żywność
+512,WIG-SPOZYW,Dobra konsumpcyjne - napoje
+513,WIG-SPOZYW,Dobra konsumpcyjne - produkcja rolna i rybołówstwo
+521,WIG-ODZIEZ,Dobra konsumpcyjne - odzież i obuwie
+522,WIG-ODZIEZ,Dobra konsumpcyjne - kosmetyki i chemia gospodarcza
+529,WIG-ODZIEZ,Dobra konsumpcyjne - odzież i kosmetyki - pozostałe
+541,WIG-MOTO,Dobra konsumpcyjne - części samochodowe
+641,WIG-MEDIA,Handel i usługi - radio i telewizja
+642,WIG-MEDIA,Handel i usługi - wydawnictwa
+643,WIG-MEDIA,Handel i usługi - reklama i marketing
+644,WIG-MEDIA,Handel i usługi - portale internetowe
+649,WIG-MEDIA,Handel i usługi - media - pozostałe
+650,WIG-GRY,Handel i usługi - Gry
+730,WIG-LEKI,Ochrona zdrowia - Produkcja leków
+821,WIG-INFO,Technologie - oprogramowanie
+822,WIG-INFO,Technologie - systemy informatyczne
+823,WIG-INFO,Technologie - sprzęt informatyczny
+829,WIG-INFO,Technologie - informatyka - pozostałe

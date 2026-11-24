@@ -41,3 +41,8 @@ seeds:
         match: varchar
         isin: varchar
         comment: varchar
+    sector_index:
+      +column_types:
+        sector_code: integer
+        index_name: varchar
+        sector: varchar

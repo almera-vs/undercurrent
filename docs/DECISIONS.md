@@ -15,26 +15,6 @@ it costs. Method details (event study, walk-forward, verdicts) are in
 - **Excel readers:** `xlrd` for GPW `.xls` and older NewConnect `.xls`, `openpyxl` for
   NewConnect `.xlsx`. The official files come in exactly these formats.
 
-## Fetching
-
-- **One HTTP client** (`undercurrent.fetch.PoliteClient`) is the only code that touches the
-  network. It keeps at least 1 s between requests plus 0–0.5 s jitter, sends a User-Agent
-  that names the project (`undercurrent/0.1 (+repo URL)`), revalidates with ETag /
-  If-Modified-Since against `.cache/http`, and raises `SourceBlockedError` when it receives a
-  bot-protection page. It never retries around a block.
-- **Sources are checked from a GitHub runner**, not only from a home connection, because
-  datacenter IPs are often treated differently. `undercurrent probe` and the manual
-  `probe-sources` workflow test every endpoint.
-- **Bot-protected endpoints are not used.** PDF attachments of ESPI reports on gpw.pl and
-  newconnect.pl, and PAP's espiebi.pap.pl, answer automated clients with a JavaScript
-  challenge. Getting past it would mean a headless browser or challenge solving, so these
-  endpoints are left alone.
-- **Insider forms come from portal copies.** Parkiet, Bankier and BiznesRadar republish ESPI
-  reports with their own copies of the attachments, served without bot protection and
-  allowed by their robots.txt. Three sources rather than one: each has gaps (Parkiet's copies
-  stop on 2026-10-26; some older Bankier links are dead), and one portal being down must not
-  stop the others. Report pages and PDFs are fetched once and not cached on disk; only the
-  extracted facts are stored.
 
 ## Report identity and storage
 
@@ -908,6 +888,25 @@ Two pages read from reports already in the lake: no new source.
   published after the close is measured the next evening. The study's "kept moving after the
   digest" list follows only when a kind qualifies. The reports page marks big moves, and the
   signals page shows the reaction table above the study's.
+
+## News around big moves: can a cause be found? (2026-11-24)
+
+- **The question first.** Before building "why did it move", `news_coverage.py` measured
+  whether a cause can be found: for every liquid stock-day beyond ±3σ from 12 Nov 2025 to
+  12 Nov 2026, the first of a report of a kind that moves prices, a headline that names the
+  company and a price-moving event (BiznesRadar, Bankier, Google News), or a sector move.
+  The gate was set before looking: 80 % coverage and 90 % precision on a hand-checked
+  stratified sample.
+- **It failed.** Coverage 48 %; most moves left unexplained are rises with no public trigger.
+  Precision rose from 66 % to 88 % after two rounds of rules, and was 81 % (73–89 %) on a
+  holdout (2.5 ≤ |z| < 3). Most remaining errors are direction mismatches (good news on a
+  falling day), which keyword rules cannot see. Another round of rules would not pass, so no
+  cause is named anywhere.
+- **Parsers are tested on real pages.** Trimmed copies of a BiznesRadar, a Bankier and a
+  Google News listing (`tests/fixtures/news`); `tests/network` checks the live pages from
+  the probe workflow. The copies showed that BiznesRadar's own filing copies (`/a/…`
+  pages) passed as headlines and that the "PAP Biznes" outlet came from teaser text; both
+  are fixed. The coverage numbers above were measured before these fixes.
 
 ## Known limitations
 
