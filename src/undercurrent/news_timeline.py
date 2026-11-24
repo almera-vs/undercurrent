@@ -354,8 +354,9 @@ def timeline(
     """The mover's filings and headlines from the previous close on, newest first.
 
     Each entry: ``id``, ``kind`` (filing / headline), ``at`` (UTC), ``precision`` (minute /
-    day), ``source`` (ESPI, EBI or the outlet), ``title``, ``url``, ``after_close`` and
-    ``routine`` (a filing that does not move prices, per ``report_rank``).
+    day), ``source`` (ESPI, EBI or the outlet), ``title``, ``url``, ``after_close``,
+    ``routine`` (a filing that does not move prices, per ``report_rank``) and ``event`` (a
+    filing that can move prices, or a headline naming a price-moving event, ``news.EVENT``).
 
     Beyond ``MAX_ITEMS`` the items least likely to bear on the move go first: routine
     filings, then what came after the close, then the latest headlines of the session. The
@@ -387,6 +388,7 @@ def timeline(
                 "url": r["source_url"],
                 "after_close": at > close,
                 "routine": rank is None,
+                "event": rank is not None,
             }
         )
         seen.add(_story_key(title))
@@ -417,6 +419,7 @@ def timeline(
                 "url": it.url,
                 "after_close": it.precision == "minute" and it.published_at > close,
                 "routine": False,
+                "event": news.EVENT.search(normalize(it.title)) is not None,
             }
         )
     kept = sorted(out, key=_keep_order)[:MAX_ITEMS]

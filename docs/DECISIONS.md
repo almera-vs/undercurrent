@@ -908,9 +908,13 @@ Two pages read from reports already in the lake: no new source.
   marked when it came after the close. A stock with nothing published says so. Beyond 15
   items the ones least likely to bear on the move go first: routine filings, then the
   evening, then the session's latest headlines.
-- **The digest sets no headline beside a move.** Under each big mover it gives the
-  session's first filing that can move a price, or only the number of items published.
-  A headline next to a move reads as its cause, which the timeline does not claim.
+- **The digest gives the first news, not a cause.** Under each other big mover: the
+  session's first item before the close that names an event, headed "first news of the
+  session (not a stated cause)", with its time and how many more there are. Filings come
+  first, since they come from the company; then headlines that name results, a contract, a
+  regulator and the like (`news.EVENT`). Headlines naming no event (features, interviews,
+  the move itself) were most of the wrong causes in the study, so they are only counted. The
+  newest item, which an earlier draft showed, is usually commentary on the move.
 - **No tone model.** A Polish financial-sentiment model was tried on each item. Against the
   rate for any item, its labels added 4–12 points for positive and negative headlines and
   nothing or less than nothing for neutral ones and for filings, while torch and the model

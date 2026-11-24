@@ -113,6 +113,9 @@ def test_timeline_lists_filings_and_headlines_since_the_previous_close_newest_fi
     ]
     assert tl[0]["after_close"] and not tl[1]["after_close"]
     assert [e["routine"] for e in tl if e["kind"] == "filing"] == [True, False]
+    events = {e["title"][:22]: e["event"] for e in tl}
+    assert events["Alfa Testowa podpisała"] and events["Zawarcie znaczącej umo"]
+    assert not events["Alfa Testowa: wywiad z"] and not events["Informacja o stanie st"]
 
 
 def test_timeline_drops_other_companies_noise_and_repeats() -> None:
@@ -245,22 +248,42 @@ def _entry(kind: str, at: datetime, title: str, **kw: Any) -> dict[str, Any]:
     return {**base, "title": title, "source": "ESPI" if kind == "filing" else "Bankier", **kw}
 
 
-def test_digest_line_names_the_sessions_first_filing_never_a_headline() -> None:
+def test_digest_line_prefers_the_sessions_first_filing() -> None:
     tl = [
-        _entry("headline", _warsaw(11, 17, 18, 0), "Alfa Testowa: analitycy tną prognozy"),
-        _entry("filing", _warsaw(11, 17, 18, 30), "Rezygnacja członka zarządu", after_close=True),
-        _entry("filing", _warsaw(11, 17, 11, 0), "Zawarcie znaczącej umowy"),
+        _entry("headline", _warsaw(11, 17, 8, 0), "Alfa Testowa ma umowę z PKP", event=True),
+        _entry("filing", _warsaw(11, 17, 18, 30), "Zawarcie aneksu", event=True, after_close=True),
+        _entry("filing", _warsaw(11, 17, 11, 0), "Zawarcie znaczącej umowy", event=True),
         _entry("filing", _warsaw(11, 17, 9, 40), "Dobre Praktyki", routine=True),
-        _entry("filing", _warsaw(11, 17, 14, 0), "Szacunkowe wyniki za III kw."),
+        _entry("filing", _warsaw(11, 17, 14, 0), "Szacunkowe wyniki za III kw.", event=True),
     ]
-    assert publish.mover_line(tl) == "ESPI 11:00: Zawarcie znaczącej umowy"
+    assert publish.mover_line(tl) == "First news: ESPI 11:00 · Zawarcie znaczącej umowy (+3 more)"
+
+
+def test_digest_line_without_a_filing_takes_the_first_headline_naming_an_event() -> None:
+    tl = [
+        _entry("headline", _warsaw(11, 17, 8, 0), "Alfa Testowa: wywiad z prezesem"),
+        _entry("headline", _warsaw(11, 17, 12, 0), "Alfa Testowa obniża prognozy", event=True),
+        _entry("headline", _warsaw(11, 17, 10, 0), "Alfa Testowa ma umowę z PKP", event=True),
+        _entry("headline", _warsaw(11, 17, 9, 0), "Alfa Testowa zysk", event=True, precision="day"),
+    ]
+    assert (
+        publish.mover_line(tl)
+        == "First news: Bankier 10:00 · Alfa Testowa ma umowę z PKP (+3 more)"
+    )
+
+
+def test_digest_line_counts_what_names_no_event() -> None:
     heads = [_entry("headline", _warsaw(11, 17, h, 0), f"Alfa {h}") for h in (10, 12)]
-    assert publish.mover_line(heads) == "2 items published since the previous close, no filing."
+    late = _entry("headline", _warsaw(11, 17, 19, 0), "Alfa obniża prognozy", event=True)
+    late["after_close"] = True
+    assert publish.mover_line([*heads, late]) == (
+        "3 items published, none naming an event before the close."
+    )
     routine = [_entry("filing", _warsaw(11, 17, 9, 0), "Dobre Praktyki", routine=True)]
     assert publish.mover_line(routine) == "Nothing published since the previous close."
 
 
-def test_digest_lists_other_movers_without_setting_a_headline_beside_the_move() -> None:
+def test_digest_lists_other_movers_with_their_first_news() -> None:
     ctx = publish.SiteContext(
         day=TUE,
         generated_at=NOW,
@@ -281,15 +304,17 @@ def test_digest_lists_other_movers_without_setting_a_headline_beside_the_move() 
                 "ticker": "ALFA",
                 "z": 3.4,
                 "move": 0.062,
-                "timeline": [_entry("headline", _warsaw(11, 17, 10, 0), "Alfa podpisała umowę")],
+                "timeline": [
+                    _entry("headline", _warsaw(11, 17, 10, 0), "Alfa podpisała umowę", event=True)
+                ],
             },
             {"isin": BETA, "ticker": "BETA", "z": -2.5, "move": -0.03, "timeline": []},
         ],
     )
     text, markup = publish.digest_message(ctx)
     assert "<b>ALFA</b> +6.2% vs market (+3.4σ)" in text
-    assert "1 item published since the previous close, no filing." in text
-    assert "Alfa podpisała umowę" not in text
+    assert "First news: Bankier 10:00 · Alfa podpisała umowę" in text
+    assert "(not a stated cause)" in text
     assert "Nothing published since the previous close." in text
     assert markup["inline_keyboard"][0][-1]["url"].endswith("reports.html#bigmoves-h")
 

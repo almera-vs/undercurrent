@@ -1501,26 +1501,31 @@ def render_site(ctx: SiteContext, out: Path) -> list[Path]:
 
 
 def mover_line(timeline: Sequence[dict[str, Any]]) -> str:
-    """The digest's line under a big mover: its first filing of the session, or a count.
+    """The digest's line under a big mover: the session's first news that names an event.
 
-    A filing in the session (not routine, before the close) comes from the company itself and
-    is the likeliest trigger; the earliest one is shown. Without one, only the number of items
-    published since the previous close, so a headline is never set beside the move as if it
-    explained it.
+    Among the items before the close that name an event (``event``: a filing that can move
+    prices, or a headline naming results, a contract, a regulator…), filings come first since
+    they come from the company, then the earliest by time, date-only items last. It is shown
+    as the first news, with its time, and the rest is counted; the reader judges whether it
+    fits the move. Headlines naming no event (features, interviews, the move itself) were
+    most of the wrong causes in the coverage study, so they are only counted.
     """
-    filings = [
-        x
-        for x in timeline
-        if x.get("kind") == "filing" and not x.get("routine") and not x.get("after_close")
-    ]
-    if filings:
-        first = min(filings, key=lambda x: x["at"])
-        at = f" {first['time']}" if first.get("time") else ""
-        return f"{first['source']}{at}: {first['title'][:110]}"
-    n = sum(1 for x in timeline if not x.get("routine"))
-    if n == 0:
+    live = [x for x in timeline if not x.get("routine")]
+    if not live:
         return "Nothing published since the previous close."
-    return f"{n} {'item' if n == 1 else 'items'} published since the previous close, no filing."
+    named = [x for x in live if x.get("event") and not x.get("after_close")]
+    if not named:
+        n = len(live)
+        return (
+            f"{n} {'item' if n == 1 else 'items'} published, none naming an event before the close."
+        )
+    first = min(
+        named,
+        key=lambda x: (x["kind"] != "filing", x.get("precision", "minute") != "minute", x["at"]),
+    )
+    at = f" {first['time']}" if first.get("time") else ""
+    more = f" (+{len(live) - 1} more)" if len(live) > 1 else ""
+    return f"First news: {first['source']}{at} · {first['title'][:110]}{more}"
 
 
 def digest_message(ctx: SiteContext, max_items: int = 5) -> tuple[str, dict[str, Any]]:
@@ -1541,12 +1546,15 @@ def digest_message(ctx: SiteContext, max_items: int = 5) -> tuple[str, dict[str,
         lines.append(f"Today: {pct(m['move'])} vs market ({m['z']:+.1f}σ)")
     if ctx.reactions and not ctx.moves:
         lines.append("No report today came with a big move (beyond ±2σ) by the close.")
-    # Other big movers: a filing from the session if there is one, else only how much was
-    # published. A headline next to a move reads as its cause, which the timeline never claims.
+    # Other big movers with the session's first news that names an event (``mover_line``),
+    # headed as first news, not a cause: the coverage study could not name causes reliably.
     shown = {i["move"]["isin"] for i in ctx.moves[:max_items]}
     others = [m for m in ctx.movers if m["isin"] not in shown][:max_items]
     if others:
-        lines += ["", "<i>Other big moves:</i>"]
+        lines += [
+            "",
+            "<i>Other big moves, with the first news of the session (not a stated cause):</i>",
+        ]
     for m in others:
         move = f"{pct(m['move'])} vs market " if m["move"] is not None else ""
         lines.append(f"<b>{e(m['ticker'] or '')}</b> {move}({m['z']:+.1f}σ)")
