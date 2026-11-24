@@ -1,3 +1,5 @@
+"""HTTP client shared by every ingest step."""
+
 from __future__ import annotations
 
 import hashlib
