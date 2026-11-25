@@ -1,7 +1,7 @@
 name: probe-sources
 
 # Manual reachability check of every official source from a GitHub-hosted runner.
-# Results go to the job summary and docs/SOURCES.md.
+# Results go to the job summary.
 on:
   workflow_dispatch:
     inputs:

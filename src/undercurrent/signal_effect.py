@@ -1,4 +1,4 @@
-"""What each kind of report is expected to do next, shrunk by its evidence (L2 in DECISIONS).
+"""What each kind of report is expected to do next, shrunk by its evidence.
 
 The event study (``study.py``) measures how the stock did against WIG over the 20 sessions
 after the entry close, for every kind of report. Here that becomes an input of the forecast:

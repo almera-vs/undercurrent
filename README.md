@@ -85,10 +85,6 @@ flowchart LR
    branch and served from the site (`logos.py`).
 7. **Commit**: new partitions to the `data` branch, digest archive to `main`.
 
-Details: [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md) · sources and their verification:
-[`docs/SOURCES.md`](docs/SOURCES.md) · every judgment call: [`docs/DECISIONS.md`](docs/DECISIONS.md)
-· what 1,000× would need: [`docs/SCALING.md`](docs/SCALING.md).
-
 ## Results
 
 Statistics need history: the walk-forward test needs past years to choose a rule from. The
@@ -144,4 +140,4 @@ Secrets (GitHub Actions only): `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
   conditional requests and caching. Bot-protected endpoints are not bypassed.
 
 Small stack on purpose: Python 3.12, uv, DuckDB, Parquet, dbt-duckdb, Polars, Jinja2. No Kafka,
-Iceberg, orchestrator or cloud database (see SCALING.md for why).
+Iceberg, orchestrator or cloud database.

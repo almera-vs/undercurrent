@@ -1,7 +1,7 @@
 """Reachability probe for every official source.
 
 Run from a GitHub-hosted runner (``.github/workflows/probe.yml``) to prove which
-endpoints answer datacenter IPs. Results feed ``docs/SOURCES.md``. One request per
+endpoints answer datacenter IPs. One request per
 source, throttled by :class:`~undercurrent.fetch.PoliteClient`.
 """
 

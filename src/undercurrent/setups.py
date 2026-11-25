@@ -1,4 +1,4 @@
-"""Chart setups, tested the way the report signals are (DECISIONS, "Chart setups").
+"""Chart setups, tested the way the report signals are.
 
 The screener's presets are filters ("RSI below 30", "a new 52-week high"). Whether entering
 one of those states has paid off on GPW is a question the event study already answers for

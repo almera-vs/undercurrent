@@ -8,7 +8,7 @@ the window says so, which is itself worth knowing.
 
 Why a timeline and not a cause: measured on a year of liquid stocks' 3σ moves, a cause
 could be named for only 48 % of them, and the named causes were right 81–88 % of the time
-(2026-11-24; docs/DECISIONS.md, News); both gates (80 % / 90 %) failed.
+(2026-11-24); both gates (80 % / 90 %) failed.
 
 Sources, as in ``news``: Bankier and BiznesRadar company pages (the first page only: the
 window is one session), Google News only for a mover the pages said nothing about, and the

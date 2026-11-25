@@ -1,6 +1,6 @@
 """Stock of the week: rank liquid WIG stocks by expected 20-session excess return over WIG.
 
-Method (details in ``docs/METHODOLOGY.md`` § Stock of the week):
+Method:
 
 * **Universe:** main-market shares with a year of continuous history and a median daily
   turnover of at least 100,000 zł (``pick_features.eligible``).
@@ -1158,7 +1158,7 @@ def _compute(
                 "basket_cost_total": float(basket_bt["cost"].sum()),
             }
         )
-    # The basket is the decision (DECISIONS, 2026-11-12): its verdict is the headline one,
+    # The basket is the decision: its verdict is the headline one,
     # and the stock of the week is its first row (equal weights: its best forecast).
     summary["single_verdict"] = summary["verdict"]
     summary["verdict"] = summary.get("basket_verdict", "too_short")

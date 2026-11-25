@@ -2,7 +2,7 @@
 
 The MAR Art. 19 notification form is a PDF attached to the ESPI report. The exchange serves
 attachments only behind bot protection, but these portals republish ESPI reports and host
-their own copies of the files (see docs/SOURCES.md §9). Each portal is used the same way:
+their own copies of the files. Each portal is used the same way:
 
 1. list recent report pages with their publication time and title (a sitemap or a listing),
 2. match a report from the exchange listing by time (± ``MATCH_MINUTES``) and title,

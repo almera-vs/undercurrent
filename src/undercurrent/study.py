@@ -1,6 +1,6 @@
 """Event studies, bootstrap CIs, Benjamini-Hochberg FDR, walk-forward and deflated Sharpe.
 
-Method (details and caveats in ``docs/METHODOLOGY.md``):
+Method:
 
 * **Day 0** is the first session whose close (17:05 Warsaw) is after ``known_at``.
 * **Excess return** is the stock's compounded return minus WIG's over the same sessions

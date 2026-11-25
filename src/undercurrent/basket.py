@@ -1,9 +1,9 @@
-"""The decision layer (L4 in DECISIONS, "One source of truth"): a weekly basket.
+"""The decision layer: a weekly basket.
 
 It reads only what the forecast (``pick.py``) produced for each week: every eligible stock's
 expected excess over WIG and its round-trip cost. Nothing here forecasts.
 
-A rank band (DECISIONS, "The basket is a rank band", 2026-11-22):
+A rank band:
 
 * **Which names.** The ``N`` stocks with the highest forecast are bought. A stock already
   held stays while it is still among the best ``KEEP``; only then is it sold, and the best

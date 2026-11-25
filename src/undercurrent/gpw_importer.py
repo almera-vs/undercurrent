@@ -2,7 +2,7 @@
 """Periodic reports straight from the exchange: the figures on gpw.pl's own report pages.
 
 Every annual, half-year and quarterly report an issuer sends through ESPI has a page on
-gpw.pl (``komunikat?geru_id=``, SOURCES § 3) that holds the report's form, not only its
+gpw.pl (``komunikat?geru_id=``) that holds the report's form, not only its
 attachments: a title sheet (the form code, ``RR`` / ``SRR`` / ``QSr`` …, the period, the
 currency) and the sheet "WYBRANE DANE FINANSOWE", the selected financial data the issuer
 types into the form: revenue, operating profit, profit before tax, net profit, the three

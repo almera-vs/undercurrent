@@ -1,4 +1,4 @@
-"""The market state (L2 in DECISIONS, "One source of truth"): one row per (stock, session).
+"""The market state: one row per (stock, session).
 
 Every column is known at that session's close and is computed from the layers above it
 only: adjusted prices, raw high/low for spreads, and the index returns. The forecast, the
@@ -48,7 +48,7 @@ FloatArray = npt.NDArray[np.float64]
 LIQ = study.LIQ_WINDOW
 MIN_TURNOVER_LIQUID = 100_000.0  # the pick's floor (pick_features.MIN_TURNOVER_PICK)
 MIN_PAIRS = 20  # traded session pairs a stock needs for its own spread estimate
-MARKET_SPREAD = {"GPW": 0.016, "NC": 0.048}  # METHODOLOGY § 4, event-weighted
+MARKET_SPREAD = {"GPW": 0.016, "NC": 0.048}  # event-weighted
 COMMISSION = 0.002  # each way
 TICKET = 10_000.0  # zł; the study's turnover floor: an ordinary retail order
 IMPACT_Y = 1.0

@@ -33,7 +33,7 @@ profitability (operating profit / assets), asset growth and accruals. There are 
 counts in the lake, so no book-to-market; the close is not adjusted for a split between the
 year end and the session, a rare distortion the ranks bound.
 
-From the market state (``market_state.py``, L2 in DECISIONS) come six more, when its table
+From the market state (``market_state.py``) come six more, when its table
 is in the work dir: the GARCH forecast of the next 20 sessions' volatility, the Kalman betas
 to WIG and to bonds, residual momentum (12-1 months of the returns the betas did not
 explain), the last month's surprises, and what the stock's recent reports are expected to

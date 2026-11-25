@@ -6,7 +6,7 @@ Model, for stock ``i`` on session ``t`` with factor returns ``f[t]`` (WIG and TB
     b[t] = b[t-1] + w[t],            w[t] ~ N(0, Q)
 
 * **No intercept.** An earlier market model with a fitted intercept produced a spurious
-  drift (METHODOLOGY § 3); the betas here have none to fit.
+  drift; the betas here have none to fit.
 * **Noise from the volatility forecasts.** ``R[t]`` is what the stock's GARCH variance
   leaves after the factors: ``h_i − Σ_j b_j² · h_j``, never below ``R_FLOOR · h_i``. All
   variances are the forecasts made at ``t − 1`` (``vol.Sigma.h_next`` shifted by one), so

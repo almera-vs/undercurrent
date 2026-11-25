@@ -1,4 +1,4 @@
-"""Valuation on the stock pages and in the screener (DECISIONS, "Valuation").
+"""Valuation on the stock pages and in the screener.
 
 Cheap or dear against its sector, what the price implies, and the quality of the last annual
 report.

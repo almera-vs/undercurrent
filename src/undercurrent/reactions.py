@@ -4,8 +4,7 @@ The event study (``study.py``) asks whether a reader can still profit by trading
 evening digest, net of costs. That is a different question from whether a kind of report
 moves the price: the move usually happens on the report's own session, before any reader of
 the digest can buy, and it goes either way, so it averages out in a signed mean. This module
-measures the move itself (DECISIONS, "Reports move prices; the digest said they did not",
-2026-11-22).
+measures the move itself.
 
 * **Every report**, of every kind the classifier gives (``study.signal_key`` for signal
   events, plus ``periodic`` for quarterly, half-year and annual reports and ``other``).

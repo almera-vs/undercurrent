@@ -2,7 +2,7 @@
 
 Hand-labelled **report texts** (`title` + `Treść raportu`) of real MAR Art. 19 reports, used
 to measure the insider-field extractor. The notification PDFs themselves are behind bot
-protection (see `docs/DECISIONS.md` → "Classification and insider fields"), so labels cover
+protection, so labels cover
 what the report text states. Names of natural persons in these texts and in the page fixtures
 are replaced with fictional ones; company names are real.
 

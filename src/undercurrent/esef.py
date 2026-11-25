@@ -1,8 +1,8 @@
-"""Company fundamentals from ESEF annual reports (the start of DECISIONS item "fundamentals").
+"""Company fundamentals from ESEF annual reports.
 
 Since 2021 every issuer on a regulated EU market files its annual report in ESEF: an XHTML
 document with every number in the financial statements tagged in iXBRL. The exchange's copy
-of the attachment sits behind bot protection (SOURCES § 4), so the filings come from
+of the attachment sits behind bot protection, so the filings come from
 **filings.xbrl.org**, the public repository run by XBRL International, which converts each
 filing to xBRL-JSON. Its LEIs are mapped to ISINs with **GLEIF**'s public API.
 

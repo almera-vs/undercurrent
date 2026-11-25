@@ -1,8 +1,4 @@
-"""URL builders for the official GPW / NewConnect / ESPI-EBI endpoints.
-
-Every pattern here is documented, with samples and the date it was verified, in
-``docs/SOURCES.md``. Keep the two in sync.
-"""
+"""URL builders for the official GPW / NewConnect / ESPI-EBI endpoints."""
 
 from __future__ import annotations
 

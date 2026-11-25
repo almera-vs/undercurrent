@@ -3,7 +3,7 @@
 The exchange publishes, for every main-market company, a table at ``gpw.pl/wskazniki``
 (domestic and foreign companies): ISIN, ticker, sector code and name, shares issued, market
 value and book value in millions of złoty, the date and type of the latest financial report,
-P/BV, P/E and dividend yield. It is plain HTML without bot protection (SOURCES § 13).
+P/BV, P/E and dividend yield. It is plain HTML without bot protection.
 
 Only today's table is free (the exchange sells the history), so each nightly run lands it
 into ``bronze/indicators_gpw/date=<session>/`` and the history grows from the first run

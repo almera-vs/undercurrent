@@ -1,6 +1,6 @@
 """Pipeline orchestration: ingest → parse → dbt → study → publish.
 
-Plain function calls, no orchestrator (see ``docs/SCALING.md`` for why). The commit of
+Plain function calls, no orchestrator. The commit of
 new Parquet partitions to the ``data`` branch is a workflow step, not Python.
 """
 

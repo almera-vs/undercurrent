@@ -2,7 +2,7 @@
 
 * Polish number and date parsers (property-tested with Hypothesis).
 * Insider-transaction field extraction from the report body. The PDF notification
-  forms are not retrievable (see ``docs/DECISIONS.md``), so fields come from what the
+  forms are not retrievable, so fields come from what the
   issuer wrote in ``Treść raportu``. A field the text doesn't state is ``None`` and the
   reason is recorded in ``parse_notes``. Nothing is inferred or guessed.
 * :func:`build_silver_reports` turns ``bronze/reports`` into ``silver/report_fields``.
