@@ -48,6 +48,7 @@ MAX_ITEMS = 15  # per mover; which go first beyond it: ``timeline``
 LOOKBACK_DAYS = 3  # bronze partitions read around the session (weekends, late items)
 DOWN_AFTER = 3  # a source that fails this many companies in a row is skipped for the night
 DOWN_OUTCOMES = frozenset({Outcome.BLOCKED, Outcome.UNREACHABLE, Outcome.RATE_LIMITED})
+RECHECK_DAYS = 7  # a portal symbol lookup that failed is tried again after this long
 
 
 @dataclass(frozen=True)
@@ -182,6 +183,42 @@ _SYMBOL_SCHEMA: dict[str, Any] = {
 }
 
 
+def _look_up(
+    client: PoliteClient,
+    source: str,
+    info: common.CompanyInfo,
+    symbols: _Symbols,
+    now: Callable[[], datetime],
+) -> news.PageResult | None:
+    """Find the portal's symbol for the company and store it; a result only when it is down."""
+    outcome, found, detail = news.resolve_symbol(
+        client, source, info.company(), info.short_name, throttle=None
+    )
+    if outcome in DOWN_OUTCOMES or outcome is Outcome.DRIFT:
+        return news.PageResult(outcome, [], None, detail)
+    old = symbols.get(info.isin, source)
+    if outcome is not Outcome.OK and old is not None and old["outcome"] == "ok":
+        return None  # a failed lookup does not replace a symbol that worked
+    symbols.set(
+        {
+            "isin": info.isin,
+            "source": source,
+            "symbol": found.symbol if found else None,
+            "page_name": found.page_name if found else None,
+            "outcome": "ok" if outcome is Outcome.OK else str(outcome),
+            "checked_at": now(),
+        }
+    )
+    return None
+
+
+def _due(sym: dict[str, Any] | None, at: datetime) -> bool:
+    """Whether a company's symbol is to be looked up: never was, or failed long enough ago."""
+    if sym is None:
+        return True
+    return bool(sym["outcome"] != "ok" and sym["checked_at"] <= at - timedelta(days=RECHECK_DAYS))
+
+
 def _page_items(
     client: PoliteClient,
     source: str,
@@ -191,37 +228,43 @@ def _page_items(
     until: datetime,
     now: Callable[[], datetime],
 ) -> news.PageResult:
-    """The first page of a company's news on one portal, its symbol resolved once."""
+    """The first page of a company's news on one portal.
+
+    The portal's symbol is looked up once and stored. A lookup that failed (an HTTP error,
+    or no page for the company) is tried again after ``RECHECK_DAYS``; a stored symbol whose
+    page fails or shows another company is looked up again at once, since portals move
+    companies to new codes.
+    """
     sym = symbols.get(info.isin, source)
-    if sym is None:
-        outcome, found, detail = news.resolve_symbol(
-            client, source, info.company(), info.short_name, throttle=None
+    fresh = False
+    if _due(sym, now()):
+        down = _look_up(client, source, info, symbols, now)
+        if down is not None:
+            return down
+        sym, fresh = symbols.get(info.isin, source), True
+    for attempt in range(2):
+        if not sym or not sym["symbol"]:
+            return news.PageResult(Outcome.EMPTY, [], None, "no symbol")
+        page = news.fetch_company(
+            client,
+            source,
+            info.company(),
+            since=since,
+            until=until,
+            max_pages=1,
+            symbol=sym["symbol"],
+            now=now,
         )
-        if outcome in DOWN_OUTCOMES or outcome is Outcome.DRIFT:
-            return news.PageResult(outcome, [], None, detail)
-        symbols.set(
-            {
-                "isin": info.isin,
-                "source": source,
-                "symbol": found.symbol if found else None,
-                "page_name": found.page_name if found else None,
-                "outcome": "ok" if outcome is Outcome.OK else str(outcome),
-                "checked_at": now(),
-            }
-        )
-        sym = symbols.get(info.isin, source)
-    if not sym or not sym["symbol"]:
-        return news.PageResult(Outcome.EMPTY, [], None, "no symbol")
-    return news.fetch_company(
-        client,
-        source,
-        info.company(),
-        since=since,
-        until=until,
-        max_pages=1,
-        symbol=sym["symbol"],
-        now=now,
-    )
+        moved = page.outcome is Outcome.HTTP_ERROR or page.detail == news.NOT_THIS_COMPANY
+        if fresh or attempt or not moved:
+            return page
+        down = _look_up(client, source, info, symbols, now)
+        if down is not None:
+            return down
+        old, sym = sym["symbol"], symbols.get(info.isin, source)
+        if sym and sym["symbol"] == old:
+            return page  # same code: the page itself is failing tonight
+    return page
 
 
 def collect(
@@ -341,6 +384,33 @@ def _story_key(title: str) -> str:
     return " ".join(_SPACE.sub(" ", normalize(title)).split()[:10])
 
 
+# One outlet re-titles a story as it develops ("Gwarancja do 550 mln USD", then "... mln
+# dol."; "Kurs lekko w górę", then "Kurs się waha"). Two of its headlines are one story when
+# they share this share of their words, or the shorter one's words nearly all sit in the
+# longer one ("Kwartalne wyniki X bez niespodzianek" in "... bez dużych niespodzianek").
+RETITLE_SHARE = 0.6
+RETITLE_INSIDE = 0.8
+RETITLE_MIN_WORDS = 4
+
+
+def _words(title: str) -> frozenset[str]:
+    return frozenset(_SPACE.sub(" ", normalize(title)).split())
+
+
+def _retitled(a: frozenset[str], b: frozenset[str]) -> bool:
+    """Whether two headlines of one outlet are the same story re-titled."""
+    shared = len(a & b)
+    shorter = min(len(a), len(b))
+    if shorter < RETITLE_MIN_WORDS:
+        return False
+    return shared / len(a | b) >= RETITLE_SHARE or shared / shorter >= RETITLE_INSIDE
+
+
+def _extends(new: frozenset[str], old: frozenset[str]) -> bool:
+    """Whether a re-titled headline keeps the old one's words and adds to them."""
+    return len(new) > len(old) and len(new & old) / len(old) >= RETITLE_INSIDE
+
+
 def timeline(
     mover: Mover,
     info: common.CompanyInfo,
@@ -356,7 +426,12 @@ def timeline(
     Each entry: ``id``, ``kind`` (filing / headline), ``at`` (UTC), ``precision`` (minute /
     day), ``source`` (ESPI, EBI or the outlet), ``title``, ``url``, ``after_close``,
     ``routine`` (a filing that does not move prices, per ``report_rank``) and ``event`` (a
-    filing that can move prices, or a headline naming a price-moving event, ``news.EVENT``).
+    filing that can move prices, or a headline naming a price-moving event,
+    ``news.names_event``).
+
+    A headline is left out when it is not about the company, when it repeats a story
+    already listed (on another portal, or re-titled by the same outlet), and, from Google
+    News, when it names no event.
 
     Beyond ``MAX_ITEMS`` the items least likely to bear on the move go first: routine
     filings, then what came after the close, then the latest headlines of the session. The
@@ -397,6 +472,7 @@ def timeline(
         (i for i in items if i.isin == mover.isin),
         key=lambda i: (i.precision != "minute", rank_src.get(i.source, 9), i.published_at),
     )
+    by_outlet: dict[str, list[tuple[frozenset[str], int]]] = {}  # words, index in ``out``
     for it in heads:
         if it.precision == "minute" and not since < it.published_at <= end:
             continue
@@ -404,24 +480,40 @@ def timeline(
             continue
         if not about_company(it, company, names):
             continue
+        # Google is asked only about stocks the portals said nothing about, where most of
+        # what names the company is something else: a namesake (the Dutch Action for
+        # ACTION), a sponsorship, a webinar. Only its headlines that name an event stay.
+        if it.source == news.GOOGLE and not news.names_event(it.title):
+            continue
         key = _story_key(it.title)
         if key in seen:
             continue
         seen.add(key)
-        out.append(
-            {
-                "id": common.item_id(it.source, it.url),
-                "kind": "headline",
-                "at": it.published_at,
-                "precision": it.precision,
-                "source": it.outlet or it.source,
-                "title": it.title,
-                "url": it.url,
-                "after_close": it.precision == "minute" and it.published_at > close,
-                "routine": False,
-                "event": news.EVENT.search(normalize(it.title)) is not None,
-            }
-        )
+        entry = {
+            "id": common.item_id(it.source, it.url),
+            "kind": "headline",
+            "at": it.published_at,
+            "precision": it.precision,
+            "source": it.outlet or it.source,
+            "title": it.title,
+            "url": it.url,
+            "after_close": it.precision == "minute" and it.published_at > close,
+            "routine": False,
+            "event": news.names_event(it.title),
+        }
+        words = _words(it.title)
+        versions = by_outlet.setdefault(normalize(it.outlet or it.source), [])
+        k = next((k for k, (w, _i) in enumerate(versions) if _retitled(words, w)), None)
+        if k is None:
+            versions.append((words, len(out)))
+            out.append(entry)
+        elif _extends(words, versions[k][0]):
+            # a later version that adds to the first ("Akcje Żabki ostro w górę", then
+            # "... Właściciel 7-Eleven chce kupić akcje") replaces it, with its own time
+            versions[k] = (words, versions[k][1])
+            out[versions[k][1]] = entry
+        # otherwise a re-wording: the outlet's first version stays, the one before most of
+        # the move
     kept = sorted(out, key=_keep_order)[:MAX_ITEMS]
     return sorted(kept, key=lambda e: e["at"], reverse=True)
 

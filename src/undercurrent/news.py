@@ -58,6 +58,8 @@ RETRY_AFTER_DEFAULT_S = 30.0
 MAX_ATTEMPTS = 3
 # A listing page this large with no recognisable item markup is treated as drift, not as "no news".
 DRIFT_MIN_BYTES = 5_000
+# the detail of an EMPTY result whose page is not the company's
+NOT_THIS_COMPANY = "page is not this company"
 
 
 class Outcome(StrEnum):
@@ -401,6 +403,25 @@ EVENT = re.compile(
     r"premier\w*|badani\w* klinicz\w*|wyniki badania|biorownowaz\w*|patent\w*"
     r")\b"
 )
+# The same events in English, for the outlets Google News finds that write in English
+# ("Robyg had PLN 49.03 mln in net profit in Q3"). Headlines only: filings are judged by
+# ``EVENT`` alone.
+EVENT_EN = re.compile(
+    r"\b("
+    r"results?|earnings|profits?|loss(?:es)?|revenues?|ebitda|guidance|forecasts?|"
+    r"q[1-4]|quarter(?:ly)?|dividends?|buy-?backs?|share issue|ipo|"
+    r"contracts?|deals?|orders?|tenders?|acqui\w*|takeover\w*|mergers?|"
+    r"recommend\w*|target price|downgrade\w*|upgrade\w*|"
+    r"court|lawsuit\w*|fined|fines|regulators?|approv\w*|licen[cs]e\w*|"
+    r"bankrupt\w*|insolven\w*|restructur\w*|delist\w*"
+    r")\b"
+)
+
+
+def names_event(title: str) -> bool:
+    """Whether a headline names a price-moving event (``EVENT``, or ``EVENT_EN``)."""
+    t = normalize(title)
+    return EVENT.search(t) is not None or EVENT_EN.search(t) is not None
 
 
 def _mention(title: str, term: str) -> bool:
@@ -580,7 +601,7 @@ def resolve_symbol(
         name = htmllib.unescape(t.group(1)).strip() if t else ""
         ok = page_identity_ok(html, source, probe)
     if not ok:
-        return Outcome.EMPTY, None, "page is not this company"
+        return Outcome.EMPTY, None, NOT_THIS_COMPANY
     return Outcome.OK, PortalSymbol(source, symbol, name), detail
 
 
@@ -627,7 +648,7 @@ def fetch_company(
             company.noise_terms,
         )
         if pages == 0 and not page_identity_ok(html, source, probe):
-            return PageResult(Outcome.EMPTY, [], None, "page is not this company")
+            return PageResult(Outcome.EMPTY, [], None, NOT_THIS_COMPANY)
         page = parse(html, isin=company.isin, fetched_at=now(), base=url)
         if page.outcome is Outcome.DRIFT:
             return PageResult(Outcome.DRIFT, collected, None, page.detail)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
@@ -35,10 +35,14 @@ def _names() -> common.NameIndex:
 
 
 def _item(
-    title: str, at: datetime, source: str = news.BANKIER, prec: Literal["minute", "day"] = "minute"
+    title: str,
+    at: datetime,
+    source: str = news.BANKIER,
+    prec: Literal["minute", "day"] = "minute",
+    outlet: str = "Bankier",
 ) -> NewsItem:
     url = f"https://x.test/{abs(hash((title, at)))}"
-    return NewsItem(ALFA, source, "Bankier", at, prec, title, url, NOW)
+    return NewsItem(ALFA, source, outlet, at, prec, title, url, NOW)
 
 
 def _reports(rows: list[dict[str, Any]]) -> pl.DataFrame:
@@ -131,6 +135,69 @@ def test_timeline_drops_other_companies_noise_and_repeats() -> None:
     ]
 
 
+def test_an_outlets_retitled_headline_is_one_story() -> None:
+    # as on 24 Nov 2026: Parkiet re-titled its story about the guarantee within half an hour
+    titles = [
+        ("Alfa Testowa poręczy kredyt. Gwarancja do 550 mln dol.", _warsaw(11, 17, 14, 43)),
+        ("Alfa Testowa poręczy kredyt. Gwarancja do 550 mln USD", _warsaw(11, 17, 15, 13)),
+        ("Alfa Testowa: wyniki bez dużych niespodzianek. Kurs się waha", _warsaw(11, 17, 9, 46)),
+        ("Alfa Testowa: wyniki bez dużych niespodzianek. Kurs w górę", _warsaw(11, 17, 11, 30)),
+    ]
+    items = [_item(t, at, outlet="Parkiet") for t, at in titles]
+    tl = nt.timeline(MOVER, _info(), items, _reports([]), _names(), TUE)
+    assert [(e["title"], e["at"]) for e in tl] == [titles[0], titles[2]]
+
+
+def test_a_later_version_that_adds_to_a_headline_replaces_it() -> None:
+    items = [
+        _item("Akcje Alfy Testowej ostro w górę", _warsaw(11, 17, 10, 0), outlet="Parkiet"),
+        _item(
+            "Kurs Alfy Testowej ostro w górę. Inwestor chce kupić akcje",
+            _warsaw(11, 17, 10, 40),
+            outlet="Parkiet",
+        ),
+    ]
+    info = common.CompanyInfo(ALFA, "ALFA", "Alfa Testowa", ("Alfy Testowej",))
+    tl = nt.timeline(MOVER, info, items, _reports([]), _names(), TUE)
+    assert [(e["title"], e["at"]) for e in tl] == [
+        ("Kurs Alfy Testowej ostro w górę. Inwestor chce kupić akcje", _warsaw(11, 17, 10, 40))
+    ]
+
+
+def test_two_stories_of_one_outlet_both_stay() -> None:
+    items = [
+        _item(
+            "Alfa Testowa podtrzymuje, że sklepy osiągną rentowność w IV kw.",
+            _warsaw(11, 17, 13, 24),
+        ),
+        _item("Alfa Testowa ocenia, że początek IV kw. jest bardzo dobry", _warsaw(11, 17, 12, 42)),
+        _item("Alfa Testowa", _warsaw(11, 17, 14, 0), outlet="Parkiet"),  # too short to compare
+    ]
+    tl = nt.timeline(MOVER, _info(), items, _reports([]), _names(), TUE)
+    assert len(tl) == 3
+
+
+def test_google_keeps_only_headlines_that_name_an_event() -> None:
+    def google(title: str, hh: int) -> NewsItem:
+        return _item(title, _warsaw(11, 17, hh, 0), news.GOOGLE, outlet=f"outlet{hh}.test")
+
+    items = [
+        # a namesake and a sponsorship: what Google finds for a stock the portals skipped
+        google("Rywal Alfa Testowa otwiera pierwszy sklep na Mazowszu", 9),
+        google("Tenisistka z nowym sponsorem: Alfa Testowa", 10),
+        google("Alfa Testowa had PLN 49 mln in net profit in Q3", 11),  # English, an event
+        google("Alfa Testowa ma nowy kontrakt", 12),
+        # the portals' own pages are about the company: kept without an event
+        _item("Alfa Testowa otwiera drugi sklep na Mazowszu", _warsaw(11, 17, 13, 0)),
+    ]
+    tl = nt.timeline(MOVER, _info(), items, _reports([]), _names(), TUE)
+    assert [(e["title"], e["event"]) for e in tl] == [
+        ("Alfa Testowa otwiera drugi sklep na Mazowszu", False),
+        ("Alfa Testowa ma nowy kontrakt", True),
+        ("Alfa Testowa had PLN 49 mln in net profit in Q3", True),
+    ]
+
+
 def test_date_only_headline_belongs_to_its_day() -> None:
     items = [
         _item("Alfa Testowa ma nowy kontrakt", _warsaw(11, 17, 9, 0), news.GOOGLE, "day"),
@@ -215,6 +282,97 @@ def test_a_source_that_keeps_failing_is_left_out_and_the_rest_carries_on(
     assert calls.count(news.BIZNESRADAR) == nt.DOWN_AFTER
     assert calls.count(news.BANKIER) == 5 and calls.count(news.GOOGLE) == 5
     assert set(res.down) == {news.BIZNESRADAR}
+
+
+def _symbol_row(symbol: str | None, outcome: str, checked_at: datetime) -> dict[str, Any]:
+    return {
+        "isin": ALFA,
+        "source": news.BANKIER,
+        "symbol": symbol,
+        "page_name": "Alfa Testowa SA" if symbol else None,
+        "outcome": outcome,
+        "checked_at": checked_at,
+    }
+
+
+def _portal(
+    monkeypatch: pytest.MonkeyPatch,
+    found: tuple[Outcome, str | None],
+    pages: list[news.PageResult],
+) -> tuple[list[str], list[str]]:
+    """Fake symbol lookup and page fetch; returns the guesses looked up and symbols fetched."""
+    looked: list[str] = []
+    fetched: list[str] = []
+
+    def resolve(client: Any, source: str, company: Any, guess: str, **kw: Any) -> Any:
+        looked.append(guess)
+        outcome, symbol = found
+        sym = news.PortalSymbol(source, symbol, "Alfa Testowa SA") if symbol else None
+        return outcome, sym, str(outcome)
+
+    def fetch(client: Any, source: str, company: Any, **kw: Any) -> news.PageResult:
+        fetched.append(kw["symbol"])
+        return pages.pop(0)
+
+    monkeypatch.setattr(news, "resolve_symbol", resolve)
+    monkeypatch.setattr(news, "fetch_company", fetch)
+    return looked, fetched
+
+
+def _page(symbols: Any, at: datetime) -> news.PageResult:
+    return nt._page_items(
+        _Client(),  # type: ignore[arg-type]
+        news.BANKIER,
+        _info(),
+        symbols,
+        at,
+        at,
+        lambda: at,
+    )
+
+
+def test_a_failed_symbol_lookup_is_tried_again_after_a_week(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    looked, fetched = _portal(monkeypatch, (Outcome.OK, "ALF"), [news.PageResult(Outcome.OK, [])])
+    symbols = nt._Symbols(tmp_path)
+    symbols.set(_symbol_row(None, "http_error", NOW))  # a server error on the first night
+
+    assert _page(symbols, NOW + timedelta(days=1)).detail == "no symbol"
+    assert looked == [] and fetched == []
+
+    assert _page(symbols, NOW + timedelta(days=nt.RECHECK_DAYS)).outcome is Outcome.OK
+    assert looked == ["ALFA"] and fetched == ["ALF"]
+    assert symbols.get(ALFA, news.BANKIER)["outcome"] == "ok"  # type: ignore[index]
+
+
+def test_a_symbol_whose_page_shows_another_company_is_looked_up_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pages = [
+        news.PageResult(Outcome.EMPTY, [], None, news.NOT_THIS_COMPANY),
+        news.PageResult(Outcome.OK, []),
+    ]
+    looked, fetched = _portal(monkeypatch, (Outcome.OK, "NEW"), pages)
+    symbols = nt._Symbols(tmp_path)
+    symbols.set(_symbol_row("OLD", "ok", NOW))
+
+    assert _page(symbols, NOW).outcome is Outcome.OK
+    assert fetched == ["OLD", "NEW"] and looked == ["ALFA"]
+    assert symbols.get(ALFA, news.BANKIER)["symbol"] == "NEW"  # type: ignore[index]
+
+
+def test_a_failed_lookup_keeps_the_symbol_that_worked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pages = [news.PageResult(Outcome.HTTP_ERROR, [], None, "HTTP 500")]
+    looked, fetched = _portal(monkeypatch, (Outcome.HTTP_ERROR, None), pages)
+    symbols = nt._Symbols(tmp_path)
+    symbols.set(_symbol_row("ALF", "ok", NOW))
+
+    assert _page(symbols, NOW).outcome is Outcome.HTTP_ERROR
+    assert fetched == ["ALF"] and looked == ["ALFA"]
+    assert symbols.get(ALFA, news.BANKIER)["symbol"] == "ALF"  # type: ignore[index]
 
 
 def test_collected_items_land_in_bronze_by_publication_day(
